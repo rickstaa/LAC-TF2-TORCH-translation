@@ -149,7 +149,8 @@ class LAC(object):
 
             self.sess.run(tf.global_variables_initializer())
             self.saver = tf.train.Saver()
-            self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss]
+            # self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss]
+            self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss, l_target, labda_loss] # DEBUG: Change for debugging
 
             if self.use_lyapunov is True:
                 self.opt = [self.ltrain, self.lambda_train]
@@ -192,7 +193,8 @@ class LAC(object):
             feed_dict.update({self.V:bv, self.R_N_:b_r_})
 
         self.sess.run(self.opt, feed_dict)
-        labda, alpha, l_error, entropy, a_loss = self.sess.run(self.diagnotics, feed_dict)
+        # labda, alpha, l_error, entropy, a_loss = self.sess.run(self.diagnotics, feed_dict)
+        labda, alpha, l_error, entropy, a_loss, l_target, labda_loss = self.sess.run(self.diagnotics, feed_dict) # DEBUG: FOR debugging
 
         return labda, alpha, l_error, entropy, a_loss
 

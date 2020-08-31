@@ -106,23 +106,23 @@ class SquashedGaussianMLPActor(nn.Module):
         pi_distribution = Normal(mu, sigma)
         raw_action = (
             pi_distribution.rsample()
+            # DEBUG: The tensorflow implmentation samples
         )  # Sample while using the parameterization trick
 
         # Compute log probability in squashed gaussian
         if with_logprob:
-            # DEBUG:
             # Compute logprob from Gaussian, and then apply correction for Tanh
             # squashing. NOTE: The correction formula is a little bit magic. To get an
             # understanding of where it comes from, check out the original SAC paper
             # (arXiv 1801.01290) and look in appendix C. This is a more
             # numerically-stable equivalent to Eq 21. Try deriving it yourself as a
             # (very difficult) exercise. :)
-            distribution = pi_distribution.log_prob(raw_action).sum(axis=-1)
-            distribution -= (2 * (np.log(2) - raw_action - F.softplus(-2 * raw_action))).sum(
+            logp_pi = pi_distribution.log_prob(raw_action).sum(axis=-1)
+            logp_pi -= (2 * (np.log(2) - raw_action - F.softplus(-2 * raw_action))).sum(
                 axis=1
             )
         else:
-            distribution = None
+            logp_pi = None
 
         # Calculate scaled action and return the action and its log probability
         clipped_a = torch.tanh(raw_action)  # Squash gaussian to be between -1 and 1
@@ -133,4 +133,5 @@ class SquashedGaussianMLPActor(nn.Module):
         clipped_mu = mu
 
         # Return action and log likelihood
-        return clipped_a, clipped_mu, distribution
+        # Debug: The LAC expects a distribution we already return the log probabilities
+        return clipped_a, clipped_mu, logp_pi

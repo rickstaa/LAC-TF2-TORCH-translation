@@ -116,8 +116,8 @@ class LAC(object):
             self.polyak = (1 - tau)
 
             # Create trainable variables (Lagrance multipliers)
-            self.log_labda = torch.tensor(labda).log() #TODO: I think we might have to add requires grad # Lyapunov lagrance tuning
-            self.log_alpha = torch.tensor(alpha).log() #TODO: I think we might have to add requires grad # Entropy Temperature
+            self.log_labda = torch.tensor(labda).log()
+            self.log_alpha = torch.tensor(alpha).log()
             self.log_labda.requires_grad = True  # Enable gradient computation
             self.log_alpha.requires_grad = True  # Enable gradient computation
             # self.labda = tf.clip_by_value(tf.exp(log_labda), *SCALE_lambda_MIN_MAX) # Created as property # NOTE: Created as property
@@ -126,8 +126,8 @@ class LAC(object):
             # Create Main networks
             # NOTE: The self.S and self.a_input arguments are ignored in the pytorch
             # case. The action and observation space comes from self.s_dim, self.a_dim
-            self.ga = self._build_a(self.S) # 这个网络用于及时更新参数
-            self.lc = self._build_l(self.S, self.a_input)   # lyapunov 网络
+            self.ga = self._build_a(self.S) # 这个网络用于及时更新参数 # TODO: CHECK Network creation
+            self.lc = self._build_l(self.S, self.a_input)   # lyapunov 网络 # TODO: CHECK Network creation
 
             # Get other script variables
             self.use_lyapunov = variant['use_lyapunov']
@@ -136,8 +136,8 @@ class LAC(object):
             # Create target networks
             # NOTE: The self.S and self.a_input arguments are ignored in the pytorch
             # case. The action and observation space comes from self.s_dim, self.a_dim
-            self.ga_ = self._build_a(self.S_)
-            self.lc_ = self._build_l(self.S_, self.a_input_)
+            self.ga_ = self._build_a(self.S_) # TODO: CHECK Network creation
+            self.lc_ = self._build_l(self.S_, self.a_input_) # TODO: CHECK Network creation
 
             # Freeze target networks
             for p in self.ga_.parameters():
@@ -149,7 +149,7 @@ class LAC(object):
             self.lya_ga_ = self._build_a(self.S_)
             self.lya_lc_ = self._build_l(self.S_, self.a_input)
 
-            # Make the lyapunov actor untrainable
+            # Make the lyapunov actor un-trainable
             for p in self.lya_ga_.parameters():
                 p.requires_grad = False
             for p in self.lya_lc_.parameters():
@@ -369,7 +369,7 @@ class LAC(object):
             # Calculate log probability of a_input based on current policy
             # FIXME: Possible cause of deviation - Do we need to put i there or can we also put it in a function and compute multiple times?
             self.a, self.deterministic_a, self.a_dist = self.ga(self.S)
-            self.log_pis = log_pis = self.a_dist # TODO: Check if this is correct
+            self.log_pis = log_pis = self.a_dist # DEBUG: Tf version returns distribution and then calculates the log probability should be similar right?
 
             # Calculate current and target lyapunov value
             self.l = self.lc(self.S, self.a_input)
