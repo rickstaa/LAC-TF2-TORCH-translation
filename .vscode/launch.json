@@ -9,7 +9,17 @@
       "type": "python",
       "request": "launch",
       "program": "${file}",
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
+      "env": {"DISPLAY": ":0"}
+    },
+    {
+      "name": "Python: Current File (TEST2)",
+      "type": "python",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "env": {"DISPLAY": ":0"},
+      "pythonPath": "/home/ricks/miniconda3/envs/test2/bin/python"
     },
     {
       "name": "Python: Current File (TF)",

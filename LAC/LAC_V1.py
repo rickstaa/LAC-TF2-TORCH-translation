@@ -18,7 +18,7 @@ from variant import *
 SCALE_DIAG_MIN_MAX = (-20, 2)
 SCALE_lambda_MIN_MAX = (0, 1)
 
-
+np.random.seed(0)
 class LAC(object):
     def __init__(self,
                  a_dim,
@@ -150,7 +150,7 @@ class LAC(object):
             self.sess.run(tf.global_variables_initializer())
             self.saver = tf.train.Saver()
             # self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss]
-            self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss, l_target, labda_loss] # DEBUG: Change for debugging
+            self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss, l_target, labda_loss, self.l_derta, log_labda, self.l_, self.l, self.R] # DEBUG: Change for debugging
 
             if self.use_lyapunov is True:
                 self.opt = [self.ltrain, self.lambda_train]
@@ -194,7 +194,7 @@ class LAC(object):
 
         self.sess.run(self.opt, feed_dict)
         # labda, alpha, l_error, entropy, a_loss = self.sess.run(self.diagnotics, feed_dict)
-        labda, alpha, l_error, entropy, a_loss, l_target, labda_loss = self.sess.run(self.diagnotics, feed_dict) # DEBUG: FOR debugging
+        labda, alpha, l_error, entropy, a_loss, l_target, labda_loss, l_derta , log_labda, l_, l, R = self.sess.run(self.diagnotics, feed_dict) # DEBUG: FOR debugging
 
         return labda, alpha, l_error, entropy, a_loss
 

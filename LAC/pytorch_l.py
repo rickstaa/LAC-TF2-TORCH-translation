@@ -30,9 +30,9 @@ class MLPLFunction(nn.Module):  # TODO: Confusing names
         n1 = hidden_sizes['critic'][0]
 
         # Setup input layer weights and biases
-        self.w1_s = torch.randn((obs_dim, n1), requires_grad=True)
-        self.w1_a = torch.randn((act_dim, n1), requires_grad=True)
-        self.b1 = torch.randn((1, n1), requires_grad=True)
+        self.w1_s = nn.Parameter(torch.randn((obs_dim, n1), requires_grad=True))
+        self.w1_a = nn.Parameter(torch.randn((act_dim, n1), requires_grad=True))
+        self.b1 = nn.Parameter(torch.randn((1, n1), requires_grad=True))
 
         # Create hidden layers of the Lyapunov network
         # DEBUG: This should be similar right weighted sum as in a linear layer

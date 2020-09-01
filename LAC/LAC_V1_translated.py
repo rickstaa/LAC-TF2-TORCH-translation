@@ -18,15 +18,11 @@ from pool.pool import Pool
 import logger
 from variant import *
 
-# Wheter you want to use Pytorch instead of tensorflow
-USE_PYTORCH = True
-# USE_PYTORCH = False
-
 # ===============================
 # BEGIN >>> Pytorch CODE ========
 # ===============================
+from itertools import chain
 import os.path as osp
-
 from collections import OrderedDict
 import torch
 import torch.nn as nn
@@ -39,9 +35,17 @@ from .pytorch_l import MLPLFunction
 # END <<<<< Pytorch CODE ========
 # ===============================
 
+# Wheter you want to use Pytorch instead of tensorflow
+USE_PYTORCH = True
+# USE_PYTORCH = False
+
 SCALE_DIAG_MIN_MAX = (-20, 2)
 SCALE_lambda_MIN_MAX = (0, 1)
 
+# FIXME! REMOVE LATER!
+torch.manual_seed(0)
+torch.cuda.manual_seed(0)
+np.random.seed(0)
 
 class LAC(object):
     def __init__(self,
@@ -126,7 +130,9 @@ class LAC(object):
             # Create Main networks
             # NOTE: The self.S and self.a_input arguments are ignored in the pytorch
             # case. The action and observation space comes from self.s_dim, self.a_dim
+            torch.manual_seed(50) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.ga = self._build_a(self.S) # 这个网络用于及时更新参数 # TODO: CHECK Network creation
+            torch.manual_seed(40) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.lc = self._build_l(self.S, self.a_input)   # lyapunov 网络 # TODO: CHECK Network creation
 
             # Get other script variables
@@ -136,7 +142,9 @@ class LAC(object):
             # Create target networks
             # NOTE: The self.S and self.a_input arguments are ignored in the pytorch
             # case. The action and observation space comes from self.s_dim, self.a_dim
+            torch.manual_seed(30) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.ga_ = self._build_a(self.S_) # TODO: CHECK Network creation
+            torch.manual_seed(20) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.lc_ = self._build_l(self.S_, self.a_input_) # TODO: CHECK Network creation
 
             # Freeze target networks
@@ -146,7 +154,9 @@ class LAC(object):
                 p.requires_grad = False
 
             # Create untrainable lyapunov actor and l_target
+            torch.manual_seed(10) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.lya_ga_ = self._build_a(self.S_)
+            torch.manual_seed(5) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.lya_lc_ = self._build_l(self.S_, self.a_input)
 
             # Make the lyapunov actor un-trainable
@@ -156,9 +166,11 @@ class LAC(object):
                 p.requires_grad = False
 
             # Create optimizers
+            # lc_params = [self.lc.w1_s, self.lc_.w1_a, self.lc_.b1, self.lc.parameters()]
             # Set up optimizers for policy, q-function and alpha temperature regularization
             self.pi_optimizer = Adam(self.ga.parameters(), lr=self.LR_A)
-            self.l_optimizer = Adam(self.lc.parameters(), lr=self.LR_L)
+            self.l_optimizer = Adam(self.lc.parameters(), lr=self.LR_L) # FIXME: Weight and bias of first layer was not updated
+            # self.l_optimizer = Adam(chain(*lc_params), lr=self.LR_L)
             self.log_alpha_optimizer = Adam([self.log_alpha], lr=self.LR_A)
             self.log_labda_optimizer = Adam([self.log_labda], lr=self.LR_lag) # Question: Why isn't the learnign rate of lyapunov decreased?
 
@@ -368,13 +380,15 @@ class LAC(object):
 
             # Calculate log probability of a_input based on current policy
             # FIXME: Possible cause of deviation - Do we need to put i there or can we also put it in a function and compute multiple times?
-            self.a, self.deterministic_a, self.a_dist = self.ga(self.S)
-            self.log_pis = log_pis = self.a_dist # DEBUG: Tf version returns distribution and then calculates the log probability should be similar right?
+            _, _, self.a_dist = self.ga(self.S)
+            log_pis = self.a_dist # DEBUG: Tf version returns distribution and then calculates the log probability should be similar right?
+            self.log_pis = log_pis.detach()
 
             # Calculate current and target lyapunov value
             self.l = self.lc(self.S, self.a_input)
-            lya_a_, _, _ = self.lya_ga_(self.S_)
-            self.l_ = self.lya_lc_(self.S_, lya_a_)
+            with torch.no_grad():
+                lya_a_, _, _ = self.lya_ga_(self.S_)
+                self.l_ = self.lya_lc_(self.S_, lya_a_)
 
             # Lyapunov constraint
             self.l_derta = torch.mean(self.l_ - self.l + (self.alpha3) * self.R)
@@ -387,10 +401,10 @@ class LAC(object):
             self.log_labda_optimizer.zero_grad()
 
             # Calculate lyapunov multiplier loss
-            labda_loss = -torch.mean(self.log_labda * self.l_derta.detach())
+            labda_loss = -torch.mean(self.log_labda * self.l_derta.detach()) # Question: The mean is redundenat here right
             # DEBUG:
             # FIXME: I changed this to possitive now
-            # labda_loss = torch.mean(self.log_labda * self.l_derta.detach())
+            labda_loss = torch.mean(self.log_labda * self.l_derta.detach())
 
             # Perform SGD
             labda_loss.backward()
@@ -404,6 +418,7 @@ class LAC(object):
             self.log_alpha_optimizer.zero_grad()
 
             # Calculate alpha multiplier loss
+            # NOTE: This is very small!
             alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy).detach())
 
             # Perform SGD
@@ -451,11 +466,12 @@ class LAC(object):
             # with torch.no_grad():  # Make sure the gradients are not tracked
 
             # Get target lyapunov value out of lyapunov actor
-            a_, _, a_dist_ = self.ga_(self.S_)
-            l_ = self.lc_(self.S_, a_)
+            with torch.no_grad():
+                a_, _, _ = self.ga_(self.S_)
+                l_ = self.lc_(self.S_, a_)
 
             # Used when agent has to minimize reward is positive deviation (Minghoas version)
-            l_target = self.R + self.gamma * (1 - self.terminal) * l_.detach()
+            l_target = self.R + self.gamma * (1 - self.terminal) * l_.detach() # FIXME: Detach not needed since already torch.no_grad
 
             # Calculate lyapunov loss
             self.l_error = F.mse_loss(l_target, self.l)
@@ -465,7 +481,7 @@ class LAC(object):
             self.l_optimizer.step()
 
             # Calculate entropy and return diagnostics
-            entropy = torch.mean(-self.log_pis.detach())
+            entropy = torch.mean(-self.log_pis.detach()) # FIXME: Not needed since already done before
             return self.labda.detach(), self.alpha.detach(), self.l_error.detach(), entropy, self.a_loss.detach()
             # ===============================
             # END <<<<< Pytorch CODE ========

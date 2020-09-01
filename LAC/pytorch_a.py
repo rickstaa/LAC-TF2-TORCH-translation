@@ -103,6 +103,7 @@ class SquashedGaussianMLPActor(nn.Module):
 
         # Pre-squash distribution and sample
         # TODO: Check if this has the right size. LAC samples from base distribution
+        # Sample size is memory buffer size!
         pi_distribution = Normal(mu, sigma)
         raw_action = (
             pi_distribution.rsample()

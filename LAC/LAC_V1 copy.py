@@ -1,41 +1,11 @@
-SCALE_lambda_MIN_MAX = (0, 1)
-
-
-class LAC(object):
-    def __init__(self,
-                 a_dim,
-                 s_dim,
-                 variant,
-                 action_prior = 'uniform',
-                 ):
 
 
 
-        ###############################  Model parameters  ####################################
-        # self.memory_capacity = variant['memory_capacity']
 
-        self.batch_size = variant['batch_size']
-        self.network_structure = variant['network_structure']
-        gamma = variant['gamma']
 
-        tau = variant['tau']
-        self.approx_value = True if 'approx_value' not in variant.keys() else variant['approx_value']
-        # self.memory = np.zeros((self.memory_capacity, s_dim * 2 + a_dim+ d_dim + 3), dtype=np.float32)
-        # self.pointer = 0
-        self.sess = tf.Session()
-        self._action_prior = action_prior
-        s_dim = s_dim * (variant['history_horizon']+1)
-        self.a_dim, self.s_dim, = a_dim, s_dim
-        self.history_horizon = variant['history_horizon']
-        self.working_memory = deque(maxlen=variant['history_horizon']+1)
-        target_entropy = variant['target_entropy']
-        if target_entropy is None:
-            self.target_entropy = -self.a_dim   #lower bound of the policy entropy
-        else:
-            self.target_entropy = target_entropy
-        self.finite_horizon = variant['finite_horizon']
-        self.soft_predict_horizon = variant['soft_predict_horizon']
-        with tf.variable_scope('Actor'):
+
+
+
             self.S = tf.placeholder(tf.float32, [None, s_dim], 's')
             self.S_ = tf.placeholder(tf.float32, [None, s_dim], 's_')
             self.a_input = tf.placeholder(tf.float32, [None, a_dim], 'a_input')
@@ -52,103 +22,40 @@ class LAC(object):
             labda = variant['labda']
             alpha = variant['alpha']
             alpha3 = variant['alpha3']
-            log_labda = tf.get_variable('lambda', None, tf.float32, initializer=tf.log(labda))
-            log_alpha = tf.get_variable('alpha', None, tf.float32, initializer=tf.log(alpha))  # Entropy Temperature
-            self.labda = tf.clip_by_value(tf.exp(log_labda), *SCALE_lambda_MIN_MAX)
-            self.alpha = tf.exp(log_alpha)
 
-            self.a, self.deterministic_a, self.a_dist = self._build_a(self.S, )  # 这个网络用于及时更新参数
+            # ============ Create networks ==================
 
-            self.l = self._build_l(self.S, self.a_input)   # lyapunov 网络
+            # Main actor and critic
+            # self.a, self.deterministic_a, self.a_dist = self._build_a(self.S, )  # 这个网络用于及时更新参数
+            # self.l = self._build_l(self.S, self.a_input)   # lyapunov 网络
 
+            # Target actor criti
+            # a_, _, a_dist_ = self._build_a(self.S_, reuse=True, custom_getter=ema_getter)  # replaced target parameters
+            # l_ = self._build_l(self.S_, a_, reuse=True, custom_getter=ema_getter)
 
-            self.use_lyapunov = variant['use_lyapunov']
-            self.adaptive_alpha = variant['adaptive_alpha']
+            # Lyapunov target actor critic
+            # lya_a_, _, lya_a_dist_ = self._build_a(self.S_, reuse=True)
+            # self.l_ = self._build_l(self.S_, lya_a_, reuse=True)
 
-            a_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Actor/actor')
-            l_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Actor/Lyapunov')
+            # Calculate log probability
 
-            ###############################  Model Learning Setting  ####################################
-            ema = tf.train.ExponentialMovingAverage(decay=1 - tau)  # soft replacement
-
-            def ema_getter(getter, name, *args, **kwargs):
-                return ema.average(getter(name, *args, **kwargs))
-            target_update = [ema.apply(a_params),  ema.apply(l_params)]  # soft update operation
-
-            # 这个网络不及时更新参数, 用于预测 Critic 的 Q_target 中的 action
-            a_, _, a_dist_ = self._build_a(self.S_, reuse=True, custom_getter=ema_getter)  # replaced target parameters
-            lya_a_, _, lya_a_dist_ = self._build_a(self.S_, reuse=True)
-            # self.cons_a_input_ = tf.placeholder(tf.float32, [None, a_dim, 'cons_a_input_'])
-            # self.log_pis = log_pis = self.a_dist.log_prob(self.a)
-            self.log_pis = log_pis = self.a_dist.log_prob(self.a)
-            self.prob = tf.reduce_mean(self.a_dist.prob(self.a))
-
-            # 这个网络不及时更新参数, 用于给出 Actor 更新参数时的 Gradient ascent 强度
-
-            l_ = self._build_l(self.S_, a_, reuse=True, custom_getter=ema_getter)
-            self.l_ = self._build_l(self.S_, lya_a_, reuse=True)
-
+            # ============ Optimize networks ==================
             # lyapunov constraint
             self.l_derta = tf.reduce_mean(self.l_ - self.l + (alpha3) * self.R)
 
-            labda_loss = -tf.reduce_mean(log_labda * self.l_derta)
-            alpha_loss = -tf.reduce_mean(log_alpha * tf.stop_gradient(log_pis + self.target_entropy))
-            self.alpha_train = tf.train.AdamOptimizer(self.LR_A).minimize(alpha_loss, var_list=log_alpha)
-            self.lambda_train = tf.train.AdamOptimizer(self.LR_lag).minimize(labda_loss, var_list=log_labda)
 
-            if self._action_prior == 'normal':
-                policy_prior = tf.contrib.distributions.MultivariateNormalDiag(
-                    loc=tf.zeros(self.a_dim),
-                    scale_diag=tf.ones(self.a_dim))
-                policy_prior_log_probs = policy_prior.log_prob(self.a)
-            elif self._action_prior == 'uniform':
-                policy_prior_log_probs = 0.0
-
-            if self.use_lyapunov is True:
-                a_loss = self.labda * self.l_derta + self.alpha * tf.reduce_mean(log_pis) - policy_prior_log_probs
-            else:
-                a_loss = a_preloss
-
-            self.a_loss = a_loss
+            # Optimize actor
+            self.a_loss = self.labda * self.l_derta + self.alpha * tf.reduce_mean(log_pis)
             self.atrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_loss, var_list=a_params)
 
-            next_log_pis = a_dist_.log_prob(a_)
+            # Optimize critic
             with tf.control_dependencies(target_update):  # soft replacement happened at here
-                if self.approx_value:
-                    if self.finite_horizon:
-                        if self.soft_predict_horizon:
-                            l_target = self.R - self.R_N_ + tf.stop_gradient(l_)
-                        else:
-                            l_target = self.V
-                    else:
                         l_target = self.R + gamma * (1 - self.terminal) * tf.stop_gradient(l_)  # Lyapunov critic - self.alpha * next_log_pis
                         # l_target = self.R + gamma * (1 - self.terminal) * tf.stop_gradient(l_- self.alpha * next_log_pis)  # Lyapunov critic
-                else:
-                    l_target = self.R
-
                 self.l_error = tf.losses.mean_squared_error(labels=l_target, predictions=self.l)
                 self.ltrain = tf.train.AdamOptimizer(self.LR_L).minimize(self.l_error, var_list=l_params)
 
-            self.sess.run(tf.global_variables_initializer())
-            self.saver = tf.train.Saver()
-            # self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss]
-            self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss, l_target, labda_loss] # DEBUG: Change for debugging
-
-            if self.use_lyapunov is True:
-                self.opt = [self.ltrain, self.lambda_train]
-            self.opt.append(self.atrain)
-            if self.adaptive_alpha is True:
-                self.opt.append(self.alpha_train)
-
     def choose_action(self, s, evaluation = False):
-        if len(self.working_memory) < self.history_horizon:
-            [self.working_memory.appendleft(s) for _ in range(self.history_horizon)]
-
-        self.working_memory.appendleft(s)
-        try:
-            s = np.concatenate(self.working_memory)
-        except ValueError:
-            print(s)
 
         if evaluation is True:
             try:
@@ -169,10 +76,6 @@ class LAC(object):
         bs_ = batch['s_']  # next state
         feed_dict = {self.a_input: ba,  self.S: bs, self.S_: bs_, self.R: br, self.terminal: bterminal,
                      self.LR_C: LR_C, self.LR_A: LR_A, self.LR_L: LR_L, self.LR_lag:LR_lag}
-        if self.finite_horizon:
-            bv = batch['value']
-            b_r_ = batch['r_N_']
-            feed_dict.update({self.V:bv, self.R_N_:b_r_})
 
         self.sess.run(self.opt, feed_dict)
         # labda, alpha, l_error, entropy, a_loss = self.sess.run(self.diagnotics, feed_dict)
@@ -204,59 +107,6 @@ class LAC(object):
             print(s)
 
         return self.sess.run(self.l, {self.S: s[np.newaxis, :], self.a_input: a[np.newaxis, :]})[0]
-
-
-    def _build_a(self, s, name='actor', reuse=None, custom_getter=None):
-        if reuse is None:
-            trainable = True
-        else:
-            trainable = False
-
-        s_dim = self.s_dim
-        a_dim = self.a_dim
-        w_a = tf.zeros([s_dim, a_dim])
-        print(w_a)
-
-        with tf.variable_scope(name, reuse=reuse, custom_getter=custom_getter):
-
-            # s = self.normalize_input(s)
-            batch_size = tf.shape(s)[0]
-            squash_bijector = (SquashBijector())
-            base_distribution = tfp.distributions.MultivariateNormalDiag(loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim))
-            epsilon = base_distribution.sample(batch_size)
-
-            net_1 = tf.layers.dense(net_0, n2, activation=tf.nn.relu, name='l4', trainable=trainable)  # 原始是30
-            mu = tf.layers.dense(net_1, self.a_dim, activation= None, name='a', trainable=trainable)
-            log_sigma = tf.layers.dense(net_1, self.a_dim, None, trainable=trainable)
-
-
-            # log_sigma = tf.layers.dense(s, self.a_dim, None, trainable=trainable)
-
-
-            log_sigma = tf.clip_by_value(log_sigma, *SCALE_DIAG_MIN_MAX)
-            sigma = tf.exp(log_sigma)
-
-            bijector = tfp.bijectors.Affine(shift=mu, scale_diag=sigma)
-            raw_action = bijector.forward(epsilon)
-            clipped_a = squash_bijector.forward(raw_action)
-
-            ## Construct the distribution
-            bijector = tfp.bijectors.Chain((
-                squash_bijector,
-                tfp.bijectors.Affine(
-                    shift=mu,
-                    scale_diag=sigma),
-            ))
-            distribution = tfp.distributions.ConditionalTransformedDistribution(
-                    distribution=base_distribution,
-                    bijector=bijector)
-
-            clipped_mu = squash_bijector.forward(mu)
-
-        return clipped_a, clipped_mu, distribution
-
-
-
 
     def _build_l(self, s, a, reuse=None, custom_getter=None):
         trainable = True if reuse is None else False
