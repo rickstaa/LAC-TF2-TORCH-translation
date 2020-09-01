@@ -66,7 +66,7 @@ class SquashedGaussianMLPActor(nn.Module):
 
         # Create nn layers
         net_0 = nn.Sequential(nn.Linear(obs_dim, n1), nn.ReLU())
-        net_1 = nn.Sequential(nn.Linear(net_0[0].out_features, n2), nn.ReLU())
+        net_1 = nn.Sequential(nn.Linear(n1, n2), nn.ReLU())
         self.net = nn.Sequential(net_0, net_1)
         self.mu_layer = nn.Linear(n2, act_dim)
         self.log_sigma = nn.Linear(n2, act_dim)

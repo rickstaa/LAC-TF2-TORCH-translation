@@ -19,4 +19,3 @@ if __name__ == '__main__':
         print('evaluation')
         eval = get_eval(VARIANT['algorithm_name'])
         eval(VARIANT)
-
