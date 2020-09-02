@@ -13,6 +13,14 @@
       "env": {"DISPLAY": ":0"}
     },
     {
+      "name": "Python: Current File",
+      "type": "python",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "env": {"DISPLAY": ":0"}
+    },
+    {
       "name": "Python: Current File (TEST2)",
       "type": "python",
       "request": "launch",

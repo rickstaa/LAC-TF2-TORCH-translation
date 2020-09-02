@@ -37,6 +37,7 @@ class SquashedGaussianMLPActor(nn.Module):
         hidden_sizes,
         log_std_min=-20,
         log_std_max=2.0,
+        use_fixed_seed=False,
     ):
         """Constructs all the necessary attributes for the Squashed Gaussian Actor
         object.
@@ -72,16 +73,17 @@ class SquashedGaussianMLPActor(nn.Module):
         self.log_sigma = nn.Linear(n2, act_dim)
 
         # FIXME: Remove after testing
-        torch.manual_seed(0)
-        with torch.no_grad():
-            self.net[0][0].weight = nn.Parameter(torch.randn(self.net[0][0].weight.shape, requires_grad=True))
-            self.net[0][0].bias = nn.Parameter(torch.randn(self.net[0][0].bias.shape, requires_grad=True))
-            self.net[1][0].weight = nn.Parameter(torch.randn(self.net[1][0].weight.shape, requires_grad=True))
-            self.net[1][0].bias = nn.Parameter(torch.randn(self.net[1][0].bias.shape, requires_grad=True))
-            self.mu_layer.weight = nn.Parameter(torch.randn(self.mu_layer.weight.shape, requires_grad=True))
-            self.mu_layer.bias = nn.Parameter(torch.randn(self.mu_layer.bias.shape, requires_grad=True))
-            self.log_sigma.weight = nn.Parameter(torch.randn(self.log_sigma.weight.shape, requires_grad=True))
-            self.log_sigma.bias = nn.Parameter(torch.randn(self.log_sigma.bias.shape, requires_grad=True))
+        if use_fixed_seed:
+            torch.manual_seed(0)
+            with torch.no_grad():
+                self.net[0][0].weight = nn.Parameter(torch.randn(self.net[0][0].weight.shape, requires_grad=True))
+                self.net[0][0].bias = nn.Parameter(torch.randn(self.net[0][0].bias.shape, requires_grad=True))
+                self.net[1][0].weight = nn.Parameter(torch.randn(self.net[1][0].weight.shape, requires_grad=True))
+                self.net[1][0].bias = nn.Parameter(torch.randn(self.net[1][0].bias.shape, requires_grad=True))
+                self.mu_layer.weight = nn.Parameter(torch.randn(self.mu_layer.weight.shape, requires_grad=True))
+                self.mu_layer.bias = nn.Parameter(torch.randn(self.mu_layer.bias.shape, requires_grad=True))
+                self.log_sigma.weight = nn.Parameter(torch.randn(self.log_sigma.weight.shape, requires_grad=True))
+                self.log_sigma.bias = nn.Parameter(torch.randn(self.log_sigma.bias.shape, requires_grad=True))
 
     def forward(self, obs, deterministic=False, with_logprob=True):
         """Perform forward pass through the network.

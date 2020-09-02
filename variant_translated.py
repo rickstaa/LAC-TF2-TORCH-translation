@@ -5,18 +5,19 @@ import ENV.env
 import time
 
 SEED = None
-alpha = 1.0
+# alpha = 1.0
+alpha = 0.99
 alpha3 = 0.2
 actor = [64, 64]
 critic = [128, 128]
-episodes = int(5e4)
-# episodes = int(2048)
+# episodes = int(5e4)
+episodes = int(2048)
 approx_value = True
 use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
-    "eval_list": ["LAC20200831_1918",],
+    "eval_list": ["LAC20200903_0041",],
     "env_name": "Ex3_EKF",
     "algorithm_name": "LAC",
     "additional_description": timestr,
@@ -76,6 +77,7 @@ ALG_PARAMS = {
         "min_memory_size": 1000,
         "batch_size": 256,
         "labda": 1.0,
+        # "labda": 0.99,
         "alpha": alpha,
         "alpha3": alpha3,
         "tau": 5e-3,
