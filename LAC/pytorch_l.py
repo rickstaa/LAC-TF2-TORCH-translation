@@ -7,6 +7,7 @@ but the network unfortunately is to difficult (Uses Square in the output).
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 class MLPLFunction(nn.Module):  # TODO: Confusing names
     """Soft Lyapunov critic Network.
@@ -30,6 +31,7 @@ class MLPLFunction(nn.Module):  # TODO: Confusing names
         n1 = hidden_sizes['critic'][0]
 
         # Setup input layer weights and biases
+        torch.manual_seed(5) # FIXME: Remove random seed
         self.w1_s = nn.Parameter(torch.randn((obs_dim, n1), requires_grad=True))
         self.w1_a = nn.Parameter(torch.randn((act_dim, n1), requires_grad=True))
         self.b1 = nn.Parameter(torch.randn((1, n1), requires_grad=True))
@@ -41,6 +43,13 @@ class MLPLFunction(nn.Module):  # TODO: Confusing names
             n = hidden_sizes['critic'][i]
             layers += [nn.Linear(hidden_sizes['critic'][i], n), nn.ReLU()]
         self.l_net = nn.Sequential(*layers)
+
+        # FIXME: Remove random seed
+        torch.manual_seed(10)
+        with torch.no_grad():
+            for i in range(0, len(self.l_net)-1):
+                self.l_net[i].weight = nn.Parameter(torch.randn(self.l_net[i].weight.shape, requires_grad=True))
+                self.l_net[i].bias = nn.Parameter(torch.randn(self.l_net[i].bias.shape, requires_grad=True))
 
     def forward(self, obs, act):
         """Perform forward pass through the network.

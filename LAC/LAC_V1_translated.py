@@ -130,9 +130,7 @@ class LAC(object):
             # Create Main networks
             # NOTE: The self.S and self.a_input arguments are ignored in the pytorch
             # case. The action and observation space comes from self.s_dim, self.a_dim
-            torch.manual_seed(50) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.ga = self._build_a(self.S) # 这个网络用于及时更新参数 # TODO: CHECK Network creation
-            torch.manual_seed(40) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.lc = self._build_l(self.S, self.a_input)   # lyapunov 网络 # TODO: CHECK Network creation
 
             # Get other script variables
@@ -142,9 +140,7 @@ class LAC(object):
             # Create target networks
             # NOTE: The self.S and self.a_input arguments are ignored in the pytorch
             # case. The action and observation space comes from self.s_dim, self.a_dim
-            torch.manual_seed(30) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.ga_ = self._build_a(self.S_) # TODO: CHECK Network creation
-            torch.manual_seed(20) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.lc_ = self._build_l(self.S_, self.a_input_) # TODO: CHECK Network creation
 
             # Freeze target networks
@@ -154,9 +150,7 @@ class LAC(object):
                 p.requires_grad = False
 
             # Create untrainable lyapunov actor and l_target
-            torch.manual_seed(10) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.lya_ga_ = self._build_a(self.S_)
-            torch.manual_seed(5) # FIXME: REMOVE REMOVE REMOVE REMOVE
             self.lya_lc_ = self._build_l(self.S_, self.a_input)
 
             # Make the lyapunov actor un-trainable
@@ -404,7 +398,7 @@ class LAC(object):
             labda_loss = -torch.mean(self.log_labda * self.l_derta.detach()) # Question: The mean is redundenat here right
             # DEBUG:
             # FIXME: I changed this to possitive now
-            labda_loss = torch.mean(self.log_labda * self.l_derta.detach())
+            # labda_loss = torch.mean(self.log_labda * self.l_derta.detach())
 
             # Perform SGD
             labda_loss.backward()
@@ -606,10 +600,21 @@ class LAC(object):
                 n1 = self.network_structure['actor'][0]
                 n2 = self.network_structure['actor'][1]
 
-                net_0 = tf.layers.dense(s, n1, activation=tf.nn.relu, name='l1', trainable=trainable)#原始是30
-                net_1 = tf.layers.dense(net_0, n2, activation=tf.nn.relu, name='l4', trainable=trainable)  # 原始是30
-                mu = tf.layers.dense(net_1, self.a_dim, activation= None, name='a', trainable=trainable)
-                log_sigma = tf.layers.dense(net_1, self.a_dim, None, trainable=trainable)
+                # FIXME: Remove random seed
+                # DEBUG: Changed order of randomization of weights - check this!
+                torch.manual_seed(0)
+                w_init_net_0 = tf.constant_initializer(torch.transpose(torch.randn((n1, s.shape[1].value)),0,1).numpy())
+                b_init_net_0 = tf.constant_initializer(torch.randn((n1)).numpy())
+                net_0 = tf.layers.dense(s, n1, activation=tf.nn.relu, name='l1', bias_initializer=b_init_net_0, kernel_initializer=w_init_net_0, trainable=trainable)#原始是30
+                w_init_net_1 = tf.constant_initializer(torch.transpose(torch.randn((n2, net_0.shape[1].value)),0,1).numpy())
+                b_init_net_1 = tf.constant_initializer(torch.randn((n2)).numpy())
+                net_1 = tf.layers.dense(net_0, n2, activation=tf.nn.relu, name='l4', bias_initializer=b_init_net_1, kernel_initializer=w_init_net_1, trainable=trainable)  # 原始是30
+                w_init_mu = tf.constant_initializer(torch.transpose(torch.randn((self.a_dim, net_1.shape[1].value)),0,1).numpy())
+                b_init_mu = tf.constant_initializer(torch.randn((self.a_dim)).numpy())
+                mu = tf.layers.dense(net_1, self.a_dim, activation= None, name='a', bias_initializer=b_init_mu, kernel_initializer=w_init_mu, trainable=trainable)
+                w_init_log_sigma = tf.constant_initializer(torch.transpose(torch.randn((self.a_dim, net_1.shape[1].value)),0,1).numpy())
+                b_init_log_sigma = tf.constant_initializer(torch.randn((self.a_dim)).numpy())
+                log_sigma = tf.layers.dense(net_1, self.a_dim, None, bias_initializer=b_init_log_sigma, kernel_initializer=w_init_log_sigma, trainable=trainable)
 
 
                 # log_sigma = tf.layers.dense(s, self.a_dim, None, trainable=trainable)
@@ -684,15 +689,26 @@ class LAC(object):
             with tf.variable_scope('Lyapunov', reuse=reuse, custom_getter=custom_getter):
                 n1 = self.network_structure['critic'][0]
 
+                # FIXME: Remove random seed
+                torch.manual_seed(5)
+                w1_s_init = tf.constant_initializer(torch.randn((self.s_dim, n1)).numpy())
+                w1_a_init = tf.constant_initializer(torch.randn((self.a_dim, n1)).numpy())
+                b1_init = tf.constant_initializer(torch.randn((n1)).numpy())
                 layers = []
-                w1_s = tf.get_variable('w1_s', [self.s_dim, n1], trainable=trainable)
-                w1_a = tf.get_variable('w1_a', [self.a_dim, n1], trainable=trainable)
-                b1 = tf.get_variable('b1', [1, n1], trainable=trainable)
+                w1_s = tf.get_variable('w1_s', [self.s_dim, n1], initializer=w1_s_init, trainable=trainable)
+                w1_a = tf.get_variable('w1_a', [self.a_dim, n1], initializer=w1_a_init, trainable=trainable)
+                b1 = tf.get_variable('b1', [1, n1], initializer=b1_init ,trainable=trainable)
                 net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
                 layers.append(net_0)
+
+                # FIXME: Remove random seed
+                # DEBUG: Changed order weight randomization - check this!
+                torch.manual_seed(10)
                 for i in range(1, len(self.network_structure['critic'])):
                     n = self.network_structure['critic'][i]
-                    layers.append(tf.layers.dense(layers[i-1], n, activation=tf.nn.relu, name='l'+str(i+1), trainable=trainable))
+                    w_init = tf.constant_initializer(torch.transpose(torch.randn(n, (layers[i-1].shape[1].value)),0,1).numpy())
+                    b_init = tf.constant_initializer(torch.randn((n)).numpy())
+                    layers.append(tf.layers.dense(layers[i-1], n, bias_initializer=b_init, kernel_initializer=w_init, activation=tf.nn.relu, name='l'+str(i+1), trainable=trainable))
 
                 return tf.expand_dims(tf.reduce_sum(tf.square(layers[-1]), axis=1),axis=1)  # Q(s,a)
 
