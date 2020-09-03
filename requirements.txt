@@ -1,3 +1,9 @@
 tensorflow==1.15.0
 tensorboard==1.15.0
 tensorflow-probability==0.8.0
+opencv-python
+matplotlib
+gym
+cloudpickle
+numpy
+torch

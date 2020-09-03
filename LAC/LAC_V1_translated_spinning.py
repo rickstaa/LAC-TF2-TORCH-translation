@@ -16,7 +16,7 @@ from robustness_eval import training_evaluation
 from disturber.disturber import Disturber
 from pool.pool import Pool
 import logger
-from variant_translated import * # FIXME: NEVER NEVER NEVER DO THIS! NOW it imports all the variables in variant as globals including alpha
+from variant_translated_spinning import * # FIXME: NEVER NEVER NEVER DO THIS! NOW it imports all the variables in variant as globals including alpha
 # from variant_translated import VARIANT
 
 # Wheter you want to use Pytorch instead of tensorflow
@@ -36,8 +36,8 @@ from torch.optim import Adam
 if USE_PYTORCH:
     from torch.utils.tensorboard import SummaryWriter
 
-from .pytorch_a import SquashedGaussianMLPActor
-from .pytorch_l import MLPLFunction
+from .pytorch_a_spinning import SquashedGaussianMLPActor
+from .pytorch_l_spinning import MLPLFunction
 # ===============================
 # END <<<<< Pytorch CODE ========
 # ===============================
@@ -416,6 +416,7 @@ class LAC(object):
             # Calculate lyapunov multiplier loss
             # TODO: Check why 0.0 log gives problem?
             labda_loss = -torch.mean(self.log_labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
+            # labda_loss = -torch.mean(self.labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
             # labda_loss = torch.mean(self.labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
             # labda_loss = torch.mean(self.log_labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
 
@@ -431,7 +432,6 @@ class LAC(object):
             self.log_alpha_optimizer.zero_grad()
 
             # Calculate alpha multiplier loss
-            # NOTE: This is very small!
             alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
             # alpha_loss = -torch.mean(self.alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
 
@@ -575,7 +575,7 @@ class LAC(object):
             a_dim = self.a_dim
 
             # Create and return Squashed Gaussian actor
-            SGA = SquashedGaussianMLPActor(s_dim, a_dim, self.network_structure, log_std_min=SCALE_DIAG_MIN_MAX[0],log_std_max=SCALE_DIAG_MIN_MAX[1], use_fixed_seed=USE_FIXED_SEED)
+            SGA = SquashedGaussianMLPActor(s_dim, a_dim, self.network_structure["actor"], log_std_min=SCALE_DIAG_MIN_MAX[0],log_std_max=SCALE_DIAG_MIN_MAX[1], use_fixed_seed=USE_FIXED_SEED)
             return SGA
 
             # NOTE: I tried using a sequentional (Function structure) but this is not possible
@@ -698,7 +698,7 @@ class LAC(object):
             a_dim = self.a_dim
 
             # Create and return Squashed Gaussian actor
-            LC = MLPLFunction(s_dim, a_dim, self.network_structure, use_fixed_seed=USE_FIXED_SEED)
+            LC = MLPLFunction(s_dim, a_dim, self.network_structure["critic"], use_fixed_seed=USE_FIXED_SEED)
             # l = LC(torch.cat([s.unsqueeze(0),s.unsqueeze(0)]), a) # test network
             return LC
 
@@ -922,36 +922,36 @@ def train(variant):
     logger.logkv('target_entropy', policy.target_entropy)
 
     # Log starting weights to tensorboard
-    if USE_PYTORCH:
+    # if USE_PYTORCH:
         # Log weights to tensorboard
         ## == Gaussian actors ==
-        policy.tb_writer.add_histogram("Ga/L1/weight", policy.ga.net[0][0].weight, global_step)
-        policy.tb_writer.add_histogram("Ga/L1/bias", policy.ga.net[0][0].bias, global_step)
-        policy.tb_writer.add_histogram("Ga/L2/weight", policy.ga.net[1][0].weight, global_step)
-        policy.tb_writer.add_histogram("Ga/L2/bias", policy.ga.net[1][0].bias, global_step)
-        policy.tb_writer.add_histogram("Ga/mu_layer/weight", policy.ga.mu_layer.weight, global_step)
-        policy.tb_writer.add_histogram("Ga/mu_layer/bias", policy.ga.mu_layer.bias, global_step)
-        policy.tb_writer.add_histogram("Ga/log_sigma/weight", policy.ga.log_sigma.weight, global_step)
-        policy.tb_writer.add_histogram("Ga/log_sigma/bias", policy.ga.log_sigma.bias, global_step)
-        policy.tb_writer.add_histogram("Ga_/L1/weight", policy.ga_.net[0][0].weight, global_step)
-        policy.tb_writer.add_histogram("Ga_/L1/bias", policy.ga_.net[0][0].bias, global_step)
-        policy.tb_writer.add_histogram("Ga_/L2/weight", policy.ga_.net[1][0].weight, global_step)
-        policy.tb_writer.add_histogram("Ga_/L2/bias", policy.ga_.net[1][0].bias, global_step)
-        policy.tb_writer.add_histogram("Ga_/mu_layer/weight", policy.ga_.mu_layer.weight, global_step)
-        policy.tb_writer.add_histogram("Ga_/mu_layer/bias", policy.ga_.mu_layer.bias, global_step)
-        policy.tb_writer.add_histogram("Ga_/log_sigma/weight", policy.ga_.log_sigma.weight, global_step)
-        policy.tb_writer.add_histogram("Ga_/log_sigma/bias", policy.ga_.log_sigma.bias, global_step)
-        ## == Lyapunov critics ==
-        policy.tb_writer.add_histogram("Lc/L1/w1_a", policy.lc.w1_a, global_step)
-        policy.tb_writer.add_histogram("Lc/L1/w1_s", policy.lc.w1_s, global_step)
-        policy.tb_writer.add_histogram("Lc/L1/b1", policy.lc.b1, global_step)
-        policy.tb_writer.add_histogram("Lc/L2/weight", policy.lc.l_net[0].weight, global_step)
-        policy.tb_writer.add_histogram("Lc/L2/bias", policy.lc.l_net[0].bias, global_step)
-        policy.tb_writer.add_histogram("Lc_/L1/w1_a", policy.lc_.w1_a, global_step)
-        policy.tb_writer.add_histogram("Lc_/L1/w1_s", policy.lc_.w1_s, global_step)
-        policy.tb_writer.add_histogram("Lc_/L1/b1", policy.lc_.b1, global_step)
-        policy.tb_writer.add_histogram("Lc_/L2/weight", policy.lc_.l_net[0].weight, global_step)
-        policy.tb_writer.add_histogram("Lc_/L2/bias", policy.lc_.l_net[0].bias, global_step)
+        # policy.tb_writer.add_histogram("Ga/L1/weight", policy.ga.net[0][0].weight, global_step)
+        # policy.tb_writer.add_histogram("Ga/L1/bias", policy.ga.net[0][0].bias, global_step)
+        # policy.tb_writer.add_histogram("Ga/L2/weight", policy.ga.net[1][0].weight, global_step)
+        # policy.tb_writer.add_histogram("Ga/L2/bias", policy.ga.net[1][0].bias, global_step)
+        # policy.tb_writer.add_histogram("Ga/mu_layer/weight", policy.ga.mu_layer.weight, global_step)
+        # policy.tb_writer.add_histogram("Ga/mu_layer/bias", policy.ga.mu_layer.bias, global_step)
+        # policy.tb_writer.add_histogram("Ga/log_sigma/weight", policy.ga.log_sigma.weight, global_step)
+        # policy.tb_writer.add_histogram("Ga/log_sigma/bias", policy.ga.log_sigma.bias, global_step)
+        # policy.tb_writer.add_histogram("Ga_/L1/weight", policy.ga_.net[0][0].weight, global_step)
+        # policy.tb_writer.add_histogram("Ga_/L1/bias", policy.ga_.net[0][0].bias, global_step)
+        # policy.tb_writer.add_histogram("Ga_/L2/weight", policy.ga_.net[1][0].weight, global_step)
+        # policy.tb_writer.add_histogram("Ga_/L2/bias", policy.ga_.net[1][0].bias, global_step)
+        # policy.tb_writer.add_histogram("Ga_/mu_layer/weight", policy.ga_.mu_layer.weight, global_step)
+        # policy.tb_writer.add_histogram("Ga_/mu_layer/bias", policy.ga_.mu_layer.bias, global_step)
+        # policy.tb_writer.add_histogram("Ga_/log_sigma/weight", policy.ga_.log_sigma.weight, global_step)
+        # policy.tb_writer.add_histogram("Ga_/log_sigma/bias", policy.ga_.log_sigma.bias, global_step)
+        # ## == Lyapunov critics ==
+        # policy.tb_writer.add_histogram("Lc/L1/w1_a", policy.lc.w1_a, global_step)
+        # policy.tb_writer.add_histogram("Lc/L1/w1_s", policy.lc.w1_s, global_step)
+        # policy.tb_writer.add_histogram("Lc/L1/b1", policy.lc.b1, global_step)
+        # policy.tb_writer.add_histogram("Lc/L2/weight", policy.lc.l_net[0].weight, global_step)
+        # policy.tb_writer.add_histogram("Lc/L2/bias", policy.lc.l_net[0].bias, global_step)
+        # policy.tb_writer.add_histogram("Lc_/L1/w1_a", policy.lc_.w1_a, global_step)
+        # policy.tb_writer.add_histogram("Lc_/L1/w1_s", policy.lc_.w1_s, global_step)
+        # policy.tb_writer.add_histogram("Lc_/L1/b1", policy.lc_.b1, global_step)
+        # policy.tb_writer.add_histogram("Lc_/L2/weight", policy.lc_.l_net[0].weight, global_step)
+        # policy.tb_writer.add_histogram("Lc_/L2/bias", policy.lc_.l_net[0].bias, global_step)
         # ## == Lyapunov target networks ==
         # policy.tb_writer.add_histogram("Lya_ga_/L1/weight", policy.lya_ga_.net[0][0].weight, global_step)
         # policy.tb_writer.add_histogram("Lya_ga_/L1/bias", policy.lya_ga_.net[0][0].bias, global_step)
@@ -1063,38 +1063,38 @@ def train(variant):
                 policy.tb_writer.add_histogram("LVals", l_vals, global_step)
                 policy.tb_writer.add_histogram("LogPi", log_pis, global_step)
 
-            if USE_PYTORCH:
-                if global_step % evaluation_frequency == 0 and training_started:
+            # if USE_PYTORCH:
+            #     if global_step % evaluation_frequency == 0 and training_started:
 
-                    # Log weights to tensorboard
-                    ## == Gaussian actors ==
-                    policy.tb_writer.add_histogram("Ga/L1/weight", policy.ga.net[0][0].weight, global_step)
-                    policy.tb_writer.add_histogram("Ga/L1/bias", policy.ga.net[0][0].bias, global_step)
-                    policy.tb_writer.add_histogram("Ga/L2/weight", policy.ga.net[1][0].weight, global_step)
-                    policy.tb_writer.add_histogram("Ga/L2/bias", policy.ga.net[1][0].bias, global_step)
-                    policy.tb_writer.add_histogram("Ga/mu_layer/weight", policy.ga.mu_layer.weight, global_step)
-                    policy.tb_writer.add_histogram("Ga/mu_layer/bias", policy.ga.mu_layer.bias, global_step)
-                    policy.tb_writer.add_histogram("Ga/log_sigma/weight", policy.ga.log_sigma.weight, global_step)
-                    policy.tb_writer.add_histogram("Ga/log_sigma/bias", policy.ga.log_sigma.bias, global_step)
-                    policy.tb_writer.add_histogram("Ga_/L1/weight", policy.ga_.net[0][0].weight, global_step)
-                    policy.tb_writer.add_histogram("Ga_/L1/bias", policy.ga_.net[0][0].bias, global_step)
-                    policy.tb_writer.add_histogram("Ga_/L2/weight", policy.ga_.net[1][0].weight, global_step)
-                    policy.tb_writer.add_histogram("Ga_/L2/bias", policy.ga_.net[1][0].bias, global_step)
-                    policy.tb_writer.add_histogram("Ga_/mu_layer/weight", policy.ga_.mu_layer.weight, global_step)
-                    policy.tb_writer.add_histogram("Ga_/mu_layer/bias", policy.ga_.mu_layer.bias, global_step)
-                    policy.tb_writer.add_histogram("Ga_/log_sigma/weight", policy.ga_.log_sigma.weight, global_step)
-                    policy.tb_writer.add_histogram("Ga_/log_sigma/bias", policy.ga_.log_sigma.bias, global_step)
-                    ## == Lyapunov critics ==
-                    policy.tb_writer.add_histogram("Lc/L1/w1_a", policy.lc.w1_a, global_step)
-                    policy.tb_writer.add_histogram("Lc/L1/w1_s", policy.lc.w1_s, global_step)
-                    policy.tb_writer.add_histogram("Lc/L1/b1", policy.lc.b1, global_step)
-                    policy.tb_writer.add_histogram("Lc/L2/weight", policy.lc.l_net[0].weight, global_step)
-                    policy.tb_writer.add_histogram("Lc/L2/bias", policy.lc.l_net[0].bias, global_step)
-                    policy.tb_writer.add_histogram("Lc_/L1/w1_a", policy.lc_.w1_a, global_step)
-                    policy.tb_writer.add_histogram("Lc_/L1/w1_s", policy.lc_.w1_s, global_step)
-                    policy.tb_writer.add_histogram("Lc_/L1/b1", policy.lc_.b1, global_step)
-                    policy.tb_writer.add_histogram("Lc_/L2/weight", policy.lc_.l_net[0].weight, global_step)
-                    policy.tb_writer.add_histogram("Lc_/L2/bias", policy.lc_.l_net[0].bias, global_step)
+                    # # Log weights to tensorboard
+                    # ## == Gaussian actors ==
+                    # policy.tb_writer.add_histogram("Ga/L1/weight", policy.ga.net[0][0].weight, global_step)
+                    # policy.tb_writer.add_histogram("Ga/L1/bias", policy.ga.net[0][0].bias, global_step)
+                    # policy.tb_writer.add_histogram("Ga/L2/weight", policy.ga.net[1][0].weight, global_step)
+                    # policy.tb_writer.add_histogram("Ga/L2/bias", policy.ga.net[1][0].bias, global_step)
+                    # policy.tb_writer.add_histogram("Ga/mu_layer/weight", policy.ga.mu_layer.weight, global_step)
+                    # policy.tb_writer.add_histogram("Ga/mu_layer/bias", policy.ga.mu_layer.bias, global_step)
+                    # policy.tb_writer.add_histogram("Ga/log_sigma/weight", policy.ga.log_sigma.weight, global_step)
+                    # policy.tb_writer.add_histogram("Ga/log_sigma/bias", policy.ga.log_sigma.bias, global_step)
+                    # policy.tb_writer.add_histogram("Ga_/L1/weight", policy.ga_.net[0][0].weight, global_step)
+                    # policy.tb_writer.add_histogram("Ga_/L1/bias", policy.ga_.net[0][0].bias, global_step)
+                    # policy.tb_writer.add_histogram("Ga_/L2/weight", policy.ga_.net[1][0].weight, global_step)
+                    # policy.tb_writer.add_histogram("Ga_/L2/bias", policy.ga_.net[1][0].bias, global_step)
+                    # policy.tb_writer.add_histogram("Ga_/mu_layer/weight", policy.ga_.mu_layer.weight, global_step)
+                    # policy.tb_writer.add_histogram("Ga_/mu_layer/bias", policy.ga_.mu_layer.bias, global_step)
+                    # policy.tb_writer.add_histogram("Ga_/log_sigma/weight", policy.ga_.log_sigma.weight, global_step)
+                    # policy.tb_writer.add_histogram("Ga_/log_sigma/bias", policy.ga_.log_sigma.bias, global_step)
+                    # ## == Lyapunov critics ==
+                    # policy.tb_writer.add_histogram("Lc/L1/w1_a", policy.lc.w1_a, global_step)
+                    # policy.tb_writer.add_histogram("Lc/L1/w1_s", policy.lc.w1_s, global_step)
+                    # policy.tb_writer.add_histogram("Lc/L1/b1", policy.lc.b1, global_step)
+                    # policy.tb_writer.add_histogram("Lc/L2/weight", policy.lc.l_net[0].weight, global_step)
+                    # policy.tb_writer.add_histogram("Lc/L2/bias", policy.lc.l_net[0].bias, global_step)
+                    # policy.tb_writer.add_histogram("Lc_/L1/w1_a", policy.lc_.w1_a, global_step)
+                    # policy.tb_writer.add_histogram("Lc_/L1/w1_s", policy.lc_.w1_s, global_step)
+                    # policy.tb_writer.add_histogram("Lc_/L1/b1", policy.lc_.b1, global_step)
+                    # policy.tb_writer.add_histogram("Lc_/L2/weight", policy.lc_.l_net[0].weight, global_step)
+                    # policy.tb_writer.add_histogram("Lc_/L2/bias", policy.lc_.l_net[0].bias, global_step)
                     # ## == Lyapunov target networks ==
                     # policy.tb_writer.add_histogram("Lya_ga_/L1/weight", policy.lya_ga_.net[0][0].weight, global_step)
                     # policy.tb_writer.add_histogram("Lya_ga_/L1/bias", policy.lya_ga_.net[0][0].bias, global_step)

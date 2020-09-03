@@ -5,19 +5,20 @@ import ENV.env
 import time
 
 SEED = None
-alpha = 1.0
+# alpha = 1.0
 alpha = 0.99
 alpha3 = 0.2
 actor = [64, 64]
 critic = [128, 128]
 # episodes = int(5e4)
 episodes = int(2e4)
+# episodes = int(2048)
 approx_value = True
 use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
-    "eval_list": ["LAC20200903_1931",],
+    "eval_list": ["LAC20200903_2043"],
     "env_name": "Ex3_EKF",
     "algorithm_name": "LAC",
     "additional_description": timestr,
@@ -175,14 +176,14 @@ def get_env_from_name(name):
 
 def get_train(name):
     if "LAC" in name:
-        from LAC.LAC_V1 import train
+        from LAC.LAC_V1_translated_spinning import train
     return train
 
 
 def get_policy(name):
 
     if "LAC" in name:
-        from LAC.LAC_V1 import LAC as build_func
+        from LAC.LAC_V1_translated_spinning import LAC as build_func
     elif "LQR" in name:
         from LAC.lqr import LQR as build_func
     elif "MPC" in name:
@@ -193,6 +194,6 @@ def get_policy(name):
 
 def get_eval(name):
     if "LAC" in name or "SAC_cost" in name:
-        from LAC.LAC_V1 import eval
+        from LAC.LAC_V1_translated_spinning import eval
 
     return eval

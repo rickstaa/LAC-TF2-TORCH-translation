@@ -18,7 +18,7 @@ use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
-    "eval_list": ["LAC20200903_0109",],
+    "eval_list": ["LAC20200903_2000"],
     "env_name": "Ex3_EKF",
     "algorithm_name": "LAC",
     "additional_description": timestr,
@@ -77,8 +77,8 @@ ALG_PARAMS = {
         "memory_capacity": int(1e6),
         "min_memory_size": 1000,
         "batch_size": 256,
-        "labda": 1.0,
-        # "labda": 0.99,
+        # "labda": 1.0,
+        "labda": 0.99,
         "alpha": alpha,
         "alpha3": alpha3,
         "tau": 5e-3,

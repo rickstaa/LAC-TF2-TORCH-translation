@@ -13,5 +13,6 @@
         "titleBar.inactiveBackground": "#fc7f6b99",
         "titleBar.inactiveForeground": "#15202b99"
     },
-    "peacock.color": "#fc7f6b"
+    "peacock.color": "#fc7f6b",
+    "python.pythonPath": "/home/ricks/miniconda3/envs/old_lac_test/bin/python"
 }
