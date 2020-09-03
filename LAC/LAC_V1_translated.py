@@ -17,6 +17,7 @@ from disturber.disturber import Disturber
 from pool.pool import Pool
 import logger
 from variant_translated import * # FIXME: NEVER NEVER NEVER DO THIS! NOW it imports all the variables in variant as globals including alpha
+# from variant_translated import VARIANT
 
 # ===============================
 # BEGIN >>> Pytorch CODE ========
@@ -36,15 +37,14 @@ from .pytorch_l import MLPLFunction
 # ===============================
 
 # Wheter you want to use Pytorch instead of tensorflow
-# USE_PYTORCH = True
-USE_PYTORCH = False
+USE_PYTORCH = True
+# USE_PYTORCH = False
 
 # Make sure all the environments, weights/biases and sampling are created with same random seed
 # USE_FIXED_SEED = False
 USE_FIXED_SEED = True
 
-# SCALE_DIAG_MIN_MAX = (-20, 2)
-SCALE_DIAG_MIN_MAX = (-50, 50)
+SCALE_DIAG_MIN_MAX = (-20, 2)
 SCALE_lambda_MIN_MAX = (0, 1)
 
 # FIXME! REMOVE LATER!
