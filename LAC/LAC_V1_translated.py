@@ -29,6 +29,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
+from torch.utils.tensorboard import SummaryWriter
 
 from .pytorch_a import SquashedGaussianMLPActor
 from .pytorch_l import MLPLFunction
@@ -41,8 +42,8 @@ USE_PYTORCH = True
 # USE_PYTORCH = False
 
 # Make sure all the environments, weights/biases and sampling are created with same random seed
-# USE_FIXED_SEED = False
-USE_FIXED_SEED = True
+USE_FIXED_SEED = False
+# USE_FIXED_SEED = True
 
 SCALE_DIAG_MIN_MAX = (-20, 2)
 SCALE_lambda_MIN_MAX = (0, 1)
@@ -60,6 +61,7 @@ class LAC(object):
                  s_dim,
                  variant,
                  action_prior = 'uniform',
+                 log_path = "",
                  ):
 
 
@@ -101,6 +103,11 @@ class LAC(object):
             # ===============================
             # FIXME: Initialize tensors Actually not needed for all variables in pytorch
             # TODO: check dimensions
+
+            # Create summary writer
+            self.tb_writer = SummaryWriter(
+                log_dir=log_path,
+            )
 
             # Setup observation, actions, rewards placeholders
             # NOTE: Not needed in pytorch but used for consistency with tf
@@ -147,8 +154,8 @@ class LAC(object):
             # Create target networks
             # NOTE: The self.S and self.a_input arguments are ignored in the pytorch
             # case. The action and observation space comes from self.s_dim, self.a_dim
-            self.ga_ = self._build_a(self.S_) # TODO: CHECK Network creation
-            self.lc_ = self._build_l(self.S_, self.a_input_) # TODO: CHECK Network creation
+            self.ga_ = deepcopy(self.ga)
+            self.lc_ = deepcopy(self.lc)
 
             # Freeze target networks
             for p in self.ga_.parameters():
@@ -165,12 +172,6 @@ class LAC(object):
                 p.requires_grad = False
             for p in self.lya_lc_.parameters():
                 p.requires_grad = False
-
-            # DEBUG: MAke copy so we can check if lya target is realy frozen
-            self.ga_copy = deepcopy(self.ga_)
-            self.lc_copy = deepcopy(self.lc_)
-            self.lya_ga_copy = deepcopy(self.lya_ga_)
-            self.lya_lc_copy = deepcopy(self.lya_lc_)
 
             # Create optimizers
             # lc_params = [self.lc.w1_s, self.lc_.w1_a, self.lc_.b1, self.lc.parameters()]
@@ -356,7 +357,7 @@ class LAC(object):
             else:
                 return self.sess.run(self.a, {self.S: s[np.newaxis, :]})[0]
 
-    def learn(self, LR_A, LR_C, LR_L, LR_lag, batch):
+    def learn(self, LR_A, LR_C, LR_L, LR_lag, batch, global_step=0):
         if USE_PYTORCH:
             # Question: LR_C IS redundant?
 
@@ -495,7 +496,7 @@ class LAC(object):
 
             # Calculate entropy and return diagnostics
             entropy = torch.mean(-self.log_pis.detach()) # FIXME: Not needed since already done before
-            return self.labda.detach(), self.alpha.detach(), self.l_error.detach(), entropy, self.a_loss.detach()
+            return self.labda.detach(), self.alpha.detach(), self.l_error.detach(), entropy, self.a_loss.detach(), labda_loss.detach(), alpha_loss.detach(), log_pis.detach(), self.l.detach()
             # ===============================
             # END <<<<< Pytorch CODE ========
             # ===============================
@@ -517,7 +518,6 @@ class LAC(object):
             self.sess.run(self.opt, feed_dict)
             # labda, alpha, l_error, entropy, a_loss = self.sess.run(self.diagnotics, feed_dict)
             labda, alpha, l_error, entropy, a_loss, l_target, labda_loss, l_derta , log_labda, l_, l, R, log_pis, log_alpha, alpha_loss = self.sess.run(self.diagnotics, feed_dict) # DEBUG: FOR debugging
-
             return labda, alpha, l_error, entropy, a_loss
 
     def store_transition(self, s, a,d, r, l_r, terminal, s_):
@@ -869,7 +869,7 @@ def train(variant):
 
     a_upperbound = env.action_space.high
     a_lowerbound = env.action_space.low
-    policy = LAC(a_dim,s_dim, policy_params)
+    policy = LAC(a_dim,s_dim, policy_params, log_path=variant["log_path"])
 
     pool_params = {
         's_dim': s_dim,
@@ -903,7 +903,64 @@ def train(variant):
     logger.logkv('batch_size', policy_params['batch_size'])
     logger.logkv('target_entropy', policy.target_entropy)
 
+    # Log starting weights to tensorboard
+    if USE_PYTORCH:
+        # Log weights to tensorboard
+        ## == Gaussian actors ==
+        policy.tb_writer.add_histogram("Ga/L1/weight", policy.ga.net[0][0].weight, global_step)
+        policy.tb_writer.add_histogram("Ga/L1/bias", policy.ga.net[0][0].bias, global_step)
+        policy.tb_writer.add_histogram("Ga/L2/weight", policy.ga.net[1][0].weight, global_step)
+        policy.tb_writer.add_histogram("Ga/L2/bias", policy.ga.net[1][0].bias, global_step)
+        policy.tb_writer.add_histogram("Ga/mu_layer/weight", policy.ga.mu_layer.weight, global_step)
+        policy.tb_writer.add_histogram("Ga/mu_layer/bias", policy.ga.mu_layer.bias, global_step)
+        policy.tb_writer.add_histogram("Ga/log_sigma/weight", policy.ga.log_sigma.weight, global_step)
+        policy.tb_writer.add_histogram("Ga/log_sigma/bias", policy.ga.log_sigma.bias, global_step)
+        policy.tb_writer.add_histogram("Ga_/L1/weight", policy.ga_.net[0][0].weight, global_step)
+        policy.tb_writer.add_histogram("Ga_/L1/bias", policy.ga_.net[0][0].bias, global_step)
+        policy.tb_writer.add_histogram("Ga_/L2/weight", policy.ga_.net[1][0].weight, global_step)
+        policy.tb_writer.add_histogram("Ga_/L2/bias", policy.ga_.net[1][0].bias, global_step)
+        policy.tb_writer.add_histogram("Ga_/mu_layer/weight", policy.ga_.mu_layer.weight, global_step)
+        policy.tb_writer.add_histogram("Ga_/mu_layer/bias", policy.ga_.mu_layer.bias, global_step)
+        policy.tb_writer.add_histogram("Ga_/log_sigma/weight", policy.ga_.log_sigma.weight, global_step)
+        policy.tb_writer.add_histogram("Ga_/log_sigma/bias", policy.ga_.log_sigma.bias, global_step)
+        ## == Lyapunov critics ==
+        policy.tb_writer.add_histogram("Lc/L1/w1_a", policy.lc.w1_a, global_step)
+        policy.tb_writer.add_histogram("Lc/L1/w1_s", policy.lc.w1_s, global_step)
+        policy.tb_writer.add_histogram("Lc/L1/b1", policy.lc.b1, global_step)
+        policy.tb_writer.add_histogram("Lc/L2/weight", policy.lc.l_net[0].weight, global_step)
+        policy.tb_writer.add_histogram("Lc/L2/bias", policy.lc.l_net[0].bias, global_step)
+        policy.tb_writer.add_histogram("Lc_/L1/w1_a", policy.lc_.w1_a, global_step)
+        policy.tb_writer.add_histogram("Lc_/L1/w1_s", policy.lc_.w1_s, global_step)
+        policy.tb_writer.add_histogram("Lc_/L1/b1", policy.lc_.b1, global_step)
+        policy.tb_writer.add_histogram("Lc_/L2/weight", policy.lc_.l_net[0].weight, global_step)
+        policy.tb_writer.add_histogram("Lc_/L2/bias", policy.lc_.l_net[0].bias, global_step)
+        ## == Lyapunov target networks ==
+        policy.tb_writer.add_histogram("Lya_ga_/L1/weight", policy.lya_ga_.net[0][0].weight, global_step)
+        policy.tb_writer.add_histogram("Lya_ga_/L1/bias", policy.lya_ga_.net[0][0].bias, global_step)
+        policy.tb_writer.add_histogram("Lya_ga_/L2/weight", policy.lya_ga_.net[1][0].weight, global_step)
+        policy.tb_writer.add_histogram("Lya_ga_/L2/bias", policy.lya_ga_.net[1][0].bias, global_step)
+        policy.tb_writer.add_histogram("Lya_ga_/mu_layer/weight", policy.lya_ga_.mu_layer.weight, global_step)
+        policy.tb_writer.add_histogram("Lya_ga_/mu_layer/bias", policy.lya_ga_.mu_layer.bias, global_step)
+        policy.tb_writer.add_histogram("Lya_ga_/log_sigma/weight", policy.lya_ga_.log_sigma.weight, global_step)
+        policy.tb_writer.add_histogram("Lya_ga_/log_sigma/bias", policy.lya_ga_.log_sigma.bias, global_step)
+        policy.tb_writer.add_histogram("Lya_lc_/L1/w1_a", policy.lya_lc_.w1_a, global_step)
+        policy.tb_writer.add_histogram("Lya_lc_/L1/w1_s", policy.lya_lc_.w1_s, global_step)
+        policy.tb_writer.add_histogram("Lya_lc_/L1/b1", policy.lya_lc_.b1, global_step)
+        policy.tb_writer.add_histogram("Lya_lc_/L2/weight", policy.lya_lc_.l_net[0].weight, global_step)
+        policy.tb_writer.add_histogram("Lya_lc_/L2/bias", policy.lya_lc_.l_net[0].bias, global_step)
+
+    # Training lopp
     for i in range(max_episodes):
+
+        # Initialize Episode vars
+        EpLen = 0
+        EpRet = 0
+
+        # Log initial learning rates
+        if USE_PYTORCH:
+            policy.tb_writer.add_scalar("LearningRates/lr_a", lr_a_now, global_step)
+            policy.tb_writer.add_scalar("LearningRates/lr_c", lr_c_now, global_step)
+            policy.tb_writer.add_scalar("LearningRates/lr_l", lr_l_now, global_step)
 
         current_path = {'rewards': [],
                         'a_loss': [],
@@ -913,7 +970,8 @@ def train(variant):
                         'lambda': [],
                         'lyapunov_error': [],
                         'entropy': [],
-
+                        'alpha_loss':[],
+                        "labda_loss":[],
                         }
 
         if global_step > max_global_steps:
@@ -950,6 +1008,9 @@ def train(variant):
 
             s_, r, done, info = env.step(action)
 
+            # Add vars
+            EpLen += 1
+            EpRet += r
             if 'Fetch' in env_name or 'Hand' in env_name:
                 s_ = np.concatenate([s_[key] for key in s_.keys()])
                 if info['done'] > 0:
@@ -976,15 +1037,71 @@ def train(variant):
                         np.random.seed(seed_i)
                         seed_i +=1
                     batch = pool.sample(batch_size)
-                    labda, alpha, l_loss, entropy, a_loss = policy.learn(lr_a_now, lr_c_now, lr_l_now, lr_a, batch)
+                    labda, alpha, l_loss, entropy, a_loss, labda_loss, alpha_loss, log_pis, l_vals = policy.learn(lr_a_now, lr_c_now, lr_l_now, lr_a, batch, global_step)
+
+                if USE_PYTORCH:
+                    if global_step % evaluation_frequency == 0:
+                        # Log variables to tensorboard
+                        policy.tb_writer.add_scalar("Loss/alpha_loss", alpha_loss, global_step)
+                        policy.tb_writer.add_scalar("Loss/lambda_loss", labda_loss, global_step)
+                        policy.tb_writer.add_scalar("Loss/a_loss", a_loss, global_step)
+                        policy.tb_writer.add_scalar("Loss/l_error", l_loss, global_step)
+                        policy.tb_writer.add_histogram("LVals", l_vals, global_step)
+                        policy.tb_writer.add_histogram("LogPi", log_pis, global_step)
+                        # Log weights to tensorboard
+                        ## == Gaussian actors ==
+                        policy.tb_writer.add_histogram("Ga/L1/weight", policy.ga.net[0][0].weight, global_step)
+                        policy.tb_writer.add_histogram("Ga/L1/bias", policy.ga.net[0][0].bias, global_step)
+                        policy.tb_writer.add_histogram("Ga/L2/weight", policy.ga.net[1][0].weight, global_step)
+                        policy.tb_writer.add_histogram("Ga/L2/bias", policy.ga.net[1][0].bias, global_step)
+                        policy.tb_writer.add_histogram("Ga/mu_layer/weight", policy.ga.mu_layer.weight, global_step)
+                        policy.tb_writer.add_histogram("Ga/mu_layer/bias", policy.ga.mu_layer.bias, global_step)
+                        policy.tb_writer.add_histogram("Ga/log_sigma/weight", policy.ga.log_sigma.weight, global_step)
+                        policy.tb_writer.add_histogram("Ga/log_sigma/bias", policy.ga.log_sigma.bias, global_step)
+                        policy.tb_writer.add_histogram("Ga_/L1/weight", policy.ga_.net[0][0].weight, global_step)
+                        policy.tb_writer.add_histogram("Ga_/L1/bias", policy.ga_.net[0][0].bias, global_step)
+                        policy.tb_writer.add_histogram("Ga_/L2/weight", policy.ga_.net[1][0].weight, global_step)
+                        policy.tb_writer.add_histogram("Ga_/L2/bias", policy.ga_.net[1][0].bias, global_step)
+                        policy.tb_writer.add_histogram("Ga_/mu_layer/weight", policy.ga_.mu_layer.weight, global_step)
+                        policy.tb_writer.add_histogram("Ga_/mu_layer/bias", policy.ga_.mu_layer.bias, global_step)
+                        policy.tb_writer.add_histogram("Ga_/log_sigma/weight", policy.ga_.log_sigma.weight, global_step)
+                        policy.tb_writer.add_histogram("Ga_/log_sigma/bias", policy.ga_.log_sigma.bias, global_step)
+                        ## == Lyapunov critics ==
+                        policy.tb_writer.add_histogram("Lc/L1/w1_a", policy.lc.w1_a, global_step)
+                        policy.tb_writer.add_histogram("Lc/L1/w1_s", policy.lc.w1_s, global_step)
+                        policy.tb_writer.add_histogram("Lc/L1/b1", policy.lc.b1, global_step)
+                        policy.tb_writer.add_histogram("Lc/L2/weight", policy.lc.l_net[0].weight, global_step)
+                        policy.tb_writer.add_histogram("Lc/L2/bias", policy.lc.l_net[0].bias, global_step)
+                        policy.tb_writer.add_histogram("Lc_/L1/w1_a", policy.lc_.w1_a, global_step)
+                        policy.tb_writer.add_histogram("Lc_/L1/w1_s", policy.lc_.w1_s, global_step)
+                        policy.tb_writer.add_histogram("Lc_/L1/b1", policy.lc_.b1, global_step)
+                        policy.tb_writer.add_histogram("Lc_/L2/weight", policy.lc_.l_net[0].weight, global_step)
+                        policy.tb_writer.add_histogram("Lc_/L2/bias", policy.lc_.l_net[0].bias, global_step)
+                        ## == Lyapunov target networks ==
+                        policy.tb_writer.add_histogram("Lya_ga_/L1/weight", policy.lya_ga_.net[0][0].weight, global_step)
+                        policy.tb_writer.add_histogram("Lya_ga_/L1/bias", policy.lya_ga_.net[0][0].bias, global_step)
+                        policy.tb_writer.add_histogram("Lya_ga_/L2/weight", policy.lya_ga_.net[1][0].weight, global_step)
+                        policy.tb_writer.add_histogram("Lya_ga_/L2/bias", policy.lya_ga_.net[1][0].bias, global_step)
+                        policy.tb_writer.add_histogram("Lya_ga_/mu_layer/weight", policy.lya_ga_.mu_layer.weight, global_step)
+                        policy.tb_writer.add_histogram("Lya_ga_/mu_layer/bias", policy.lya_ga_.mu_layer.bias, global_step)
+                        policy.tb_writer.add_histogram("Lya_ga_/log_sigma/weight", policy.lya_ga_.log_sigma.weight, global_step)
+                        policy.tb_writer.add_histogram("Lya_ga_/log_sigma/bias", policy.lya_ga_.log_sigma.bias, global_step)
+                        policy.tb_writer.add_histogram("Lya_lc_/L1/w1_a", policy.lya_lc_.w1_a, global_step)
+                        policy.tb_writer.add_histogram("Lya_lc_/L1/w1_s", policy.lya_lc_.w1_s, global_step)
+                        policy.tb_writer.add_histogram("Lya_lc_/L1/b1", policy.lya_lc_.b1, global_step)
+                        policy.tb_writer.add_histogram("Lya_lc_/L2/weight", policy.lya_lc_.l_net[0].weight, global_step)
+                        policy.tb_writer.add_histogram("Lya_lc_/L2/bias", policy.lya_lc_.l_net[0].bias, global_step)
 
             if training_started:
+                # TODO: You now only take the variables in the last potimization step. This is very insufficient
                 current_path['rewards'].append(r)
                 current_path['lyapunov_error'].append(l_loss)
                 current_path['alpha'].append(alpha)
                 current_path['lambda'].append(labda)
                 current_path['entropy'].append(entropy)
                 current_path['a_loss'].append(a_loss)
+                # current_path['alpha_loss'].append(alpha_loss)
+                # current_path['labda_loss'].append(labda_loss)
 
 
 
@@ -1018,6 +1135,12 @@ def train(variant):
             # OUTPUT TRAINING INFORMATION AND LEARNING RATE DECAY
             if done:
                 if training_started:
+
+                    # Log episode vars
+                    policy.tb_writer.add_scalar("EpLen", EpLen, global_step)
+                    policy.tb_writer.add_scalar("EpRet", EpRet, global_step)
+
+                    # Store current path
                     last_training_paths.appendleft(current_path)
 
                 frac = 1.0 - (global_step - 1.0) / max_global_steps
@@ -1025,6 +1148,9 @@ def train(variant):
                 lr_c_now = lr_c * frac  # learning rate for critic
                 lr_l_now = lr_l * frac  # learning rate for critic
 
+                # Reset episode vars
+                EpLen = 0
+                epRet = 0
                 break
     policy.save_result(log_path)
 
