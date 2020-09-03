@@ -36,14 +36,15 @@ from .pytorch_l import MLPLFunction
 # ===============================
 
 # Wheter you want to use Pytorch instead of tensorflow
-USE_PYTORCH = True
-# USE_PYTORCH = False
+# USE_PYTORCH = True
+USE_PYTORCH = False
 
 # Make sure all the environments, weights/biases and sampling are created with same random seed
-USE_FIXED_SEED = False
-# USE_FIXED_SEED = True
+# USE_FIXED_SEED = False
+USE_FIXED_SEED = True
 
-SCALE_DIAG_MIN_MAX = (-20, 2)
+# SCALE_DIAG_MIN_MAX = (-20, 2)
+SCALE_DIAG_MIN_MAX = (-50, 50)
 SCALE_lambda_MIN_MAX = (0, 1)
 
 # FIXME! REMOVE LATER!
@@ -286,7 +287,7 @@ class LAC(object):
                 self.sess.run(tf.global_variables_initializer())
                 self.saver = tf.train.Saver()
                 # self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss]
-                self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss, l_target, labda_loss, self.l_derta, log_labda, self.l_, self.l, self.R, self.log_pis, log_alpha, alpha_loss] # DEBUG: Change for debugging
+                self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss, l_target, labda_loss, self.l_derta, log_labda, self.l_, self.l, self.R, log_pis, log_alpha, alpha_loss] # DEBUG: Change for debugging
                 if self.use_lyapunov is True:
                     self.opt = [self.ltrain, self.lambda_train]
                 self.opt.append(self.atrain)
@@ -408,8 +409,10 @@ class LAC(object):
 
             # Calculate lyapunov multiplier loss
             # TODO: Check why 0.0 log gives problem?
-            labda_loss = -torch.mean(self.log_labda * self.l_derta.detach()) # Question: The mean is redundenat here right
+            labda_loss = -torch.mean(self.log_labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
             # labda_loss = torch.mean(self.labda * self.l_derta.detach()) # # DEBUG: Changed from log_labda to labda
+            # labda_loss = torch.mean(self.log_labda * self.l_derta.detach()) # Question: The mean is redundenat here right
+            # labda_loss = -torch.mean(self.labda * self.l_derta.detach()) # # DEBUG: Changed from log_labda to labda
             # DEBUG:
             # FIXME: I changed this to possitive now
             # labda_loss = torch.mean(self.log_labda * self.l_derta.detach())
@@ -427,7 +430,8 @@ class LAC(object):
 
             # Calculate alpha multiplier loss
             # NOTE: This is very small!
-            alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy).detach()) # NOTE: Original
+            alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
+            # alpha_loss = torch.mean(self.log_alpha * (log_pis + self.target_entropy).detach()) # NOTE: Original
             # alpha_loss = torch.mean(self.alpha * (log_pis + self.target_entropy).detach()) # DEBUG: Changed from log_alpha to alpha
 
             # Perform SGD
