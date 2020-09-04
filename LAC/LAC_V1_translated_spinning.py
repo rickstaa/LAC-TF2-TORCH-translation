@@ -415,13 +415,16 @@ class LAC(object):
 
             # Calculate lyapunov multiplier loss
             # TODO: Check why 0.0 log gives problem?
+            # labda_loss = -torch.mean(self.log_labda * self.l_derta) # FIXME: Original version Question: The mean is redundenat here right
             labda_loss = -torch.mean(self.log_labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
+            # labda_loss = -torch.mean(self.log_labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
             # labda_loss = -torch.mean(self.labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
             # labda_loss = torch.mean(self.labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
             # labda_loss = torch.mean(self.log_labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
 
             # Perform SGD
             labda_loss.backward()
+            # labda_loss.backward(retain_graph=True)
             self.log_labda_optimizer.step()
 
             #####################################
@@ -433,6 +436,7 @@ class LAC(object):
 
             # Calculate alpha multiplier loss
             alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
+            # alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
             # alpha_loss = -torch.mean(self.alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
 
             # Perform SGD
@@ -446,6 +450,7 @@ class LAC(object):
             self.pi_optimizer.zero_grad()
 
             # Calculate actor los
+            # self.a_loss = self.labda * self.l_derta + self.alpha * torch.mean(log_pis) # NOTE: Original # TODO: Check if mean is needed
             self.a_loss = self.labda.detach() * self.l_derta.detach() + self.alpha.detach() * torch.mean(log_pis) # NOTE: Original # TODO: Check if mean is needed
 
             # Perform SGD
@@ -456,21 +461,21 @@ class LAC(object):
             # Optimize lyapunov network #########
             #####################################
 
-            # update target networks according to exponential moving average
-            # FIXME: Why do this before the update of L-Target in sac this is done after the L-Target
-            # Question: In tensorflow version tf.control_dependencies specified that
-            # this has to be done before the l_error calculation.
-            with torch.no_grad():
-                for p, p_targ in zip(self.ga.parameters(), self.ga_.parameters()):
-                    # NB: We use an in-place operations "mul_", "add_" to update target
-                    # params, as opposed to "mul" and "add", which would make new tensors.
-                    p_targ.data.mul_(self.polyak)
-                    p_targ.data.add_((1 - self.polyak) * p.data)
-                for p, p_targ in zip(self.lc.parameters(), self.lc_.parameters()):
-                    # NB: We use an in-place operations "mul_", "add_" to update target
-                    # params, as opposed to "mul" and "add", which would make new tensors.
-                    p_targ.data.mul_(self.polyak)
-                    p_targ.data.add_((1 - self.polyak) * p.data)
+            # # update target networks according to exponential moving average
+            # # FIXME: Why do this before the update of L-Target in sac this is done after the L-Target
+            # # Question: In tensorflow version tf.control_dependencies specified that
+            # # this has to be done before the l_error calculation.
+            # with torch.no_grad():
+            #     for p, p_targ in zip(self.ga.parameters(), self.ga_.parameters()):
+            #         # NB: We use an in-place operations "mul_", "add_" to update target
+            #         # params, as opposed to "mul" and "add", which would make new tensors.
+            #         p_targ.data.mul_(self.polyak)
+            #         p_targ.data.add_((1 - self.polyak) * p.data)
+            #     for p, p_targ in zip(self.lc.parameters(), self.lc_.parameters()):
+            #         # NB: We use an in-place operations "mul_", "add_" to update target
+            #         # params, as opposed to "mul" and "add", which would make new tensors.
+            #         p_targ.data.mul_(self.polyak)
+            #         p_targ.data.add_((1 - self.polyak) * p.data)
 
             # Calculate lyapunov loss
             self.l_optimizer.zero_grad()
@@ -495,22 +500,22 @@ class LAC(object):
             self.l_error.backward()
             self.l_optimizer.step()
 
-            # # update target networks according to exponential moving average
-            # # DEBUG: I added this after the optimzation to check if it mathers
-            # # FIXME: Why do this before the update of L-Target in sac this is done after the L-Target
-            # # Question: In tensorflow version tf.control_dependencies specified that
-            # # this has to be done before the l_error calculation.
-            # with torch.no_grad():
-            #     for p, p_targ in zip(self.ga.parameters(), self.ga_.parameters()):
-            #         # NB: We use an in-place operations "mul_", "add_" to update target
-            #         # params, as opposed to "mul" and "add", which would make new tensors.
-            #         p_targ.data.mul_(self.polyak)
-            #         p_targ.data.add_((1 - self.polyak) * p.data)
-            #     for p, p_targ in zip(self.lc.parameters(), self.lc_.parameters()):
-            #         # NB: We use an in-place operations "mul_", "add_" to update target
-            #         # params, as opposed to "mul" and "add", which would make new tensors.
-            #         p_targ.data.mul_(self.polyak)
-            #         p_targ.data.add_((1 - self.polyak) * p.data)
+            # update target networks according to exponential moving average
+            # DEBUG: I added this after the optimzation to check if it mathers
+            # FIXME: Why do this before the update of L-Target in sac this is done after the L-Target
+            # Question: In tensorflow version tf.control_dependencies specified that
+            # this has to be done before the l_error calculation.
+            with torch.no_grad():
+                for p, p_targ in zip(self.ga.parameters(), self.ga_.parameters()):
+                    # NB: We use an in-place operations "mul_", "add_" to update target
+                    # params, as opposed to "mul" and "add", which would make new tensors.
+                    p_targ.data.mul_(self.polyak)
+                    p_targ.data.add_((1 - self.polyak) * p.data)
+                for p, p_targ in zip(self.lc.parameters(), self.lc_.parameters()):
+                    # NB: We use an in-place operations "mul_", "add_" to update target
+                    # params, as opposed to "mul" and "add", which would make new tensors.
+                    p_targ.data.mul_(self.polyak)
+                    p_targ.data.add_((1 - self.polyak) * p.data)
 
             # Calculate entropy and return diagnostics
             entropy = torch.mean(-self.log_pis.detach()) # FIXME: Not needed since already done before

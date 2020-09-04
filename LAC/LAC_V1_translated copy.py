@@ -42,6 +42,10 @@ from .pytorch_l import MLPLFunction
 # END <<<<< Pytorch CODE ========
 # ===============================
 
+# Wheter you want to use Pytorch instead of tensorflow
+# USE_PYTORCH = True
+# USE_PYTORCH = False
+
 # Make sure all the environments, weights/biases and sampling are created with same random seed
 USE_FIXED_SEED = False
 # USE_FIXED_SEED = True
@@ -391,7 +395,7 @@ class LAC(object):
             # FIXME: Possible cause of deviation - Do we need to put i there or can we also put it in a function and compute multiple times?
             _, _, self.a_dist = self.ga(self.S)
             log_pis = self.a_dist # DEBUG: Tf version returns distribution and then calculates the log probability should be similar right?
-            self.log_pis = log_pis.detach()
+            # self.log_pis = log_pis.detach()
 
             # Calculate current and target lyapunov value
             self.l = self.lc(self.S, self.a_input)
@@ -411,14 +415,12 @@ class LAC(object):
 
             # Calculate lyapunov multiplier loss
             # TODO: Check why 0.0 log gives problem?
-            labda_loss = -torch.mean(self.log_labda * self.l_derta) # FIXME: Original version Question: The mean is redundenat here right
-            # labda_loss = -torch.mean(self.log_labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
+            labda_loss = -torch.mean(self.log_labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
             # labda_loss = torch.mean(self.labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
             # labda_loss = torch.mean(self.log_labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
 
             # Perform SGD
             labda_loss.backward()
-            # labda_loss.backward(retain_graph=True)
             self.log_labda_optimizer.step()
 
             #####################################
@@ -431,13 +433,10 @@ class LAC(object):
             # Calculate alpha multiplier loss
             # NOTE: This is very small!
             alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
-            # alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy)) # FXIEM: ORiginal NOTE: Original
-            # alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
             # alpha_loss = -torch.mean(self.alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
 
             # Perform SGD
             alpha_loss.backward()
-            # alpha_loss.backward(retain_graph=True)
             self.log_alpha_optimizer.step()
 
             #####################################
@@ -447,13 +446,10 @@ class LAC(object):
             self.pi_optimizer.zero_grad()
 
             # Calculate actor los
-            # DEBUG:
             self.a_loss = self.labda.detach() * self.l_derta.detach() + self.alpha.detach() * torch.mean(log_pis) # NOTE: Original # TODO: Check if mean is needed
-            # self.a_loss = self.labda * self.l_derta + self.alpha * torch.mean(log_pis) # NOTE: Original # TODO: Check if mean is needed
 
             # Perform SGD
             self.a_loss.backward()
-            # self.a_loss.backward(retain_graph=True)
             self.pi_optimizer.step()
             # FIXME: Action prior!
             #####################################
@@ -497,7 +493,6 @@ class LAC(object):
 
             # Perform SGD
             self.l_error.backward()
-            # self.l_error.backward(retain_graph=True )
             self.l_optimizer.step()
 
             # # update target networks according to exponential moving average
@@ -518,7 +513,7 @@ class LAC(object):
             #         p_targ.data.add_((1 - self.polyak) * p.data)
 
             # Calculate entropy and return diagnostics
-            entropy = torch.mean(-self.log_pis.detach()) # FIXME: Not needed since already done before
+            entropy = torch.mean(-log_pis.detach()) # FIXME: Not needed since already done before
             return self.labda.detach(), self.alpha.detach(), self.l_error.detach(), entropy, self.a_loss.detach(), labda_loss.detach(), alpha_loss.detach(), log_pis.detach(), self.l.detach()
             # ===============================
             # END <<<<< Pytorch CODE ========
