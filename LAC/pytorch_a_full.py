@@ -11,6 +11,8 @@ import torch.nn as nn
 
 import torch.nn.functional as F
 from torch.distributions.normal import Normal
+from torch.distributions import multivariate_normal as mn
+from  torch.distributions import transforms
 
 class SquashedGaussianMLPActor(nn.Module):
     """The squashed gaussian actor network.
@@ -57,6 +59,8 @@ class SquashedGaussianMLPActor(nn.Module):
         super().__init__()
 
         # Get class parameters
+        self.a_dim = act_dim
+        self.o_dim = obs_dim
         self._log_std_min = log_std_min
         self._log_std_max = log_std_max
 
@@ -103,12 +107,27 @@ class SquashedGaussianMLPActor(nn.Module):
             probabilities of each of these actions.
         """
 
+        # Create base distribution
+        base_distribution = mn.MultivariateNormal(torch.zeros(self.a_dim), torch.eye(self.a_dim))
+        epsilon = base_distribution.sample((obs.shape[0],))
+
         # Calculate required variables
         net_out = self.net(obs)
         mu = self.mu_layer(net_out)
         log_sigma = self.log_sigma(net_out)
         log_sigma = torch.clamp(log_sigma, self._log_std_min, self._log_std_max)
         sigma = torch.exp(log_sigma)
+
+        # Create bijection
+        squash_bijector = transforms.TanhTransform()
+        affine_bijector = transforms.ComposeTransform([
+                transforms.AffineTransform(mu, sigma),
+            ]
+        )
+
+        # Calculate raw action
+        raw_action = bijector(epsilon)
+
 
         # Check summing axis
         sum_axis = 0 if obs.shape.__len__() == 1 else 1

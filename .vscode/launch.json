@@ -11,7 +11,8 @@
       "request": "launch",
       "program": "${file}",
       "console": "integratedTerminal",
-      "pythonPath": "/home/ricks/miniconda3/envs/old_lac_test/bin/python"
+      "pythonPath": "/home/ricks/miniconda3/envs/old_lac_test/bin/python",
+      // "args": ["--model-name=LAC20200909_1024"]
     },
     {
       "name": "Python: Current File 2 (new)",

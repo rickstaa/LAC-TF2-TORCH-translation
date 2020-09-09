@@ -85,7 +85,7 @@ ALG_PARAMS = {
         "lr_a": 1e-4,
         "lr_c": 3e-4,
         "lr_l": 3e-4,
-        "gamma": 0.9,
+        # "gamma": 0.9,
         # 'gamma': 0.75,
         "steps_per_cycle": 100,
         "train_per_cycle": 80,

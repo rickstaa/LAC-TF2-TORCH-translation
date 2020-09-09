@@ -16,7 +16,7 @@ from robustness_eval import training_evaluation
 from disturber.disturber import Disturber
 from pool.pool import Pool
 import logger
-from variant_translated import * # FIXME: NEVER NEVER NEVER DO THIS! NOW it imports all the variables in variant as globals including alpha
+from variant_translated_fully_translated_ga import * # FIXME: NEVER NEVER NEVER DO THIS! NOW it imports all the variables in variant as globals including alpha
 # from variant_translated import VARIANT
 
 # Wheter you want to use Pytorch instead of tensorflow
@@ -36,7 +36,7 @@ from torch.optim import Adam
 if USE_PYTORCH:
     from torch.utils.tensorboard import SummaryWriter
 
-from .pytorch_a import SquashedGaussianMLPActor
+from .pytorch_a_full import SquashedGaussianMLPActor
 from .pytorch_l import MLPLFunction
 # ===============================
 # END <<<<< Pytorch CODE ========
@@ -164,7 +164,7 @@ class LAC(object):
             for p in self.lc_.parameters():
                 p.requires_grad = False
 
-            # Create un-trainable lyapunov actor and l_target
+            # Create untrainable lyapunov actor and l_target
             self.lya_ga_ = self._build_a(self.S_)
             self.lya_lc_ = self._build_l(self.S_, self.a_input)
 

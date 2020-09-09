@@ -5,19 +5,20 @@ import ENV.env
 import time
 
 SEED = None
-alpha = 1.0
-# alpha = 0.99
+# alpha = 1.0
+alpha = 0.99
 alpha3 = 0.2
 actor = [64, 64]
 critic = [128, 128]
 # episodes = int(5e4)
 episodes = int(2e4)
+# episodes = int(2048)
 approx_value = True
 use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
-    "eval_list": ["LAC20200906_2152"],
+    "eval_list": ["LAC20200903_2000"],
     "env_name": "Ex3_EKF",
     "algorithm_name": "LAC",
     "additional_description": timestr,
@@ -76,15 +77,15 @@ ALG_PARAMS = {
         "memory_capacity": int(1e6),
         "min_memory_size": 1000,
         "batch_size": 256,
-        "labda": 1.0,
-        # "labda": 0.99,
+        # "labda": 1.0,
+        "labda": 0.99,
         "alpha": alpha,
         "alpha3": alpha3,
         "tau": 5e-3,
         "lr_a": 1e-4,
         "lr_c": 3e-4,
         "lr_l": 3e-4,
-        "gamma": 0.9,
+        # "gamma": 0.9,
         # 'gamma': 0.75,
         "steps_per_cycle": 100,
         "train_per_cycle": 80,
@@ -93,12 +94,11 @@ ALG_PARAMS = {
         # 'approx_value': False,
         "approx_value": approx_value,
         "value_horizon": 2,
-        'finite_horizon': True,
-        # "finite_horizon": False,
+        # 'finite_horizon': True,
+        "finite_horizon": False,
         "soft_predict_horizon": False,
         "target_entropy": None,
-        "history_horizon": 5,  # 0 is using current state only
-        # "history_horizon": 0,  # 0 is using current state only
+        "history_horizon": 0,  # 0 is using current state only
     },
 }
 
@@ -176,14 +176,14 @@ def get_env_from_name(name):
 
 def get_train(name):
     if "LAC" in name:
-        from LAC.LAC_V1 import train
+        from LAC.LAC_V1_cleaned import train
     return train
 
 
 def get_policy(name):
 
     if "LAC" in name:
-        from LAC.LAC_V1 import LAC as build_func
+        from LAC.LAC_V1_cleaned import LAC as build_func
     elif "LQR" in name:
         from LAC.lqr import LQR as build_func
     elif "MPC" in name:
@@ -194,6 +194,6 @@ def get_policy(name):
 
 def get_eval(name):
     if "LAC" in name or "SAC_cost" in name:
-        from LAC.LAC_V1 import eval
+        from LAC.LAC_V1_cleaned import eval
 
     return eval

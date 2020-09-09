@@ -1,0 +1,563 @@
+================================================================================
+Input tree: './LAC_CLEAN/'
+================================================================================
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/pool2.py'
+ outputting to './LAC_CLEAN-tf2/pool2.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/eval.py'
+ outputting to './LAC_CLEAN-tf2/eval.py'
+--------------------------------------------------------------------------------
+
+'./LAC_CLEAN/eval.py' Line 275
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.reset_default_graph' to 'tf.compat.v1.reset_default_graph'
+
+    Old:         tf.reset_default_graph()
+                 ~~~~~~~~~~~~~~~~~~~~~~   
+    New:         tf.compat.v1.reset_default_graph()
+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/lac.py'
+ outputting to './LAC_CLEAN-tf2/lac.py'
+--------------------------------------------------------------------------------
+
+'./LAC_CLEAN/lac.py' Line 80
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.Session' to 'tf.compat.v1.Session'
+
+    Old:         self.sess = tf.Session()
+                             ~~~~~~~~~~   
+    New:         self.sess = tf.compat.v1.Session()
+                             ~~~~~~~~~~~~~~~~~~~~   
+
+'./LAC_CLEAN/lac.py' Line 83
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.variable_scope' to 'tf.compat.v1.variable_scope'
+
+    Old:         with tf.variable_scope("Actor"):
+                      ~~~~~~~~~~~~~~~~~           
+    New:         with tf.compat.v1.variable_scope("Actor"):
+                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~           
+
+'./LAC_CLEAN/lac.py' Line 86
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.placeholder' to 'tf.compat.v1.placeholder'
+
+    Old:             self.S = tf.placeholder(tf.float32, [None, self.s_dim], "s")
+                              ~~~~~~~~~~~~~~                                      
+    New:             self.S = tf.compat.v1.placeholder(tf.float32, [None, self.s_dim], "s")
+                              ~~~~~~~~~~~~~~~~~~~~~~~~                                      
+
+'./LAC_CLEAN/lac.py' Line 87
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.placeholder' to 'tf.compat.v1.placeholder'
+
+    Old:             self.S_ = tf.placeholder(tf.float32, [None, self.s_dim], "s_")
+                               ~~~~~~~~~~~~~~                                       
+    New:             self.S_ = tf.compat.v1.placeholder(tf.float32, [None, self.s_dim], "s_")
+                               ~~~~~~~~~~~~~~~~~~~~~~~~                                       
+
+'./LAC_CLEAN/lac.py' Line 88
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.placeholder' to 'tf.compat.v1.placeholder'
+
+    Old:             self.a_input = tf.placeholder(tf.float32, [None, self.a_dim], "a_input")
+                                    ~~~~~~~~~~~~~~                                            
+    New:             self.a_input = tf.compat.v1.placeholder(tf.float32, [None, self.a_dim], "a_input")
+                                    ~~~~~~~~~~~~~~~~~~~~~~~~                                            
+
+'./LAC_CLEAN/lac.py' Line 89
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.placeholder' to 'tf.compat.v1.placeholder'
+
+    Old:             self.a_input_ = tf.placeholder(tf.float32, [None, self.a_dim], "a_input_")
+                                     ~~~~~~~~~~~~~~                                             
+    New:             self.a_input_ = tf.compat.v1.placeholder(tf.float32, [None, self.a_dim], "a_input_")
+                                     ~~~~~~~~~~~~~~~~~~~~~~~~                                             
+
+'./LAC_CLEAN/lac.py' Line 90
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.placeholder' to 'tf.compat.v1.placeholder'
+
+    Old:             self.R = tf.placeholder(tf.float32, [None, 1], "r")
+                              ~~~~~~~~~~~~~~                             
+    New:             self.R = tf.compat.v1.placeholder(tf.float32, [None, 1], "r")
+                              ~~~~~~~~~~~~~~~~~~~~~~~~                             
+
+'./LAC_CLEAN/lac.py' Line 91
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.placeholder' to 'tf.compat.v1.placeholder'
+
+    Old:             self.terminal = tf.placeholder(tf.float32, [None, 1], "terminal")
+                                     ~~~~~~~~~~~~~~                                    
+    New:             self.terminal = tf.compat.v1.placeholder(tf.float32, [None, 1], "terminal")
+                                     ~~~~~~~~~~~~~~~~~~~~~~~~                                    
+
+'./LAC_CLEAN/lac.py' Line 94
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.placeholder' to 'tf.compat.v1.placeholder'
+
+    Old:             self.LR_A = tf.placeholder(tf.float32, None, "LR_A")
+                                 ~~~~~~~~~~~~~~                           
+    New:             self.LR_A = tf.compat.v1.placeholder(tf.float32, None, "LR_A")
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~                           
+
+'./LAC_CLEAN/lac.py' Line 95
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.placeholder' to 'tf.compat.v1.placeholder'
+
+    Old:             self.LR_lag = tf.placeholder(tf.float32, None, "LR_lag")
+                                   ~~~~~~~~~~~~~~                             
+    New:             self.LR_lag = tf.compat.v1.placeholder(tf.float32, None, "LR_lag")
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~                             
+
+'./LAC_CLEAN/lac.py' Line 96
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.placeholder' to 'tf.compat.v1.placeholder'
+
+    Old:             self.LR_L = tf.placeholder(tf.float32, None, "LR_L")
+                                 ~~~~~~~~~~~~~~                           
+    New:             self.LR_L = tf.compat.v1.placeholder(tf.float32, None, "LR_L")
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~                           
+
+'./LAC_CLEAN/lac.py' Line 99
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.get_variable' to 'tf.compat.v1.get_variable'
+
+    Old:             log_labda = tf.get_variable(
+                                 ~~~~~~~~~~~~~~~  
+    New:             log_labda = tf.compat.v1.get_variable(
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~  
+
+'./LAC_CLEAN/lac.py' Line 100
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.log' to 'tf.math.log'
+
+    Old:                 "lambda", None, tf.float32, initializer=tf.log(ALG_PARAMS["labda"])
+                                                                 ~~~~~~                      
+    New:                 "lambda", None, tf.float32, initializer=tf.math.log(ALG_PARAMS["labda"])
+                                                                 ~~~~~~~~~~~                      
+
+'./LAC_CLEAN/lac.py' Line 102
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.get_variable' to 'tf.compat.v1.get_variable'
+
+    Old:             log_alpha = tf.get_variable(
+                                 ~~~~~~~~~~~~~~~  
+    New:             log_alpha = tf.compat.v1.get_variable(
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~  
+
+'./LAC_CLEAN/lac.py' Line 103
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.log' to 'tf.math.log'
+
+    Old:                 "alpha", None, tf.float32, initializer=tf.log(ALG_PARAMS["alpha"])
+                                                                ~~~~~~                      
+    New:                 "alpha", None, tf.float32, initializer=tf.math.log(ALG_PARAMS["alpha"])
+                                                                ~~~~~~~~~~~                      
+
+'./LAC_CLEAN/lac.py' Line 119
+--------------------------------------------------------------------------------
+
+Added keyword 'input_tensor' to reordered function 'tf.reduce_mean'
+
+    Old:                 self.a_dist.prob(self.a)
+                                                  
+    New:                 input_tensor=self.a_dist.prob(self.a)
+                         ~~~~~~~~~~~~~                         
+
+'./LAC_CLEAN/lac.py' Line 123
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.get_collection' to 'tf.compat.v1.get_collection'
+
+    Old:             a_params = tf.get_collection(
+                                ~~~~~~~~~~~~~~~~~  
+    New:             a_params = tf.compat.v1.get_collection(
+                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~  
+
+'./LAC_CLEAN/lac.py' Line 124
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.GraphKeys' to 'tf.compat.v1.GraphKeys'
+
+    Old:                 tf.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/actor"
+                         ~~~~~~~~~~~~                                          
+    New:                 tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/actor"
+                         ~~~~~~~~~~~~~~~~~~~~~~                                          
+
+'./LAC_CLEAN/lac.py' Line 126
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.get_collection' to 'tf.compat.v1.get_collection'
+
+    Old:             l_params = tf.get_collection(
+                                ~~~~~~~~~~~~~~~~~  
+    New:             l_params = tf.compat.v1.get_collection(
+                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~  
+
+'./LAC_CLEAN/lac.py' Line 127
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.GraphKeys' to 'tf.compat.v1.GraphKeys'
+
+    Old:                 tf.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/Lyapunov"
+                         ~~~~~~~~~~~~                                             
+    New:                 tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/Lyapunov"
+                         ~~~~~~~~~~~~~~~~~~~~~~                                             
+
+'./LAC_CLEAN/lac.py' Line 160
+--------------------------------------------------------------------------------
+
+Added keyword 'input_tensor' to reordered function 'tf.reduce_mean'
+
+    Old:                 self.l_ - self.l + (ALG_PARAMS["alpha3"]) * self.R
+                                                                            
+    New:                 self.l_ - self.l input_tensor=+ (ALG_PARAMS["alpha3"]) * self.R
+                                          ~~~~~~~~~~~~~                                  
+
+'./LAC_CLEAN/lac.py' Line 164
+--------------------------------------------------------------------------------
+
+Added keyword 'input_tensor' to reordered function 'tf.reduce_mean'
+
+    Old:             labda_loss = -tf.reduce_mean(log_labda * self.l_delta)
+                                                                            
+    New:             labda_loss = -tf.reduce_mean(input_tensor=log_labda * self.l_delta)
+                                                  ~~~~~~~~~~~~~                          
+
+'./LAC_CLEAN/lac.py' Line 166
+--------------------------------------------------------------------------------
+
+Added keyword 'input_tensor' to reordered function 'tf.reduce_mean'
+
+    Old:                 log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
+                                                                                     
+    New:                 input_tensor=log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
+                         ~~~~~~~~~~~~~                                                            
+
+'./LAC_CLEAN/lac.py' Line 168
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.train.AdamOptimizer' to 'tf.compat.v1.train.AdamOptimizer'
+
+    Old:             self.alpha_train = tf.train.AdamOptimizer(self.LR_A).minimize(
+                                        ~~~~~~~~~~~~~~~~~~~~~~                      
+    New:             self.alpha_train = tf.compat.v1.train.AdamOptimizer(self.LR_A).minimize(
+                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                      
+
+'./LAC_CLEAN/lac.py' Line 171
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.train.AdamOptimizer' to 'tf.compat.v1.train.AdamOptimizer'
+
+    Old:             self.lambda_train = tf.train.AdamOptimizer(self.LR_lag).minimize(
+                                         ~~~~~~~~~~~~~~~~~~~~~~                        
+    New:             self.lambda_train = tf.compat.v1.train.AdamOptimizer(self.LR_lag).minimize(
+                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                        
+
+'./LAC_CLEAN/lac.py' Line 176
+--------------------------------------------------------------------------------
+
+Added keyword 'input_tensor' to reordered function 'tf.reduce_mean'
+
+    Old:             a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(log_pis)
+                                                                                               
+    New:             a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(input_tensor=log_pis)
+                                                                                      ~~~~~~~~~~~~~         
+
+'./LAC_CLEAN/lac.py' Line 178
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.train.AdamOptimizer' to 'tf.compat.v1.train.AdamOptimizer'
+
+    Old:             self.a_train = tf.train.AdamOptimizer(self.LR_A).minimize(
+                                    ~~~~~~~~~~~~~~~~~~~~~~                      
+    New:             self.a_train = tf.compat.v1.train.AdamOptimizer(self.LR_A).minimize(
+                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                      
+
+'./LAC_CLEAN/lac.py' Line 192
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.losses.mean_squared_error' to 'tf.compat.v1.losses.mean_squared_error'
+
+    Old:                 self.l_error = tf.losses.mean_squared_error(
+                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~  
+    New:                 self.l_error = tf.compat.v1.losses.mean_squared_error(
+                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  
+
+'./LAC_CLEAN/lac.py' Line 195
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.train.AdamOptimizer' to 'tf.compat.v1.train.AdamOptimizer'
+
+    Old:                 self.l_train = tf.train.AdamOptimizer(self.LR_L).minimize(
+                                        ~~~~~~~~~~~~~~~~~~~~~~                      
+    New:                 self.l_train = tf.compat.v1.train.AdamOptimizer(self.LR_L).minimize(
+                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                      
+
+'./LAC_CLEAN/lac.py' Line 200
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.global_variables_initializer' to 'tf.compat.v1.global_variables_initializer'
+
+    Old:             self.sess.run(tf.global_variables_initializer())
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    
+    New:             self.sess.run(tf.compat.v1.global_variables_initializer())
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    
+
+'./LAC_CLEAN/lac.py' Line 201
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.train.Saver' to 'tf.compat.v1.train.Saver'
+
+    Old:             self.saver = tf.train.Saver()
+                                  ~~~~~~~~~~~~~~   
+    New:             self.saver = tf.compat.v1.train.Saver()
+                                  ~~~~~~~~~~~~~~~~~~~~~~~~   
+
+'./LAC_CLEAN/lac.py' Line 206
+--------------------------------------------------------------------------------
+
+Added keyword 'input_tensor' to reordered function 'tf.reduce_mean'
+
+    Old:                 tf.reduce_mean(-self.log_pis),
+                                                        
+    New:                 tf.reduce_mean(input_tensor=-self.log_pis),
+                                        ~~~~~~~~~~~~~                
+
+'./LAC_CLEAN/lac.py' Line 319
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.variable_scope' to 'tf.compat.v1.variable_scope'
+
+    Old:         with tf.variable_scope(name, reuse=reuse, custom_getter=custom_getter):
+                      ~~~~~~~~~~~~~~~~~                                                  
+    New:         with tf.compat.v1.variable_scope(name, reuse=reuse, custom_getter=custom_getter):
+                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~                                                  
+
+'./LAC_CLEAN/lac.py' Line 326
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+
+    Old:             net_0 = tf.layers.dense(
+                             ~~~~~~~~~~~~~~~  
+    New:             net_0 = tf.compat.v1.layers.dense(
+                             ~~~~~~~~~~~~~~~~~~~~~~~~~  
+
+'./LAC_CLEAN/lac.py' Line 329
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+
+    Old:             net_1 = tf.layers.dense(
+                             ~~~~~~~~~~~~~~~  
+    New:             net_1 = tf.compat.v1.layers.dense(
+                             ~~~~~~~~~~~~~~~~~~~~~~~~~  
+
+'./LAC_CLEAN/lac.py' Line 332
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+
+    Old:             mu = tf.layers.dense(
+                          ~~~~~~~~~~~~~~~  
+    New:             mu = tf.compat.v1.layers.dense(
+                          ~~~~~~~~~~~~~~~~~~~~~~~~~  
+
+'./LAC_CLEAN/lac.py' Line 335
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+
+    Old:             log_sigma = tf.layers.dense(net_1, self.a_dim, None, trainable=trainable)
+                                 ~~~~~~~~~~~~~~~                                               
+    New:             log_sigma = tf.compat.v1.layers.dense(net_1, self.a_dim, None, trainable=trainable)
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~                                               
+
+'./LAC_CLEAN/lac.py' Line 346
+--------------------------------------------------------------------------------
+
+Added keyword 'input' to reordered function 'tf.shape'
+
+    Old:             batch_size = tf.shape(s)[0]
+                                                 
+    New:             batch_size = tf.shape(input=s)[0]
+                                           ~~~~~~      
+
+'./LAC_CLEAN/lac.py' Line 388
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.variable_scope' to 'tf.compat.v1.variable_scope'
+
+    Old:         with tf.variable_scope("Lyapunov", reuse=reuse, custom_getter=custom_getter):
+                      ~~~~~~~~~~~~~~~~~                                                        
+    New:         with tf.compat.v1.variable_scope("Lyapunov", reuse=reuse, custom_getter=custom_getter):
+                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~                                                        
+
+'./LAC_CLEAN/lac.py' Line 395
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.get_variable' to 'tf.compat.v1.get_variable'
+
+    Old:             w1_s = tf.get_variable("w1_s", [self.s_dim, n1], trainable=trainable)
+                            ~~~~~~~~~~~~~~~                                                
+    New:             w1_s = tf.compat.v1.get_variable("w1_s", [self.s_dim, n1], trainable=trainable)
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~                                                
+
+'./LAC_CLEAN/lac.py' Line 396
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.get_variable' to 'tf.compat.v1.get_variable'
+
+    Old:             w1_a = tf.get_variable("w1_a", [self.a_dim, n1], trainable=trainable)
+                            ~~~~~~~~~~~~~~~                                                
+    New:             w1_a = tf.compat.v1.get_variable("w1_a", [self.a_dim, n1], trainable=trainable)
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~                                                
+
+'./LAC_CLEAN/lac.py' Line 397
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.get_variable' to 'tf.compat.v1.get_variable'
+
+    Old:             b1 = tf.get_variable("b1", [1, n1], trainable=trainable)
+                          ~~~~~~~~~~~~~~~                                     
+    New:             b1 = tf.compat.v1.get_variable("b1", [1, n1], trainable=trainable)
+                          ~~~~~~~~~~~~~~~~~~~~~~~~~                                     
+
+'./LAC_CLEAN/lac.py' Line 403
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+
+    Old:                     tf.layers.dense(
+                             ~~~~~~~~~~~~~~~  
+    New:                     tf.compat.v1.layers.dense(
+                             ~~~~~~~~~~~~~~~~~~~~~~~~~  
+
+'./LAC_CLEAN/lac.py' Line 414
+--------------------------------------------------------------------------------
+
+Added keyword 'input_tensor' to reordered function 'tf.reduce_sum'
+
+    Old:                 tf.reduce_sum(tf.square(layers[-1]), axis=1), axis=1
+                                                                              
+    New:                 tf.reduce_sum(input_tensor=tf.square(layers[-1]), axis=1), axis=1
+                                       ~~~~~~~~~~~~~                                       
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/squash_bijector.py'
+ outputting to './LAC_CLEAN-tf2/squash_bijector.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/variant.py'
+ outputting to './LAC_CLEAN-tf2/variant.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/train.py'
+ outputting to './LAC_CLEAN-tf2/train.py'
+--------------------------------------------------------------------------------
+
+'./LAC_CLEAN/train.py' Line 21
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.reset_default_graph' to 'tf.compat.v1.reset_default_graph'
+
+    Old:         tf.reset_default_graph()                 ~~~~~~~~~~~~~~~~~~~~~~  
+    New:         tf.compat.v1.reset_default_graph()                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/pool.py'
+ outputting to './LAC_CLEAN-tf2/pool.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/utils.py'
+ outputting to './LAC_CLEAN-tf2/utils.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/logger.py'
+ outputting to './LAC_CLEAN-tf2/logger.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/envs/Ex4_EKF.py'
+ outputting to './LAC_CLEAN-tf2/envs/Ex4_EKF.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/envs/Ex2_EKF.py'
+ outputting to './LAC_CLEAN-tf2/envs/Ex2_EKF.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/envs/__init__.py'
+ outputting to './LAC_CLEAN-tf2/envs/__init__.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/envs/Ex3_EKF copy.py'
+ outputting to './LAC_CLEAN-tf2/envs/Ex3_EKF copy.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/envs/Ex1_EKF.py'
+ outputting to './LAC_CLEAN-tf2/envs/Ex1_EKF.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/envs/Ex3_EKF.py'
+ outputting to './LAC_CLEAN-tf2/envs/Ex3_EKF.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/envs/oscillator.py'
+ outputting to './LAC_CLEAN-tf2/envs/oscillator.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+Processing file './LAC_CLEAN/envs/Ex1_KF.py'
+ outputting to './LAC_CLEAN-tf2/envs/Ex1_KF.py'
+--------------------------------------------------------------------------------
+
+
