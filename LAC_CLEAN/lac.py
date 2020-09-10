@@ -43,9 +43,7 @@ class LAC(object):
 
     """
 
-    def __init__(
-        self, a_dim, s_dim,
-    ):
+    def __init__(self, a_dim, s_dim, log_dir="."):
         """Initiate object state.
 
         Args:
@@ -187,13 +185,14 @@ class LAC(object):
                 )
 
             # Initialize variables, create saver and diagnostics graph
+            self.entropy = tf.reduce_mean(-self.log_pis)
             self.sess.run(tf.global_variables_initializer())
             self.saver = tf.train.Saver()
             self.diagnostics = [
                 self.labda,
                 self.alpha,
                 self.l_error,
-                tf.reduce_mean(-self.log_pis),
+                self.entropy,
                 self.a_loss,
                 l_target,
                 labda_loss,
@@ -280,6 +279,8 @@ class LAC(object):
             l,
             R,
         ) = self.sess.run(self.diagnostics, feed_dict)
+
+        # Write results to tensorboard
 
         # Return optimization results
         return labda, alpha, l_error, entropy, a_loss
@@ -451,6 +452,11 @@ def train(log_dir):
     lr_a_now = ALG_PARAMS["lr_a"]  # learning rate for actor, lambda and alpha
     lr_l_now = ALG_PARAMS["lr_l"]  # learning rate for lyapunov critic
 
+    # Create tensorboard learning rates variables
+    tb_lr_a = tf.Variable(ALG_PARAMS["lr_a"])
+    tb_lr_a_now = tf.Variable(ALG_PARAMS["lr_a"])
+    tb_lr_l_now = tf.Variable(ALG_PARAMS["lr_l"])
+
     # Get observation and action space dimension and limits from the environment
     s_dim = env.observation_space.shape[0]
     a_dim = env.action_space.shape[0]
@@ -458,7 +464,7 @@ def train(log_dir):
     a_lowerbound = env.action_space.low
 
     # Create the Lyapunov Actor Critic agent
-    policy = LAC(a_dim, s_dim)
+    policy = LAC(a_dim, s_dim, log_dir=log_dir)
 
     # Create replay memory buffer
     pool = Pool(

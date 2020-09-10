@@ -15,6 +15,9 @@ from utils import evaluate_training_rollouts, get_env_from_name, training_evalua
 import logger
 from pool import Pool
 
+# Disable eager
+tf.compat.v1.disable_eager_execution()
+
 ###############################################
 # Script settings #############################
 ###############################################

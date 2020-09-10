@@ -2,6 +2,7 @@
 """
 
 import sys
+import os
 import time
 
 # Environment parameters
@@ -10,7 +11,10 @@ ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
 
 # Setup log path
-LOG_PATH = "/".join(["../log", ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M"),])
+dirname = os.path.dirname(__file__)
+LOG_PATH = os.path.abspath(
+    os.path.join(dirname, "../log/" + ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M"))
+)
 
 # Main training loop parameters
 TRAIN_PARAMS = {

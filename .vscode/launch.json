@@ -6,13 +6,12 @@
   "configurations": [
 
     {
-      "name": "Python: Current File (old)",
+      "name": "Python: Current File (lac_clean)",
       "type": "python",
       "request": "launch",
       "program": "${file}",
       "console": "integratedTerminal",
-      "pythonPath": "/home/ricks/miniconda3/envs/old_lac_test/bin/python",
-      // "args": ["--model-name=LAC20200909_1024"]
+      "pythonPath": "/home/ricks/miniconda3/envs/lac_clean/bin/python",
     },
     {
       "name": "Python: Current File 2 (new)",
@@ -20,7 +19,7 @@
       "request": "launch",
       "program": "${file}",
       "console": "integratedTerminal",
-      "pythonPath": "/home/ricks/miniconda3/envs/test_new/bin/python"
+      "pythonPath": "/home/ricks/miniconda3/envs/tf2_eager/bin/python"
     }
   ]
 }
