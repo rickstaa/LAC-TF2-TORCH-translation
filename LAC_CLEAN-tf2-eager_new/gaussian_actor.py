@@ -7,7 +7,7 @@ import tensorflow_probability as tfp
 
 from squash_bijector import SquashBijector
 
-@tf.function
+# @tf.function
 def apply_squashing_func(mu, pi, logp_pi):
     # Adjustment to log prob
     # NOTE: This formula is a little bit magic. To get an understanding of where it
@@ -83,7 +83,7 @@ class SquashedGaussianActor(tf.keras.Model):
             ]
         )
 
-    @tf.function
+    # @tf.function
     def call(self, input_tensor):
 
         # Get current policy mean and std

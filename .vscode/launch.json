@@ -14,12 +14,12 @@
       "pythonPath": "/home/ricks/miniconda3/envs/lac_clean/bin/python",
     },
     {
-      "name": "Python: Current File 2 (new)",
+      "name": "Python: Current File 2 (lac_clean_tf2)",
       "type": "python",
       "request": "launch",
       "program": "${file}",
       "console": "integratedTerminal",
-      "pythonPath": "/home/ricks/miniconda3/envs/tf2_eager/bin/python"
+      "pythonPath": "/home/ricks/miniconda3/envs/lac_clean_tf2/bin/python"
     }
   ]
 }

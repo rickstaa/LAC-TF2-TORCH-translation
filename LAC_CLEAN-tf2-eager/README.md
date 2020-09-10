@@ -1,3 +1,4 @@
 # Problem
 
-The lyapunov error is not decreasing!
+Here in eager mode the re-parameterization trick is not working as the gradient of the
+log_pi layer can not be computed.

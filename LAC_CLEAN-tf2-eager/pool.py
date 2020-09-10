@@ -1,18 +1,15 @@
-from collections import OrderedDict, deque
-import numpy as np
 from copy import deepcopy
+from collections import OrderedDict, deque
+
+import numpy as np
+import tensorflow as tf
 
 
 class Pool(object):
     """Memory buffer class."""
 
     def __init__(
-        self,
-        s_dim,
-        a_dim,
-        memory_capacity,
-        store_last_n_paths,
-        min_memory_size,
+        self, s_dim, a_dim, memory_capacity, store_last_n_paths, min_memory_size,
     ):
         """Initialize memory buffer object.
 
@@ -113,8 +110,16 @@ class Pool(object):
             batch = {}
             for key in self.memory.keys():
                 if "s" in key:
-                    sample = self.memory[key][indices]
+                    sample = tf.convert_to_tensor(
+                        self.memory[key][indices], dtype=tf.float32
+                    )
                     batch.update({key: sample})
                 else:
-                    batch.update({key: self.memory[key][indices]})
+                    batch.update(
+                        {
+                            key: tf.convert_to_tensor(
+                                self.memory[key][indices], dtype=tf.float32
+                            )
+                        }
+                    )
             return batch

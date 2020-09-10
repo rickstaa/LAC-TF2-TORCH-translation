@@ -4,8 +4,6 @@
 import time
 from collections import deque
 import os
-import sys
-import copy
 
 import numpy as np
 import tensorflow as tf
@@ -18,10 +16,6 @@ from utils import evaluate_training_rollouts, get_env_from_name, training_evalua
 import logger
 from pool import Pool
 
-# Check if eager mode is enabled
-print("\nEager enabled: " + str(tf.executing_eagerly()) + "\n")
-
-
 ###############################################
 # Script settings #############################
 ###############################################
@@ -32,7 +26,6 @@ from variant import (
     TRAIN_PARAMS,
     ALG_PARAMS,
     ENV_PARAMS,
-    LOG_SIGMA_MIN_MAX,
     SCALE_lambda_MIN_MAX,
 )
 
@@ -40,11 +33,14 @@ from variant import (
 if RANDOM_SEED:
     np.random.seed(RANDOM_SEED)
 
+# Check if eager mode is enabled
+print("Tensorflow eager mode enabled: " + str(tf.executing_eagerly()))
+
 
 ###############################################
 # LAC algorithm class #########################
 ###############################################
-class LAC(object):
+class LAC(tf.Module):
     """The lyapunov actor critic.
 
     """
@@ -64,8 +60,8 @@ class LAC(object):
         self.s_dim = s_dim
 
         # Set algorithm parameters as class objects
-        self.polyak = (1 - ALG_PARAMS["tau"])
         self.network_structure = ALG_PARAMS["network_structure"]
+        self.polyak = 1 - ALG_PARAMS["tau"]
 
         # Determine target entropy
         if ALG_PARAMS["target_entropy"]:
@@ -93,9 +89,9 @@ class LAC(object):
         # Create GA and LC target networks
         # Don't get optimized but get updated according to the EMA of the main
         # networks
-        self.ga_ = self._build_a(name="TargetActor")
-        self.lc_ = self._build_l(name="TargetCritic")
-        self.target_init()  # Initiate target weights
+        self.ga_ = self._build_a()
+        self.lc_ = self._build_l()
+        self.target_init()
 
         # Create Networks for the (fixed) lyapunov temperature boundary
         # NOTE: Used as a minimum lambda constraint boundary
@@ -105,11 +101,16 @@ class LAC(object):
         ###########################################
         # Create optimizers #######################
         ###########################################
+
         self.alpha_train = tf.keras.optimizers.Adam(learning_rate=self.LR_A)
         self.lambda_train = tf.keras.optimizers.Adam(learning_rate=self.LR_lag)
         self.a_train = tf.keras.optimizers.Adam(learning_rate=self.LR_A)
         self.l_train = tf.keras.optimizers.Adam(learning_rate=self.LR_L)
 
+        # Create model save dict
+        self._save_dict = {"gaussian_actor": self.ga, "lyapunov_critic": self.lc}
+
+    @tf.function
     def choose_action(self, s, evaluation=False):
         """Returns the current action of the policy.
 
@@ -121,16 +122,28 @@ class LAC(object):
         Returns:
             np.numpy: The current action.
         """
+
+        # Make sure s is float32 tensorflow tensor
+        if not isinstance(s, tf.Tensor):
+            s = tf.convert_to_tensor(s, dtype=tf.float32)
+        elif s.dtype != tf.float32:
+            s = tf.cast(
+                s, dtype=tf.float32
+            )
+
+
+        # Get current best action
         if evaluation is True:
             try:
-                _, deterministic_a, _ = self.ga(s[np.newaxis, :], training=False)
-                return deterministic_a.numpy()[0]
+                _, deterministic_a, _ = self.ga(tf.reshape(s, (1, -1)))
+                return deterministic_a[0]
             except ValueError:
                 return
         else:
-            a, _, _ = self.ga(s[np.newaxis, :], training=True)
-            return a.numpy()[0]
+            a, _, _ = self.ga(tf.reshape(s, (1, -1)))
+            return a[0]
 
+    @tf.function
     def learn(self, LR_A, LR_L, LR_lag, batch):
         """Runs the SGD to update all the optimizable parameters.
 
@@ -139,6 +152,9 @@ class LAC(object):
             LR_L (float): Lyapunov critic learning rate.
             LR_lag (float): Lyapunov constraint langrance multiplier learning rate.
             batch (numpy.ndarray): The batch of experiences.
+
+        Returns:
+            [type]: [description]
         """
 
         # Retrieve state, action and reward from the batch
@@ -150,18 +166,16 @@ class LAC(object):
 
         # Calculate current value and target lyapunov multiplier value
         lya_a_, _, _ = self.lya_ga_(bs_)
-        l_ = self.lya_lc_(tf.concat([bs_, lya_a_], axis=1))
+        l_ = self.lya_lc_([bs_, lya_a_])
+
+        # Calculate current lyapunov value
+        l = self.lc([bs, ba])
+
+        # Calculate Lyapunov constraint function
+        self.l_delta = tf.reduce_mean(l_ - l + (ALG_PARAMS["alpha3"]) * br)
 
         # Lagrance multiplier loss functions and optimizers graphs
         with tf.GradientTape() as tape:
-
-            # Calculate current lyapunov value
-            l = self.lc(tf.concat([bs, ba], axis=1))
-
-            # Calculate Lyapunov constraint function
-            self.l_delta = tf.reduce_mean(l_ - l + (ALG_PARAMS["alpha3"]) * br)
-
-            # Calculate lambda loss
             labda_loss = -tf.reduce_mean(self.log_labda * self.l_delta)
 
         # Apply gradients
@@ -169,7 +183,9 @@ class LAC(object):
         self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
 
         # Calculate log probability of a_input based on current policy
-        _, _, log_pis = self.ga(bs)
+        # a, _, a_dist = self.ga(bs)
+        a, _, log_pis = self.ga(bs)
+        # log_pis = a_dist.log_prob(a)
 
         # Calculate alpha loss
         with tf.GradientTape() as tape:
@@ -181,19 +197,19 @@ class LAC(object):
         alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
         self.alpha_train.apply_gradients(zip(alpha_grads, [self.log_alpha]))
 
+        # Calculate current lyapunov value
+        l = self.lc([bs, ba])
+
+        # Calculate Lyapunov constraint function
+        self.l_delta = tf.reduce_mean(l_ - l + (ALG_PARAMS["alpha3"]) * br)
+
         # Actor loss and optimizer graph
         with tf.GradientTape() as tape:
 
             # Calculate log probability of a_input based on current policy
-            # NOTE: Needed 2 times because of gradient!
-            # TODO: Move to one big taper!
-            _, _, log_pis = self.ga(bs)
-
-            # Calculate current lyapunov value
-            l = self.lc(tf.concat([bs, ba], axis=1))
-
-            # Calculate Lyapunov constraint function
-            self.l_delta = tf.reduce_mean(l_ - l + (ALG_PARAMS["alpha3"]) * br)
+            a, _, a_dist = self.ga(bs)
+            a, _, log_pis = self.ga(bs)
+            # log_pis = a_dist.log_prob(a)
 
             # Calculate actor loss
             a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(log_pis)
@@ -204,17 +220,19 @@ class LAC(object):
 
         # Update target networks
         self.update_target()
+        # apply_ema(self.ga, self.ga_, polyak=(1.0 - ALG_PARAMS["tau"]))
+        # apply_ema(self.lc, self.lc_, polyak=(1.0 - ALG_PARAMS["tau"]))
 
         # Get Lypaunov target
         a_, _, _ = self.ga_(bs_)
-        l_ = self.lc_(tf.concat([bs_, a_], axis=1))  # FIXME: Confusing name
+        l_ = self.lc_([bs_, a_])  # FIXME: Confusing name
         l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * tf.stop_gradient(l_)
 
         # Lyapunov candidate constraint function graph
         with tf.GradientTape() as tape:
 
             # Calculate current lyapunov value
-            l = self.lc(tf.concat([bs, ba], axis=1))
+            l = self.lc([bs, ba])
 
             # Calculate L_backup
             l_error = tf.compat.v1.losses.mean_squared_error(
@@ -225,16 +243,13 @@ class LAC(object):
         l_grads = tape.gradient(l_error, self.lc.trainable_variables)
         self.l_train.apply_gradients(zip(l_grads, self.lc.trainable_variables))
 
-        # Update target networks
-        # self.update_target()
-
         # Return results
         return (
-            self.labda.numpy(),
-            self.alpha.numpy(),
-            l_error.numpy(),
-            tf.reduce_mean(-1.0 * tf.stop_gradient(log_pis)).numpy(),
-            a_loss.numpy(),
+            self.labda,
+            self.alpha,
+            l_error,
+            tf.reduce_mean(-1.0 * tf.stop_gradient(log_pis)),
+            a_loss,
         )
 
     def _build_a(self, name="actor", reuse=None, custom_getter=None):
@@ -242,6 +257,9 @@ class LAC(object):
 
         Args:
             name (str, optional): Network name. Defaults to "actor".
+
+            reuse (Bool, optional): Whether the network has to be trainable. Defaults
+                to None.
 
             custom_getter (object, optional): Overloads variable creation process.
                 Defaults to None.
@@ -266,6 +284,9 @@ class LAC(object):
 
             a (tf.Tensor): Tensor with actions.
 
+            reuse (Bool, optional): Whether the network has to be trainable. Defaults
+                to None.
+
             custom_getter (object, optional): Overloads variable creation process.
                 Defaults to None.
 
@@ -288,8 +309,11 @@ class LAC(object):
             path (str): The path where you want to save the policy.
         """
 
-        save_path = self.saver.save(self.sess, path + "/policy/model.ckpt")
-        print("Save to path: ", save_path)
+        # Save all models/tensors in the _save_dict
+        for name, model in self._save_dict.items():
+            save_path = path + "/policy/" + name
+            model.save_weights(save_path)
+            print(f"Saved '{name}' weights to path: {save_path}")
 
     def restore(self, path):
         """Restore policy.
@@ -298,13 +322,21 @@ class LAC(object):
             path (str): The path where you want to save the policy.
 
         Returns:
-            bool: Boolean specifying whether the policy was loaded succesfully.
+            bool: Boolean specifying whether the policy was loaded successfully.
         """
-        model_file = tf.train.latest_checkpoint(path + "/")
-        if model_file is None:
+
+        # Check if the models exist
+        checkpoints = [
+            f.replace(".index", "") for f in os.listdir(path) if f.endswith(".index")
+        ]
+        if not checkpoints:
             success_load = False
             return success_load
-        self.saver.restore(self.sess, model_file)
+
+        # Load the model weights
+        self.ga.load_weights(path + "/gaussian_actor")
+        self.lc.load_weights(path + "/lyapunov_critic")
+        self.target_init()
         success_load = True
         return success_load
 
@@ -419,7 +451,7 @@ def train(log_dir):
             action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
 
             # Perform action in env
-            s_, r, done, info = env.step(action)
+            s_, r, done, _ = env.step(action)
 
             # Increment global setp count
             if training_started:
@@ -431,7 +463,9 @@ def train(log_dir):
             terminal = 1.0 if done else 0.0
 
             # Store experience in replay buffer
-            pool.store(s, a, r, terminal, s_)
+            pool.store(
+                s, a, r, terminal, s_,
+            )
 
             # Optimize weights and parameters using STG
             if (

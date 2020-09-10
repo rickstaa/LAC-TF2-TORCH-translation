@@ -1,7 +1,5 @@
 """Start the LAC agent training."""
 
-import tensorflow as tf
-
 from variant import (
     LOG_PATH,
     TRAIN_PARAMS,
@@ -18,4 +16,3 @@ if __name__ == "__main__":
         roll_out_log_path = LOG_PATH + "/" + str(i)
         print("logging to " + roll_out_log_path)
         train(roll_out_log_path)
-        tf.compat.v1.reset_default_graph()

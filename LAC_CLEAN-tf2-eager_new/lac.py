@@ -64,6 +64,7 @@ class LAC(object):
         self.s_dim = s_dim
 
         # Set algorithm parameters as class objects
+        self.polyak = (1 - ALG_PARAMS["tau"])
         self.network_structure = ALG_PARAMS["network_structure"]
 
         # Determine target entropy
@@ -71,14 +72,6 @@ class LAC(object):
             self.target_entropy = ALG_PARAMS["target_entropy"]
         else:
             self.target_entropy = -self.a_dim  # lower bound of the policy entropy
-
-        # Create observations placeholders
-        self.S = tf.Variable(tf.zeros(shape=(self.s_dim)), name="s")
-        self.S_ = tf.Variable(tf.zeros(shape=(self.s_dim)), name="s_")
-        self.a_input = tf.Variable(tf.zeros(shape=(self.a_dim)), name="a_input")
-        self.a_input_ = tf.Variable(tf.zeros(shape=(self.a_dim)), name="a_input_")
-        self.R = tf.Variable(tf.zeros(shape=(1)), name="r")
-        self.terminal = tf.Variable(tf.zeros(shape=(1)), name="terminal")
 
         # Create Learning rate placeholders
         self.LR_A = tf.Variable(ALG_PARAMS["lr_a"], name="LR_A")
@@ -100,27 +93,18 @@ class LAC(object):
         # Create GA and LC target networks
         # Don't get optimized but get updated according to the EMA of the main
         # networks
-        self.ga_ = copy.deepcopy(self.ga)
-        self.lc_ = copy.deepcopy(self.lc)
-        self.ga_._name = "TargetActor"
-        self.lc_._name = "TargetCritic"
-
-        # Freeze target networks
-        self.ga_.trainable = False
-        self.lc_.trainable = False
-        self.lc_.w1_s._trainable = False
-        self.lc_.w1_a._trainable = False
-        self.lc_.b1._trainable = False
+        self.ga_ = self._build_a(name="TargetActor")
+        self.lc_ = self._build_l(name="TargetCritic")
+        self.target_init()  # Initiate target weights
 
         # Create Networks for the (fixed) lyapunov temperature boundary
         # NOTE: Used as a minimum lambda constraint boundary
-        self.lya_ga_ = self._build_a(reuse=True)
-        self.lya_lc_ = self._build_l(reuse=True)
+        self.lya_ga_ = self._build_a()
+        self.lya_lc_ = self._build_l()
 
         ###########################################
         # Create optimizers #######################
         ###########################################
-
         self.alpha_train = tf.keras.optimizers.Adam(learning_rate=self.LR_A)
         self.lambda_train = tf.keras.optimizers.Adam(learning_rate=self.LR_lag)
         self.a_train = tf.keras.optimizers.Adam(learning_rate=self.LR_A)
@@ -155,9 +139,6 @@ class LAC(object):
             LR_L (float): Lyapunov critic learning rate.
             LR_lag (float): Lyapunov constraint langrance multiplier learning rate.
             batch (numpy.ndarray): The batch of experiences.
-
-        Returns:
-            [type]: [description]
         """
 
         # Retrieve state, action and reward from the batch
@@ -169,13 +150,13 @@ class LAC(object):
 
         # Calculate current value and target lyapunov multiplier value
         lya_a_, _, _ = self.lya_ga_(bs_)
-        l_ = self.lya_lc_([bs_, lya_a_])
+        l_ = self.lya_lc_(tf.concat([bs_, lya_a_], axis=1))
 
         # Lagrance multiplier loss functions and optimizers graphs
         with tf.GradientTape() as tape:
 
             # Calculate current lyapunov value
-            l = self.lc([bs, ba])
+            l = self.lc(tf.concat([bs, ba], axis=1))
 
             # Calculate Lyapunov constraint function
             self.l_delta = tf.reduce_mean(l_ - l + (ALG_PARAMS["alpha3"]) * br)
@@ -188,8 +169,7 @@ class LAC(object):
         self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
 
         # Calculate log probability of a_input based on current policy
-        a, _, a_dist = self.ga(bs)
-        log_pis = a_dist.log_prob(a)
+        _, _, log_pis = self.ga(bs)
 
         # Calculate alpha loss
         with tf.GradientTape() as tape:
@@ -207,11 +187,10 @@ class LAC(object):
             # Calculate log probability of a_input based on current policy
             # NOTE: Needed 2 times because of gradient!
             # TODO: Move to one big taper!
-            a, _, a_dist = self.ga(bs)
-            log_pis = a_dist.log_prob(a)
+            _, _, log_pis = self.ga(bs)
 
             # Calculate current lyapunov value
-            l = self.lc([bs, ba])
+            l = self.lc(tf.concat([bs, ba], axis=1))
 
             # Calculate Lyapunov constraint function
             self.l_delta = tf.reduce_mean(l_ - l + (ALG_PARAMS["alpha3"]) * br)
@@ -224,21 +203,18 @@ class LAC(object):
         self.a_train.apply_gradients(zip(a_grads, self.ga.trainable_variables))
 
         # Update target networks
-        apply_ema(self.ga, self.ga_, polyak=(1.0 - ALG_PARAMS["tau"]))
-        apply_ema(self.lc, self.lc_, polyak=(1.0 - ALG_PARAMS["tau"]))
+        self.update_target()
 
         # Get Lypaunov target
         a_, _, _ = self.ga_(bs_)
         l_ = self.lc_(tf.concat([bs_, a_], axis=1))  # FIXME: Confusing name
-        l_target = br + ALG_PARAMS["gamma"] * (
-            1 - bterminal
-        ) * tf.stop_gradient(l_)
+        l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * tf.stop_gradient(l_)
 
         # Lyapunov candidate constraint function graph
         with tf.GradientTape() as tape:
 
             # Calculate current lyapunov value
-            l = self.lc([bs, ba])
+            l = self.lc(tf.concat([bs, ba], axis=1))
 
             # Calculate L_backup
             l_error = tf.compat.v1.losses.mean_squared_error(
@@ -249,13 +225,16 @@ class LAC(object):
         l_grads = tape.gradient(l_error, self.lc.trainable_variables)
         self.l_train.apply_gradients(zip(l_grads, self.lc.trainable_variables))
 
+        # Update target networks
+        # self.update_target()
+
         # Return results
         return (
-            self.labda,
-            self.alpha,
-            l_error,
-            tf.reduce_mean(-1.0 * tf.stop_gradient(log_pis)),
-            a_loss,
+            self.labda.numpy(),
+            self.alpha.numpy(),
+            l_error.numpy(),
+            tf.reduce_mean(-1.0 * tf.stop_gradient(log_pis)).numpy(),
+            a_loss.numpy(),
         )
 
     def _build_a(self, name="actor", reuse=None, custom_getter=None):
@@ -264,9 +243,6 @@ class LAC(object):
         Args:
             name (str, optional): Network name. Defaults to "actor".
 
-            reuse (Bool, optional): Whether the network has to be trainable. Defaults
-                to None.
-
             custom_getter (object, optional): Overloads variable creation process.
                 Defaults to None.
 
@@ -274,16 +250,12 @@ class LAC(object):
             tuple: Tuple with network output tensors.
         """
 
-        # Set trainability
-        trainable = True if reuse is None else False
-
         # Return GA
         return SquashedGaussianActor(
             obs_dim=self.s_dim,
             act_dim=self.a_dim,
             hidden_sizes=self.network_structure["actor"],
             name=name,
-            trainable=trainable,
         )
 
     def _build_l(self, name="Critic", reuse=None, custom_getter=None):
@@ -294,9 +266,6 @@ class LAC(object):
 
             a (tf.Tensor): Tensor with actions.
 
-            reuse (Bool, optional): Whether the network has to be trainable. Defaults
-                to None.
-
             custom_getter (object, optional): Overloads variable creation process.
                 Defaults to None.
 
@@ -304,16 +273,12 @@ class LAC(object):
             tuple: Tuple with network output tensors.
         """
 
-        # Set trainability
-        trainable = True if reuse is None else False
-
         # Return GA
         return LyapunovCritic(
             obs_dim=self.s_dim,
             act_dim=self.a_dim,
             hidden_sizes=self.network_structure["critic"],
             name=name,
-            trainable=trainable,
         )
 
     def save_result(self, path):
@@ -352,13 +317,23 @@ class LAC(object):
         labda_scaled = tf.clip_by_value(tf.exp(self.log_labda), *SCALE_lambda_MIN_MAX)
         return labda_scaled
 
+    # @tf.function
+    def target_init(self):
+        # Initializing targets to match main variables
+        for pi_main, pi_targ in zip(self.ga.variables, self.ga_.variables):
+            pi_targ.assign(pi_main)
+        for l_main, l_targ in zip(self.lc.variables, self.lc_.variables):
+            l_targ.assign(l_main)
 
-def apply_ema(model, target_model, polyak=(1 - ALG_PARAMS["tau"])):
-    weights = model.get_weights()
-    target_weights = target_model.get_weights()
-    for i in range(len(target_weights)):  # set tau of target model to be new weights
-        target_weights[i] = weights[i] * polyak + target_weights[i] * (1 - polyak)
-    target_model.set_weights(target_weights)
+    # @tf.function
+    def update_target(self):
+        # Polyak averaging for target variables
+        # (control flow because sess.run otherwise evaluates in nondeterministic order)
+        for pi_main, pi_targ in zip(self.ga.variables, self.ga_.variables):
+            pi_targ.assign(self.polyak * pi_targ + (1 - self.polyak) * pi_main)
+
+        for l_main, l_targ in zip(self.lc.variables, self.lc_.variables):
+            l_targ.assign(self.polyak * l_targ + (1 - self.polyak) * l_main)
 
 
 def train(log_dir):

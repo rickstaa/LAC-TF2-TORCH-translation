@@ -7,7 +7,7 @@ import time
 
 # Environment parameters
 ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
-ENV_SEED = None  # The environment seed
+ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
 
 # Setup log path
@@ -28,7 +28,7 @@ TRAIN_PARAMS = {
 
 # Main evaluation parameters
 EVAL_PARAMS = {
-    "eval_list": ["LAC20200906_2152"],
+    "eval_list": ["LAC20200910_2211"],
     "additional_description": "original",
     "trials_for_eval": [str(i) for i in range(0, 3)],
     "num_of_paths": 10,  # number of path for evaluation
@@ -42,7 +42,6 @@ NETWORK_STRUCTURE = {"critic": [128, 128], "actor": [64, 64]}
 # Learning algorithm parameters
 ALG_PARAMS = {
     "memory_capacity": int(1e6),  # The max replay buffer size
-    # "min_memory_size": 256,  # The minimum replay buffer size before STG starts
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
     "labda": 1.0,  # Initial value for the lyapunov constraint lagrance multiplier

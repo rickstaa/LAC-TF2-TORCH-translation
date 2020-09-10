@@ -2,10 +2,6 @@
 """
 
 import tensorflow as tf
-import tensorflow_probability as tfp
-
-from squash_bijector import SquashBijector
-
 
 class LyapunovCritic(tf.keras.Model):
     def __init__(
@@ -51,5 +47,5 @@ class LyapunovCritic(tf.keras.Model):
 
         # Return result
         return tf.expand_dims(
-            tf.reduce_sum(tf.square(net_out), axis=1), axis=1
+            tf.reduce_sum(tf.math.square(net_out), axis=1), axis=1
         )  # L(s,a)
