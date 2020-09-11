@@ -771,9 +771,7 @@ def train(log_dir):
 
                                 # Add learning parameters
                                 for key, val in training_diagnotic.items():
-                                    policy.sess.run(
-                                        tf.summary.scalar(key, val, step=step)
-                                    )
+                                    policy.sess.run(tf.summary.scalar(key, val, step=step))
 
                                 # Add learning rates
                                 policy.sess.run(
