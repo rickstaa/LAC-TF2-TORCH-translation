@@ -43,7 +43,7 @@ class LAC(object):
 
     """
 
-    def __init__(self, a_dim, s_dim, log_dir="."):
+    def __init__(self, a_dim, s_dim):
         """Initiate object state.
 
         Args:
@@ -54,9 +54,6 @@ class LAC(object):
         # Save action and observation space as members
         self.a_dim = a_dim
         self.s_dim = s_dim
-
-        # Create tensorboard writer
-        self.tb_writer = tf.compat.v1.summary.FileWriter(log_dir)
 
         # Set algorithm parameters as class objects
         self.network_structure = ALG_PARAMS["network_structure"]

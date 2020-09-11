@@ -26,6 +26,7 @@ from variant import (
     TRAIN_PARAMS,
     ALG_PARAMS,
     ENV_PARAMS,
+    LOG_SIGMA_MIN_MAX,
     SCALE_lambda_MIN_MAX,
 )
 
@@ -127,10 +128,7 @@ class LAC(tf.Module):
         if not isinstance(s, tf.Tensor):
             s = tf.convert_to_tensor(s, dtype=tf.float32)
         elif s.dtype != tf.float32:
-            s = tf.cast(
-                s, dtype=tf.float32
-            )
-
+            s = tf.cast(s, dtype=tf.float32)
 
         # Get current best action
         if evaluation is True:
@@ -274,6 +272,8 @@ class LAC(tf.Module):
             act_dim=self.a_dim,
             hidden_sizes=self.network_structure["actor"],
             name=name,
+            log_std_min=LOG_SIGMA_MIN_MAX[0],
+            log_std_max=LOG_SIGMA_MIN_MAX[1],
         )
 
     def _build_l(self, name="Critic", reuse=None, custom_getter=None):
@@ -463,9 +463,7 @@ def train(log_dir):
             terminal = 1.0 if done else 0.0
 
             # Store experience in replay buffer
-            pool.store(
-                s, a, r, terminal, s_,
-            )
+            pool.store(s, a, r, terminal, s_)
 
             # Optimize weights and parameters using STG
             if (

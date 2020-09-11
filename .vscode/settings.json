@@ -14,5 +14,8 @@
         "titleBar.inactiveForeground": "#15202b99"
     },
     "peacock.color": "#fc7f6b",
-    "python.pythonPath": "/home/ricks/miniconda3/envs/old_lac_test/bin/python"
+    "python.pythonPath": "/home/ricks/miniconda3/envs/lac_clean_tf2/bin/python",
+    "python.linting.flake8Enabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.enabled": true
 }
