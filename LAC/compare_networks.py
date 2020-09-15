@@ -31,7 +31,8 @@ A_DIM = 2
 
 NETWORK_STRUCTURE = {"critic": [128, 128], "actor": [64, 64]}
 
-def _build_a(s, name='actor', reuse=None, custom_getter=None):
+
+def _build_a(s, name="actor", reuse=None, custom_getter=None):
     global S_DIM
     global A_DIM
     global NETWORK_STRUCTURE
@@ -43,9 +44,14 @@ def _build_a(s, name='actor', reuse=None, custom_getter=None):
         # ===============================
         # Get action and observation space size
 
-
         # Create and return Squashed Gaussian actor
-        SGA = SquashedGaussianMLPActor(S_DIM, A_DIM, NETWORK_STRUCTURE, log_std_min=SCALE_DIAG_MIN_MAX[0],log_std_max=SCALE_DIAG_MIN_MAX[1])
+        SGA = SquashedGaussianMLPActor(
+            S_DIM,
+            A_DIM,
+            NETWORK_STRUCTURE,
+            log_std_min=SCALE_DIAG_MIN_MAX[0],
+            log_std_max=SCALE_DIAG_MIN_MAX[1],
+        )
         return SGA
         # ===============================
         # END <<<<< Pytorch CODE ========
@@ -64,22 +70,28 @@ def _build_a(s, name='actor', reuse=None, custom_getter=None):
         with tf.variable_scope(name, reuse=reuse, custom_getter=custom_getter):
 
             batch_size = tf.shape(s)[0]
-            squash_bijector = (SquashBijector())
-            base_distribution = tfp.distributions.MultivariateNormalDiag(loc=tf.zeros(A_DIM), scale_diag=tf.ones(A_DIM))
+            squash_bijector = SquashBijector()
+            base_distribution = tfp.distributions.MultivariateNormalDiag(
+                loc=tf.zeros(A_DIM), scale_diag=tf.ones(A_DIM)
+            )
             epsilon = base_distribution.sample(batch_size)
 
             ## Construct the feedforward action
-            n1 = NETWORK_STRUCTURE['actor'][0]
-            n2 = NETWORK_STRUCTURE['actor'][1]
+            n1 = NETWORK_STRUCTURE["actor"][0]
+            n2 = NETWORK_STRUCTURE["actor"][1]
 
-            net_0 = tf.layers.dense(s, n1, activation=tf.nn.relu, name='l1', trainable=trainable)#原始是30
-            net_1 = tf.layers.dense(net_0, n2, activation=tf.nn.relu, name='l4', trainable=trainable)  # 原始是30
-            mu = tf.layers.dense(net_1, A_DIM, activation= None, name='a', trainable=trainable)
+            net_0 = tf.layers.dense(
+                s, n1, activation=tf.nn.relu, name="l1", trainable=trainable
+            )  # 原始是30
+            net_1 = tf.layers.dense(
+                net_0, n2, activation=tf.nn.relu, name="l4", trainable=trainable
+            )  # 原始是30
+            mu = tf.layers.dense(
+                net_1, A_DIM, activation=None, name="a", trainable=trainable
+            )
             log_sigma = tf.layers.dense(net_1, A_DIM, None, trainable=trainable)
 
-
             # log_sigma = tf.layers.dense(s, A_DIM, None, trainable=trainable)
-
 
             log_sigma = tf.clip_by_value(log_sigma, *SCALE_DIAG_MIN_MAX)
             sigma = tf.exp(log_sigma)
@@ -89,15 +101,12 @@ def _build_a(s, name='actor', reuse=None, custom_getter=None):
             clipped_a = squash_bijector.forward(raw_action)
 
             ## Construct the distribution
-            bijector = tfp.bijectors.Chain((
-                squash_bijector,
-                tfp.bijectors.Affine(
-                    shift=mu,
-                    scale_diag=sigma),
-            ))
+            bijector = tfp.bijectors.Chain(
+                (squash_bijector, tfp.bijectors.Affine(shift=mu, scale_diag=sigma),)
+            )
             distribution = tfp.distributions.ConditionalTransformedDistribution(
-                    distribution=base_distribution,
-                    bijector=bijector)
+                distribution=base_distribution, bijector=bijector
+            )
 
             clipped_mu = squash_bijector.forward(mu)
 
@@ -148,20 +157,31 @@ def _build_l(s, a, reuse=None, custom_getter=None):
     else:
         trainable = True if reuse is None else False
 
-        with tf.variable_scope('Lyapunov', reuse=reuse, custom_getter=custom_getter):
-            n1 = NETWORK_STRUCTURE['critic'][0]
+        with tf.variable_scope("Lyapunov", reuse=reuse, custom_getter=custom_getter):
+            n1 = NETWORK_STRUCTURE["critic"][0]
 
             layers = []
-            w1_s = tf.get_variable('w1_s', [S_DIM, n1], trainable=trainable)
-            w1_a = tf.get_variable('w1_a', [A_DIM, n1], trainable=trainable)
-            b1 = tf.get_variable('b1', [1, n1], trainable=trainable)
+            w1_s = tf.get_variable("w1_s", [S_DIM, n1], trainable=trainable)
+            w1_a = tf.get_variable("w1_a", [A_DIM, n1], trainable=trainable)
+            b1 = tf.get_variable("b1", [1, n1], trainable=trainable)
             net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
             layers.append(net_0)
-            for i in range(1, len(NETWORK_STRUCTURE['critic'])):
-                n = NETWORK_STRUCTURE['critic'][i]
-                layers.append(tf.layers.dense(layers[i-1], n, activation=tf.nn.relu, name='l'+str(i+1), trainable=trainable))
+            for i in range(1, len(NETWORK_STRUCTURE["critic"])):
+                n = NETWORK_STRUCTURE["critic"][i]
+                layers.append(
+                    tf.layers.dense(
+                        layers[i - 1],
+                        n,
+                        activation=tf.nn.relu,
+                        name="l" + str(i + 1),
+                        trainable=trainable,
+                    )
+                )
 
-            return tf.expand_dims(tf.reduce_sum(tf.square(layers[-1]), axis=1),axis=1)  # Q(s,a)
+            return tf.expand_dims(
+                tf.reduce_sum(tf.square(layers[-1]), axis=1), axis=1
+            )  # Q(s,a)
+
 
 if __name__ == "__main__":
 
@@ -169,8 +189,8 @@ if __name__ == "__main__":
     # Create pytorch networks #####
     ###############################
     USE_PYTORCH = True
-    ga = _build_a(S_DIM) # 这个网络用于及时更新参数
-    lc = _build_l(S_DIM, A_DIM)   # lyapunov 网络
+    ga = _build_a(S_DIM)  # 这个网络用于及时更新参数
+    lc = _build_l(S_DIM, A_DIM)  # lyapunov 网络
 
     # Create target networks
     ga_ = _build_a(S_DIM)
@@ -236,39 +256,52 @@ if __name__ == "__main__":
 
         # Create summary writer
         summaryMerged = tf.summary.merge_all()
-        filename="./summary_log/run"+datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%s")
+        filename = "./summary_log/run" + datetime.datetime.now().strftime(
+            "%Y-%m-%d--%H-%M-%s"
+        )
         writer = tf.summary.FileWriter(filename, sess.graph)
 
-        with tf.variable_scope('Actor'):
+        with tf.variable_scope("Actor"):
             # Create placeholders
-            S = tf.placeholder(tf.float32, [None, S_DIM], 's')
-            S_ = tf.placeholder(tf.float32, [None, S_DIM], 's_')
-            a_input = tf.placeholder(tf.float32, [None, A_DIM], 'a_input')
-            a_input_ = tf.placeholder(tf.float32, [None, A_DIM], 'a_input_')
+            S = tf.placeholder(tf.float32, [None, S_DIM], "s")
+            S_ = tf.placeholder(tf.float32, [None, S_DIM], "s_")
+            a_input = tf.placeholder(tf.float32, [None, A_DIM], "a_input")
+            a_input_ = tf.placeholder(tf.float32, [None, A_DIM], "a_input_")
 
             # Create networks
             a, deterministic_a, a_dist = _build_a(S)
             l = _build_l(S, a_input)
 
             # Get network parameters
-            a_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Actor/actor')
-            l_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Actor/Lyapunov')
+            a_params = tf.get_collection(
+                tf.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/actor"
+            )
+            l_params = tf.get_collection(
+                tf.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/Lyapunov"
+            )
 
             # Ema
             tau = 5e-3
             ema = tf.train.ExponentialMovingAverage(decay=1 - tau)  # soft replacement
+
             def ema_getter(getter, name, *args, **kwargs):
                 return ema.average(getter(name, *args, **kwargs))
-            target_update = [ema.apply(a_params),  ema.apply(l_params)]  # soft update operation
+
+            target_update = [
+                ema.apply(a_params),
+                ema.apply(l_params),
+            ]  # soft update operation
 
             # Create target networks
-            a_, _, a_dist_ = _build_a(S_, reuse=True, custom_getter=ema_getter)  # replaced target parameters
+            a_, _, a_dist_ = _build_a(
+                S_, reuse=True, custom_getter=ema_getter
+            )  # replaced target parameters
             l_ = _build_l(S_, a_, reuse=True, custom_getter=ema_getter)
             log_pis = log_pis = a_dist.log_prob(a)
             prob = tf.reduce_mean(a_dist.prob(a))
 
             # Create Lyapunov target networks
-            lya_a_, _, lya_a_dist_ = _build_a(S_, reuse=True)
+            lya_a_, _, _ = _build_a(S_, reuse=True)
             l_ = _build_l(S_, lya_a_, reuse=True)
 
             # Initialize network parameters

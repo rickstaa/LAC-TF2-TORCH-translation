@@ -403,7 +403,7 @@ class LAC(object):
 
             # Create Networks for the (fixed) lyapunov temperature boundary
             # NOTE: Used as a minimum lambda constraint boundary
-            lya_a_, _, lya_a_dist_ = self._build_a(self.S_, reuse=True)
+            lya_a_, _, _ = self._build_a(self.S_, reuse=True)
             self.l_ = self._build_l(self.S_, lya_a_, reuse=True)
 
             ###########################################
@@ -832,18 +832,18 @@ def train(log_dir):
                 and global_step > 0
             ):
                 logger.logkv("total_timesteps", global_step)
-                training_diagnotic = evaluate_training_rollouts(last_training_paths)
-                if training_diagnotic is not None:
+                training_diagnostics = evaluate_training_rollouts(last_training_paths)
+                if training_diagnostics is not None:
                     if TRAIN_PARAMS["num_of_evaluation_paths"] > 0:
-                        eval_diagnotic = training_evaluation(env, policy)
+                        eval_diagnostics = training_evaluation(env, policy)
                         [
-                            logger.logkv(key, eval_diagnotic[key])
-                            for key in eval_diagnotic.keys()
+                            logger.logkv(key, eval_diagnostics[key])
+                            for key in eval_diagnostics.keys()
                         ]
-                        training_diagnotic.pop("return")
+                        training_diagnostics.pop("return")
                     [
-                        logger.logkv(key, training_diagnotic[key])
-                        for key in training_diagnotic.keys()
+                        logger.logkv(key, training_diagnostics[key])
+                        for key in training_diagnostics.keys()
                     ]
                     logger.logkv("lr_a", lr_a_now)
                     logger.logkv("lr_l", lr_l_now)
@@ -851,15 +851,15 @@ def train(log_dir):
                     if TRAIN_PARAMS["num_of_evaluation_paths"] > 0:
                         [
                             string_to_print.extend(
-                                [key, ":", str(eval_diagnotic[key]), "|"]
+                                [key, ":", str(eval_diagnostics[key]), "|"]
                             )
-                            for key in eval_diagnotic.keys()
+                            for key in eval_diagnostics.keys()
                         ]
                     [
                         string_to_print.extend(
-                            [key, ":", str(round(training_diagnotic[key], 2)), "|"]
+                            [key, ":", str(round(training_diagnostics[key], 2)), "|"]
                         )
-                        for key in training_diagnotic.keys()
+                        for key in training_diagnostics.keys()
                     ]
                     print("".join(string_to_print))
                 logger.dumpkvs()
@@ -888,13 +888,7 @@ def train(log_dir):
 if __name__ == "__main__":
 
     # Setup log path
-    log_path = "/".join(
-        [
-            "../log",
-            ENV_NAME,
-            "LAC" + time.strftime("%Y%m%d_%H%M"),
-        ]
-    )
+    log_path = "/".join(["../log", ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M"),])
 
     # Train several agents in the environment and save the results
     for i in range(

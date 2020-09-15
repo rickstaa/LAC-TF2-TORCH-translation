@@ -80,23 +80,23 @@ def evaluate_training_rollouts(paths):
     return diagnostics
 
 
-def mlp(sizes, activation, output_activation=nn.Identity):
-    """Create a multi-layered perceptron using pytorch.
+# def mlp(sizes, activation, output_activation=nn.Identity):
+#     """Create a multi-layered perceptron using pytorch.
 
-    Args:
-        sizes (list): The size of each of the layers.
+#     Args:
+#         sizes (list): The size of each of the layers.
 
-        activation (torch.nn.modules.activation): The activation function used for the
-            hidden layers.
+#         activation (torch.nn.modules.activation): The activation function used for the
+#             hidden layers.
 
-        output_activation (torch.nn.modules.activation, optional): The activation
-            function used for the output layers. Defaults to torch.nn.Identity.
+#         output_activation (torch.nn.modules.activation, optional): The activation
+#             function used for the output layers. Defaults to torch.nn.Identity.
 
-    Returns:
-        torch.nn.modules.container.Sequential: The multi-layered perceptron.
-    """
-    layers = []
-    for j in range(len(sizes) - 1):
-        act = activation if j < len(sizes) - 2 else output_activation
-        layers += [nn.Linear(sizes[j], sizes[j + 1]), act()]
-    return nn.Sequential(*layers)
+#     Returns:
+#         torch.nn.modules.container.Sequential: The multi-layered perceptron.
+#     """
+#     layers = []
+#     for j in range(len(sizes) - 1):
+#         act = activation if j < len(sizes) - 2 else output_activation
+#         layers += [nn.Linear(sizes[j], sizes[j + 1]), act()]
+#     return nn.Sequential(*layers)

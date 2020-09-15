@@ -4,7 +4,7 @@
 import time
 from collections import deque
 import os
-import sys
+import random
 
 import numpy as np
 import tensorflow as tf
@@ -14,7 +14,6 @@ from squash_bijector import SquashBijector
 from utils import evaluate_training_rollouts, get_env_from_name, training_evaluation
 import logger
 from pool import Pool
-
 
 ###############################################
 # Script settings #############################
@@ -31,8 +30,13 @@ from variant import (
 )
 
 # Set random seed to get comparable results for each run
-if RANDOM_SEED:
+if RANDOM_SEED is not None:
+    os.environ["PYTHONHASHSEED"] = str(RANDOM_SEED)
+    os.environ["TF_CUDNN_DETERMINISTIC"] = "1"  # new flag present in tf 2.0+
     np.random.seed(RANDOM_SEED)
+    tf.reset_default_graph()
+    tf.random.set_seed(RANDOM_SEED)
+    random.seed(RANDOM_SEED)
 
 
 ###############################################
@@ -59,10 +63,10 @@ class LAC(object):
         self.network_structure = ALG_PARAMS["network_structure"]
 
         # Determine target entropy
-        if ALG_PARAMS["target_entropy"]:
-            self.target_entropy = ALG_PARAMS["target_entropy"]
-        else:
+        if ALG_PARAMS["target_entropy"] is None:
             self.target_entropy = -self.a_dim  # lower bound of the policy entropy
+        else:
+            self.target_entropy = ALG_PARAMS["target_entropy"]
 
         # Create tensorflow session
         self.sess = tf.compat.v1.Session()
@@ -102,25 +106,23 @@ class LAC(object):
             ###########################################
 
             # Create Gaussian Actor (GA) and Lyapunov critic (LC) Networks
-            self.a, self.deterministic_a, self.a_dist = self._build_a(self.S,)
+            self.a, self.deterministic_a, self.a_dist = self._build_a(self.S)
             self.l = self._build_l(self.S, self.a_input)
             self.log_pis = log_pis = self.a_dist.log_prob(
                 self.a
             )  # Gaussian actor action log_probability
-            self.prob = tf.reduce_mean(
-                input_tensor=self.a_dist.prob(self.a)
-            )  # Gaussian actor action probability
 
             # Retrieve GA and LC network parameters
             a_params = tf.compat.v1.get_collection(
-                tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/actor"
+                tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/gaussian_actor"
             )
             l_params = tf.compat.v1.get_collection(
-                tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/Lyapunov"
+                tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
+                scope="Actor/lyapunov_critic",
             )
 
             # Create EMA target network update policy (Soft replacement)
-            ema = tf.train.ExponentialMovingAverage(decay=1 - ALG_PARAMS["tau"])
+            ema = tf.train.ExponentialMovingAverage(decay=(1 - ALG_PARAMS["tau"]))
 
             def ema_getter(getter, name, *args, **kwargs):
                 return ema.average(getter(name, *args, **kwargs))
@@ -139,8 +141,11 @@ class LAC(object):
             l_ = self._build_l(self.S_, a_, reuse=True, custom_getter=ema_getter)
 
             # Create Networks for the (fixed) lyapunov temperature boundary
+            # DEBUG: This Network has the same parameters as the original gaussian actor but
+            # now it receives the next state. This was needed as the target network
+            # uses exponential moving average.
             # NOTE: Used as a minimum lambda constraint boundary
-            lya_a_, _, lya_a_dist_ = self._build_a(self.S_, reuse=True)
+            lya_a_, _, _ = self._build_a(self.S_, reuse=True)
             self.l_ = self._build_l(self.S_, lya_a_, reuse=True)
 
             ###########################################
@@ -191,13 +196,14 @@ class LAC(object):
                 )
 
             # Initialize variables, create saver and diagnostics graph
+            self.entropy = tf.reduce_mean(-self.log_pis)
             self.sess.run(tf.compat.v1.global_variables_initializer())
             self.saver = tf.compat.v1.train.Saver()
             self.diagnostics = [
                 self.labda,
                 self.alpha,
                 self.l_error,
-                tf.reduce_mean(input_tensor=-self.log_pis),
+                self.entropy,
                 self.a_loss,
                 l_target,
                 labda_loss,
@@ -288,7 +294,7 @@ class LAC(object):
         # Return optimization results
         return labda, alpha, l_error, entropy, a_loss
 
-    def _build_a(self, s, name="actor", reuse=None, custom_getter=None):
+    def _build_a(self, s, name="gaussian_actor", reuse=None, custom_getter=None):
         """Setup SquashedGaussianActor Graph.
 
         Args:
@@ -323,13 +329,17 @@ class LAC(object):
                 s, n1, activation=tf.nn.relu, name="l1", trainable=trainable
             )  # 原始是30
             net_1 = tf.compat.v1.layers.dense(
-                net_0, n2, activation=tf.nn.relu, name="l4", trainable=trainable
+                net_0, n2, activation=tf.nn.relu, name="l2", trainable=trainable
             )  # 原始是30
             mu = tf.compat.v1.layers.dense(
-                net_1, self.a_dim, activation=None, name="a", trainable=trainable
+                net_1, self.a_dim, activation=None, name="mu", trainable=trainable
             )
             log_sigma = tf.compat.v1.layers.dense(
-                net_1, self.a_dim, None, trainable=trainable
+                net_1,
+                self.a_dim,
+                activation=None,
+                name="log_sigma",
+                trainable=trainable,
             )
             log_sigma = tf.clip_by_value(log_sigma, *LOG_SIGMA_MIN_MAX)
 
@@ -361,7 +371,7 @@ class LAC(object):
 
         return clipped_a, clipped_mu, distribution
 
-    def _build_l(self, s, a, reuse=None, custom_getter=None):
+    def _build_l(self, s, a, name="lyapunov_critic", reuse=None, custom_getter=None):
         """Setup lyapunov critic graph.
 
         Args:
@@ -384,7 +394,7 @@ class LAC(object):
 
         # Create graph
         with tf.compat.v1.variable_scope(
-            "Lyapunov", reuse=reuse, custom_getter=custom_getter
+            name, reuse=reuse, custom_getter=custom_getter
         ):
 
             # Retrieve hidden layer size
@@ -472,7 +482,7 @@ def train(log_dir):
     a_lowerbound = env.action_space.low
 
     # Create the Lyapunov Actor Critic agent
-    policy = LAC(a_dim, s_dim, log_dir=log_dir)
+    policy = LAC(a_dim, s_dim)
 
     # Create replay memory buffer
     pool = Pool(
@@ -528,9 +538,9 @@ def train(log_dir):
             action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
 
             # Perform action in env
-            s_, r, done, info = env.step(action)
+            s_, r, done, _ = env.step(action)
 
-            # Increment global setp count
+            # Increment global step count
             if training_started:
                 global_step += 1
 
@@ -572,18 +582,18 @@ def train(log_dir):
                 and global_step > 0
             ):
                 logger.logkv("total_timesteps", global_step)
-                training_diagnotic = evaluate_training_rollouts(last_training_paths)
-                if training_diagnotic is not None:
+                training_diagnostics = evaluate_training_rollouts(last_training_paths)
+                if training_diagnostics is not None:
                     if TRAIN_PARAMS["num_of_evaluation_paths"] > 0:
-                        eval_diagnotic = training_evaluation(env, policy)
+                        eval_diagnostics = training_evaluation(env, policy)
                         [
-                            logger.logkv(key, eval_diagnotic[key])
-                            for key in eval_diagnotic.keys()
+                            logger.logkv(key, eval_diagnostics[key])
+                            for key in eval_diagnostics.keys()
                         ]
-                        training_diagnotic.pop("return")
+                        training_diagnostics.pop("return")
                     [
-                        logger.logkv(key, training_diagnotic[key])
-                        for key in training_diagnotic.keys()
+                        logger.logkv(key, training_diagnostics[key])
+                        for key in training_diagnostics.keys()
                     ]
                     logger.logkv("lr_a", lr_a_now)
                     logger.logkv("lr_l", lr_l_now)
@@ -591,15 +601,15 @@ def train(log_dir):
                     if TRAIN_PARAMS["num_of_evaluation_paths"] > 0:
                         [
                             string_to_print.extend(
-                                [key, ":", str(eval_diagnotic[key]), "|"]
+                                [key, ":", str(eval_diagnostics[key]), "|"]
                             )
-                            for key in eval_diagnotic.keys()
+                            for key in eval_diagnostics.keys()
                         ]
                     [
                         string_to_print.extend(
-                            [key, ":", str(round(training_diagnotic[key], 2)), "|"]
+                            [key, ":", str(round(training_diagnostics[key], 2)), "|"]
                         )
-                        for key in training_diagnotic.keys()
+                        for key in training_diagnostics.keys()
                     ]
                     print("".join(string_to_print))
                 logger.dumpkvs()

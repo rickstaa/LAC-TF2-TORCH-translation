@@ -1,18 +1,12 @@
-from collections import OrderedDict, deque
+from collections import deque
 import numpy as np
-from copy import deepcopy
 
 
 class Pool(object):
     """Memory buffer class."""
 
     def __init__(
-        self,
-        s_dim,
-        a_dim,
-        memory_capacity,
-        store_last_n_paths,
-        min_memory_size,
+        self, s_dim, a_dim, memory_capacity, store_last_n_paths, min_memory_size,
     ):
         """Initialize memory buffer object.
 

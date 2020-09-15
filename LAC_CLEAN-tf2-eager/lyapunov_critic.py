@@ -15,6 +15,7 @@ class LyapunovCritic(tf.keras.Model):
         log_std_max=2.0,
         **kwargs
     ):
+        # TODO: Check if name results in problem
         super().__init__(name=name, **kwargs)
 
         # Get class parameters
@@ -37,11 +38,11 @@ class LyapunovCritic(tf.keras.Model):
         )
 
         # Create fully connected layers
+        # TODO: Check if this is right!
         self.net = tf.keras.Sequential(
             [
                 tf.keras.layers.InputLayer(
-                    input_shape=(hidden_sizes[0]),
-                    name=name + "/input",
+                    input_shape=(hidden_sizes[0]), name=name + "/input",
                 )
             ]
         )

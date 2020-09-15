@@ -10,14 +10,14 @@ alpha = 1.0
 alpha3 = 0.2
 actor = [64, 64]
 critic = [128, 128]
-# episodes = int(5e4)
-episodes = int(2e4)
+episodes = int(5e4)
+# episodes = int(2e4)
 approx_value = True
 use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
-    "eval_list": ["LAC20200906_2152"],
+    "eval_list": ["LAC20200911_2043"],
     "env_name": "Ex3_EKF",
     "algorithm_name": "LAC",
     "additional_description": timestr,

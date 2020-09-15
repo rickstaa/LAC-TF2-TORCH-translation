@@ -11,12 +11,14 @@ from collections import OrderedDict, deque
 import os
 from copy import deepcopy
 import sys
+
 sys.path.append("..")
 from robustness_eval import training_evaluation
 from disturber.disturber import Disturber
 from pool.pool import Pool
 import logger
-from variant_translated import * # FIXME: NEVER NEVER NEVER DO THIS! NOW it imports all the variables in variant as globals including alpha
+from variant_translated import *  # FIXME: NEVER NEVER NEVER DO THIS! NOW it imports all the variables in variant as globals including alpha
+
 # from variant_translated import VARIANT
 
 # Wheter you want to use Pytorch instead of tensorflow
@@ -33,11 +35,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
+
 if USE_PYTORCH:
     from torch.utils.tensorboard import SummaryWriter
 
 from .pytorch_a import SquashedGaussianMLPActor
 from .pytorch_l import MLPLFunction
+
 # ===============================
 # END <<<<< Pytorch CODE ========
 # ===============================
@@ -56,42 +60,39 @@ if USE_FIXED_SEED:
     torch.cuda.manual_seed(0)
     np.random.seed(0)
 
+
 class LAC(object):
-    def __init__(self,
-                 a_dim,
-                 s_dim,
-                 variant,
-                 action_prior = 'uniform',
-                 log_path = "",
-                 ):
-
-
+    def __init__(
+        self, a_dim, s_dim, variant, action_prior="uniform", log_path="",
+    ):
 
         ###############################  Model parameters  ####################################
         # self.memory_capacity = variant['memory_capacity']
 
-        self.batch_size = variant['batch_size']
-        self.network_structure = variant['network_structure']
-        gamma = variant['gamma']
+        self.batch_size = variant["batch_size"]
+        self.network_structure = variant["network_structure"]
+        gamma = variant["gamma"]
 
-        tau = variant['tau']
-        self.approx_value = True if 'approx_value' not in variant.keys() else variant['approx_value']
+        tau = variant["tau"]
+        self.approx_value = (
+            True if "approx_value" not in variant.keys() else variant["approx_value"]
+        )
         # self.memory = np.zeros((self.memory_capacity, s_dim * 2 + a_dim+ d_dim + 3), dtype=np.float32)
         # self.pointer = 0
-        if not USE_PYTORCH: # NOTE: ==== TENSORFLOW  CODE =====#
+        if not USE_PYTORCH:  # NOTE: ==== TENSORFLOW  CODE =====#
             self.sess = tf.Session()
         self._action_prior = action_prior
-        s_dim = s_dim * (variant['history_horizon']+1)
+        s_dim = s_dim * (variant["history_horizon"] + 1)
         self.a_dim, self.s_dim, = a_dim, s_dim
-        self.history_horizon = variant['history_horizon']
-        self.working_memory = deque(maxlen=variant['history_horizon']+1)
-        target_entropy = variant['target_entropy']
+        self.history_horizon = variant["history_horizon"]
+        self.working_memory = deque(maxlen=variant["history_horizon"] + 1)
+        target_entropy = variant["target_entropy"]
         if target_entropy is None:
-            self.target_entropy = -self.a_dim   #lower bound of the policy entropy
+            self.target_entropy = -self.a_dim  # lower bound of the policy entropy
         else:
             self.target_entropy = target_entropy
-        self.finite_horizon = variant['finite_horizon']
-        self.soft_predict_horizon = variant['soft_predict_horizon']
+        self.finite_horizon = variant["finite_horizon"]
+        self.soft_predict_horizon = variant["soft_predict_horizon"]
 
         if USE_PYTORCH:
             print("")
@@ -106,9 +107,7 @@ class LAC(object):
             # TODO: check dimensions
 
             # Create summary writer
-            self.tb_writer = SummaryWriter(
-                log_dir=log_path,
-            )
+            self.tb_writer = SummaryWriter(log_dir=log_path,)
 
             # Setup observation, actions, rewards placeholders
             # NOTE: Not needed in pytorch but used for consistency with tf
@@ -117,8 +116,8 @@ class LAC(object):
             self.a_input = torch.zeros(a_dim)
             self.a_input_ = torch.zeros(a_dim)
             self.R = torch.zeros(1)
-            self.R_N_ = torch.zeros(1) # NOTE: Not needed for now
-            self.V = torch.zeros(1) # NOTE: Not used
+            self.R_N_ = torch.zeros(1)  # NOTE: Not needed for now
+            self.V = torch.zeros(1)  # NOTE: Not used
             self.terminal = torch.zeros(1)
 
             # Setup learning rate placeholders
@@ -128,11 +127,11 @@ class LAC(object):
             self.LR_L = torch.tensor(variant["lr_l"])
 
             # Initialize hyperparameters
-            labda = variant['labda']
-            alpha = variant['alpha']
+            labda = variant["labda"]
+            alpha = variant["alpha"]
             self.gamma = gamma
-            self.alpha3 = variant['alpha3']
-            self.polyak = (1 - tau)
+            self.alpha3 = variant["alpha3"]
+            self.polyak = 1 - tau
 
             # Create trainable variables (Lagrance multipliers)
             self.log_labda = torch.tensor(labda).log()
@@ -145,12 +144,16 @@ class LAC(object):
             # Create Main networks
             # NOTE: The self.S and self.a_input arguments are ignored in the pytorch
             # case. The action and observation space comes from self.s_dim, self.a_dim
-            self.ga = self._build_a(self.S) # 这个网络用于及时更新参数 # TODO: CHECK Network creation
-            self.lc = self._build_l(self.S, self.a_input)   # lyapunov 网络 # TODO: CHECK Network creation
+            self.ga = self._build_a(
+                self.S
+            )  # 这个网络用于及时更新参数 # TODO: CHECK Network creation
+            self.lc = self._build_l(
+                self.S, self.a_input
+            )  # lyapunov 网络 # TODO: CHECK Network creation
 
             # Get other script variables
-            self.use_lyapunov = variant['use_lyapunov']
-            self.adaptive_alpha = variant['adaptive_alpha']
+            self.use_lyapunov = variant["use_lyapunov"]
+            self.adaptive_alpha = variant["adaptive_alpha"]
 
             # Create target networks
             # NOTE: The self.S and self.a_input arguments are ignored in the pytorch
@@ -178,10 +181,14 @@ class LAC(object):
             # lc_params = [self.lc.w1_s, self.lc_.w1_a, self.lc_.b1, self.lc.parameters()]
             # Set up optimizers for policy, q-function and alpha temperature regularization
             self.pi_optimizer = Adam(self.ga.parameters(), lr=self.LR_A)
-            self.l_optimizer = Adam(self.lc.parameters(), lr=self.LR_L) # FIXME: Weight and bias of first layer was not updated
+            self.l_optimizer = Adam(
+                self.lc.parameters(), lr=self.LR_L
+            )  # FIXME: Weight and bias of first layer was not updated
             # self.l_optimizer = Adam(chain(*lc_params), lr=self.LR_L)
             self.log_alpha_optimizer = Adam([self.log_alpha], lr=self.LR_A)
-            self.log_labda_optimizer = Adam([self.log_labda], lr=self.LR_lag) # Question: Why isn't the learnign rate of lyapunov decreased?
+            self.log_labda_optimizer = Adam(
+                [self.log_labda], lr=self.LR_lag
+            )  # Question: Why isn't the learnign rate of lyapunov decreased?
 
             # ===============================
             # END <<<<< Pytorch CODE ========
@@ -192,49 +199,66 @@ class LAC(object):
             print("===============Training with tensorflow!=================")
             print("=========================================================")
             print("")
-            with tf.variable_scope('Actor'):
-                self.S = tf.placeholder(tf.float32, [None, s_dim], 's')
-                self.S_ = tf.placeholder(tf.float32, [None, s_dim], 's_')
-                self.a_input = tf.placeholder(tf.float32, [None, a_dim], 'a_input')
-                self.a_input_ = tf.placeholder(tf.float32, [None, a_dim], 'a_input_')
-                self.R = tf.placeholder(tf.float32, [None, 1], 'r')
-                self.R_N_ = tf.placeholder(tf.float32, [None, 1], 'r_N_')
-                self.V = tf.placeholder(tf.float32, [None, 1], 'v')
-                self.terminal = tf.placeholder(tf.float32, [None, 1], 'terminal')
-                self.LR_A = tf.placeholder(tf.float32, None, 'LR_A')
-                self.LR_lag = tf.placeholder(tf.float32, None, 'LR_lag')
-                self.LR_C = tf.placeholder(tf.float32, None, 'LR_C')
-                self.LR_L = tf.placeholder(tf.float32, None, 'LR_L')
+            with tf.variable_scope("Actor"):
+                self.S = tf.placeholder(tf.float32, [None, s_dim], "s")
+                self.S_ = tf.placeholder(tf.float32, [None, s_dim], "s_")
+                self.a_input = tf.placeholder(tf.float32, [None, a_dim], "a_input")
+                self.a_input_ = tf.placeholder(tf.float32, [None, a_dim], "a_input_")
+                self.R = tf.placeholder(tf.float32, [None, 1], "r")
+                self.R_N_ = tf.placeholder(tf.float32, [None, 1], "r_N_")
+                self.V = tf.placeholder(tf.float32, [None, 1], "v")
+                self.terminal = tf.placeholder(tf.float32, [None, 1], "terminal")
+                self.LR_A = tf.placeholder(tf.float32, None, "LR_A")
+                self.LR_lag = tf.placeholder(tf.float32, None, "LR_lag")
+                self.LR_C = tf.placeholder(tf.float32, None, "LR_C")
+                self.LR_L = tf.placeholder(tf.float32, None, "LR_L")
                 # self.labda = tf.placeholder(tf.float32, None, 'Lambda')
-                labda = variant['labda']
-                alpha = variant['alpha']
-                alpha3 = variant['alpha3']
-                log_labda = tf.get_variable('lambda', None, tf.float32, initializer=tf.log(labda))
-                log_alpha = tf.get_variable('alpha', None, tf.float32, initializer=tf.log(alpha))  # Entropy Temperature
+                labda = variant["labda"]
+                alpha = variant["alpha"]
+                alpha3 = variant["alpha3"]
+                log_labda = tf.get_variable(
+                    "lambda", None, tf.float32, initializer=tf.log(labda)
+                )
+                log_alpha = tf.get_variable(
+                    "alpha", None, tf.float32, initializer=tf.log(alpha)
+                )  # Entropy Temperature
                 self.labda = tf.clip_by_value(tf.exp(log_labda), *SCALE_lambda_MIN_MAX)
                 self.alpha = tf.exp(log_alpha)
 
-                self.a, self.deterministic_a, self.a_dist = self._build_a(self.S, )  # 这个网络用于及时更新参数
+                self.a, self.deterministic_a, self.a_dist = self._build_a(
+                    self.S,
+                )  # 这个网络用于及时更新参数
 
-                self.l = self._build_l(self.S, self.a_input)   # lyapunov 网络
+                self.l = self._build_l(self.S, self.a_input)  # lyapunov 网络
 
+                self.use_lyapunov = variant["use_lyapunov"]
+                self.adaptive_alpha = variant["adaptive_alpha"]
 
-                self.use_lyapunov = variant['use_lyapunov']
-                self.adaptive_alpha = variant['adaptive_alpha']
-
-                a_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Actor/actor')
-                l_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Actor/Lyapunov')
+                a_params = tf.get_collection(
+                    tf.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/actor"
+                )
+                l_params = tf.get_collection(
+                    tf.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/Lyapunov"
+                )
 
                 ###############################  Model Learning Setting  ####################################
-                ema = tf.train.ExponentialMovingAverage(decay=1 - tau)  # soft replacement
+                ema = tf.train.ExponentialMovingAverage(
+                    decay=1 - tau
+                )  # soft replacement
 
                 def ema_getter(getter, name, *args, **kwargs):
                     return ema.average(getter(name, *args, **kwargs))
-                target_update = [ema.apply(a_params),  ema.apply(l_params)]  # soft update operation
+
+                target_update = [
+                    ema.apply(a_params),
+                    ema.apply(l_params),
+                ]  # soft update operation
 
                 # 这个网络不及时更新参数, 用于预测 Critic 的 Q_target 中的 action
-                a_, _, a_dist_ = self._build_a(self.S_, reuse=True, custom_getter=ema_getter)  # replaced target parameters
-                lya_a_, _, lya_a_dist_ = self._build_a(self.S_, reuse=True)
+                a_, _, a_dist_ = self._build_a(
+                    self.S_, reuse=True, custom_getter=ema_getter
+                )  # replaced target parameters
+                lya_a_, _, _ = self._build_a(self.S_, reuse=True)
                 # self.cons_a_input_ = tf.placeholder(tf.float32, [None, a_dim, 'cons_a_input_'])
                 # self.log_pis = log_pis = self.a_dist.log_prob(self.a)
                 self.log_pis = log_pis = self.a_dist.log_prob(self.a)
@@ -249,28 +273,42 @@ class LAC(object):
                 self.l_derta = tf.reduce_mean(self.l_ - self.l + (alpha3) * self.R)
 
                 labda_loss = -tf.reduce_mean(log_labda * self.l_derta)
-                alpha_loss = -tf.reduce_mean(log_alpha * tf.stop_gradient(log_pis + self.target_entropy))
-                self.alpha_train = tf.train.AdamOptimizer(self.LR_A).minimize(alpha_loss, var_list=log_alpha)
-                self.lambda_train = tf.train.AdamOptimizer(self.LR_lag).minimize(labda_loss, var_list=log_labda)
+                alpha_loss = -tf.reduce_mean(
+                    log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
+                )
+                self.alpha_train = tf.train.AdamOptimizer(self.LR_A).minimize(
+                    alpha_loss, var_list=log_alpha
+                )
+                self.lambda_train = tf.train.AdamOptimizer(self.LR_lag).minimize(
+                    labda_loss, var_list=log_labda
+                )
 
-                if self._action_prior == 'normal':
+                if self._action_prior == "normal":
                     policy_prior = tf.contrib.distributions.MultivariateNormalDiag(
-                        loc=tf.zeros(self.a_dim),
-                        scale_diag=tf.ones(self.a_dim))
+                        loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
+                    )
                     policy_prior_log_probs = policy_prior.log_prob(self.a)
-                elif self._action_prior == 'uniform':
+                elif self._action_prior == "uniform":
                     policy_prior_log_probs = 0.0
 
                 if self.use_lyapunov is True:
-                    a_loss = self.labda * self.l_derta + self.alpha * tf.reduce_mean(log_pis) - policy_prior_log_probs
+                    a_loss = (
+                        self.labda * self.l_derta
+                        + self.alpha * tf.reduce_mean(log_pis)
+                        - policy_prior_log_probs
+                    )
                 else:
                     a_loss = a_preloss
 
                 self.a_loss = a_loss
-                self.atrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_loss, var_list=a_params)
+                self.atrain = tf.train.AdamOptimizer(self.LR_A).minimize(
+                    a_loss, var_list=a_params
+                )
 
                 next_log_pis = a_dist_.log_prob(a_)
-                with tf.control_dependencies(target_update):  # soft replacement happened at here
+                with tf.control_dependencies(
+                    target_update
+                ):  # soft replacement happened at here
                     if self.approx_value:
                         if self.finite_horizon:
                             if self.soft_predict_horizon:
@@ -278,18 +316,42 @@ class LAC(object):
                             else:
                                 l_target = self.V
                         else:
-                            l_target = self.R + gamma * (1 - self.terminal) * tf.stop_gradient(l_)  # Lyapunov critic - self.alpha * next_log_pis
+                            l_target = self.R + gamma * (
+                                1 - self.terminal
+                            ) * tf.stop_gradient(
+                                l_
+                            )  # Lyapunov critic - self.alpha * next_log_pis
                             # l_target = self.R + gamma * (1 - self.terminal) * tf.stop_gradient(l_- self.alpha * next_log_pis)  # Lyapunov critic
                     else:
                         l_target = self.R
 
-                    self.l_error = tf.losses.mean_squared_error(labels=l_target, predictions=self.l)
-                    self.ltrain = tf.train.AdamOptimizer(self.LR_L).minimize(self.l_error, var_list=l_params)
+                    self.l_error = tf.losses.mean_squared_error(
+                        labels=l_target, predictions=self.l
+                    )
+                    self.ltrain = tf.train.AdamOptimizer(self.LR_L).minimize(
+                        self.l_error, var_list=l_params
+                    )
 
                 self.sess.run(tf.global_variables_initializer())
                 self.saver = tf.train.Saver()
-                # self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss]
-                self.diagnotics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss, l_target, labda_loss, self.l_derta, log_labda, self.l_, self.l, self.R, log_pis, log_alpha, alpha_loss] # DEBUG: Change for debugging
+                # self.diagnostics = [self.labda, self.alpha, self.l_error, tf.reduce_mean(-self.log_pis), self.a_loss]
+                self.diagnostics = [
+                    self.labda,
+                    self.alpha,
+                    self.l_error,
+                    tf.reduce_mean(-self.log_pis),
+                    self.a_loss,
+                    l_target,
+                    labda_loss,
+                    self.l_derta,
+                    log_labda,
+                    self.l_,
+                    self.l,
+                    self.R,
+                    log_pis,
+                    log_alpha,
+                    alpha_loss,
+                ]  # DEBUG: Change for debugging
                 if self.use_lyapunov is True:
                     self.opt = [self.ltrain, self.lambda_train]
                 self.opt.append(self.atrain)
@@ -300,6 +362,7 @@ class LAC(object):
     # BEGIN >>> Pytorch CODE ========
     # ===============================
     if USE_PYTORCH:
+
         @property
         def alpha(self):
             return self.log_alpha.exp()
@@ -307,16 +370,15 @@ class LAC(object):
         @property
         def labda(self):
             labda_scaled = torch.clamp(
-                self.log_labda.exp(),
-                SCALE_lambda_MIN_MAX[0],
-                SCALE_lambda_MIN_MAX[1],
+                self.log_labda.exp(), SCALE_lambda_MIN_MAX[0], SCALE_lambda_MIN_MAX[1],
             )
             return labda_scaled
+
     # ===============================
     # END <<<<< Pytorch CODE ========
     # ===============================
 
-    def choose_action(self, s, evaluation = False):
+    def choose_action(self, s, evaluation=False):
         if len(self.working_memory) < self.history_horizon:
             [self.working_memory.appendleft(s) for _ in range(self.history_horizon)]
 
@@ -333,7 +395,12 @@ class LAC(object):
                 # ===============================
                 try:
                     with torch.no_grad():
-                        return self.ga(torch.Tensor(s).unsqueeze(0))[1].detach().squeeze().numpy()
+                        return (
+                            self.ga(torch.Tensor(s).unsqueeze(0))[1]
+                            .detach()
+                            .squeeze()
+                            .numpy()
+                        )
                 except ValueError:
                     return
                 # ===============================
@@ -341,7 +408,9 @@ class LAC(object):
                 # ===============================
             else:
                 try:
-                    return self.sess.run(self.deterministic_a, {self.S: s[np.newaxis, :]})[0]
+                    return self.sess.run(
+                        self.deterministic_a, {self.S: s[np.newaxis, :]}
+                    )[0]
                 except ValueError:
                     return
         else:
@@ -351,7 +420,12 @@ class LAC(object):
                 # ===============================
                 # FIXME: Make sure S is updated
                 with torch.no_grad():
-                    return self.ga(torch.Tensor(s).unsqueeze(0))[0].detach().squeeze().numpy()
+                    return (
+                        self.ga(torch.Tensor(s).unsqueeze(0))[0]
+                        .detach()
+                        .squeeze()
+                        .numpy()
+                    )
                 # ===============================
                 # END <<<<< Pytorch CODE ========
                 # ===============================
@@ -367,13 +441,13 @@ class LAC(object):
             # ===============================
             # Adjust optimizer learning rates (decay)
             for param_group in self.pi_optimizer.param_groups:
-                param_group['lr'] = LR_A
+                param_group["lr"] = LR_A
             for param_group in self.l_optimizer.param_groups:
-                param_group['lr'] = LR_L
-            for param_group in self.log_alpha_optimizer .param_groups:
-                param_group['lr'] = LR_A
-            for param_group in self.log_labda_optimizer .param_groups:
-                param_group['lr'] = LR_lag
+                param_group["lr"] = LR_L
+            for param_group in self.log_alpha_optimizer.param_groups:
+                param_group["lr"] = LR_A
+            for param_group in self.log_labda_optimizer.param_groups:
+                param_group["lr"] = LR_lag
 
             # Unpack experiences from the data dictionary
             self.S, self.a_input, self.R, self.S_, self.terminal = (
@@ -390,7 +464,9 @@ class LAC(object):
             # Calculate log probability of a_input based on current policy
             # FIXME: Possible cause of deviation - Do we need to put i there or can we also put it in a function and compute multiple times?
             _, _, self.a_dist = self.ga(self.S)
-            log_pis = self.a_dist # DEBUG: Tf version returns distribution and then calculates the log probability should be similar right?
+            log_pis = (
+                self.a_dist
+            )  # DEBUG: Tf version returns distribution and then calculates the log probability should be similar right?
             self.log_pis = log_pis.detach()
 
             # Calculate current and target lyapunov value
@@ -411,7 +487,9 @@ class LAC(object):
 
             # Calculate lyapunov multiplier loss
             # TODO: Check why 0.0 log gives problem?
-            labda_loss = -torch.mean(self.log_labda * self.l_derta) # FIXME: Original version Question: The mean is redundenat here right
+            labda_loss = -torch.mean(
+                self.log_labda * self.l_derta
+            )  # FIXME: Original version Question: The mean is redundenat here right
             # labda_loss = -torch.mean(self.log_labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
             # labda_loss = torch.mean(self.labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
             # labda_loss = torch.mean(self.log_labda * self.l_derta.detach()) # FIXME: Original version Question: The mean is redundenat here right
@@ -430,7 +508,9 @@ class LAC(object):
 
             # Calculate alpha multiplier loss
             # NOTE: This is very small!
-            alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
+            alpha_loss = -torch.mean(
+                self.log_alpha * (log_pis + self.target_entropy).detach()
+            )  # FXIEM: ORiginal NOTE: Original
             # alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy)) # FXIEM: ORiginal NOTE: Original
             # alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
             # alpha_loss = -torch.mean(self.alpha * (log_pis + self.target_entropy).detach()) # FXIEM: ORiginal NOTE: Original
@@ -448,7 +528,9 @@ class LAC(object):
 
             # Calculate actor los
             # DEBUG:
-            self.a_loss = self.labda.detach() * self.l_derta.detach() + self.alpha.detach() * torch.mean(log_pis) # NOTE: Original # TODO: Check if mean is needed
+            self.a_loss = self.labda.detach() * self.l_derta.detach() + self.alpha.detach() * torch.mean(
+                log_pis
+            )  # NOTE: Original # TODO: Check if mean is needed
             # self.a_loss = self.labda * self.l_derta + self.alpha * torch.mean(log_pis) # NOTE: Original # TODO: Check if mean is needed
 
             # Perform SGD
@@ -490,7 +572,9 @@ class LAC(object):
                 l_ = self.lc_(self.S_, a_)
 
             # Used when agent has to minimize reward is positive deviation (Minghoas version)
-            l_target = self.R + self.gamma * (1 - self.terminal) * l_.detach() # FIXME: Detach not needed since already torch.no_grad
+            l_target = (
+                self.R + self.gamma * (1 - self.terminal) * l_.detach()
+            )  # FIXME: Detach not needed since already torch.no_grad
 
             # Calculate lyapunov loss
             self.l_error = F.mse_loss(l_target, self.l)
@@ -518,41 +602,92 @@ class LAC(object):
             #         p_targ.data.add_((1 - self.polyak) * p.data)
 
             # Calculate entropy and return diagnostics
-            entropy = torch.mean(-self.log_pis.detach()) # FIXME: Not needed since already done before
-            return self.labda.detach(), self.alpha.detach(), self.l_error.detach(), entropy, self.a_loss.detach(), labda_loss.detach(), alpha_loss.detach(), log_pis.detach(), self.l.detach()
+            entropy = torch.mean(
+                -self.log_pis.detach()
+            )  # FIXME: Not needed since already done before
+            return (
+                self.labda.detach(),
+                self.alpha.detach(),
+                self.l_error.detach(),
+                entropy,
+                self.a_loss.detach(),
+                labda_loss.detach(),
+                alpha_loss.detach(),
+                log_pis.detach(),
+                self.l.detach(),
+            )
             # ===============================
             # END <<<<< Pytorch CODE ========
             # ===============================
         else:
-            bs = batch['s']  # state
-            ba = batch['a']  # action
+            bs = batch["s"]  # state
+            ba = batch["a"]  # action
 
-            br = batch['r']  # reward
+            br = batch["r"]  # reward
 
-            bterminal = batch['terminal']
-            bs_ = batch['s_']  # next state
-            feed_dict = {self.a_input: ba,  self.S: bs, self.S_: bs_, self.R: br, self.terminal: bterminal,
-                        self.LR_C: LR_C, self.LR_A: LR_A, self.LR_L: LR_L, self.LR_lag:LR_lag}
+            bterminal = batch["terminal"]
+            bs_ = batch["s_"]  # next state
+            feed_dict = {
+                self.a_input: ba,
+                self.S: bs,
+                self.S_: bs_,
+                self.R: br,
+                self.terminal: bterminal,
+                self.LR_C: LR_C,
+                self.LR_A: LR_A,
+                self.LR_L: LR_L,
+                self.LR_lag: LR_lag,
+            }
             if self.finite_horizon:
-                bv = batch['value']
-                b_r_ = batch['r_N_']
-                feed_dict.update({self.V:bv, self.R_N_:b_r_})
+                bv = batch["value"]
+                b_r_ = batch["r_N_"]
+                feed_dict.update({self.V: bv, self.R_N_: b_r_})
 
             self.sess.run(self.opt, feed_dict)
-            # labda, alpha, l_error, entropy, a_loss = self.sess.run(self.diagnotics, feed_dict)
-            labda, alpha, l_error, entropy, a_loss, l_target, labda_loss, l_derta , log_labda, l_, l, R, log_pis, log_alpha, alpha_loss = self.sess.run(self.diagnotics, feed_dict) # DEBUG: FOR debugging
-            return labda, alpha, l_error, entropy, a_loss, labda_loss, alpha_loss, log_pis, l
+            # labda, alpha, l_error, entropy, a_loss = self.sess.run(self.diagnostics, feed_dict)
+            (
+                labda,
+                alpha,
+                l_error,
+                entropy,
+                a_loss,
+                l_target,
+                labda_loss,
+                l_derta,
+                log_labda,
+                l_,
+                l,
+                R,
+                log_pis,
+                log_alpha,
+                alpha_loss,
+            ) = self.sess.run(
+                self.diagnostics, feed_dict
+            )  # DEBUG: FOR debugging
+            return (
+                labda,
+                alpha,
+                l_error,
+                entropy,
+                a_loss,
+                labda_loss,
+                alpha_loss,
+                log_pis,
+                l,
+            )
 
-    def store_transition(self, s, a,d, r, l_r, terminal, s_):
+    def store_transition(self, s, a, d, r, l_r, terminal, s_):
         transition = np.hstack((s, a, d, [r], [l_r], [terminal], s_))
-        index = self.pointer % self.memory_capacity  # replace the old memory with new memory
+        index = (
+            self.pointer % self.memory_capacity
+        )  # replace the old memory with new memory
         self.memory[index, :] = transition
         self.pointer += 1
 
-    def normalize_input(self,input_value):
+    def normalize_input(self, input_value):
         mean_X_train = tf.math.reduce_mean(tf.reshape(input_value, [-1]))
         std_X_train = tf.math.reduce_std(tf.reshape(input_value, [-1]))
-        X_train = (input_value-mean_X_train)/std_X_train
+        X_train = (input_value - mean_X_train) / std_X_train
         return X_train
 
     def evaluate_value(self, s, a):
@@ -566,10 +701,11 @@ class LAC(object):
         except ValueError:
             print(s)
 
-        return self.sess.run(self.l, {self.S: s[np.newaxis, :], self.a_input: a[np.newaxis, :]})[0]
+        return self.sess.run(
+            self.l, {self.S: s[np.newaxis, :], self.a_input: a[np.newaxis, :]}
+        )[0]
 
-
-    def _build_a(self, s, name='actor', reuse=None, custom_getter=None):
+    def _build_a(self, s, name="actor", reuse=None, custom_getter=None):
         if USE_PYTORCH:
 
             # ===============================
@@ -580,7 +716,14 @@ class LAC(object):
             a_dim = self.a_dim
 
             # Create and return Squashed Gaussian actor
-            SGA = SquashedGaussianMLPActor(s_dim, a_dim, self.network_structure, log_std_min=SCALE_DIAG_MIN_MAX[0],log_std_max=SCALE_DIAG_MIN_MAX[1], use_fixed_seed=USE_FIXED_SEED)
+            SGA = SquashedGaussianMLPActor(
+                s_dim,
+                a_dim,
+                self.network_structure,
+                log_std_min=SCALE_DIAG_MIN_MAX[0],
+                log_std_max=SCALE_DIAG_MIN_MAX[1],
+                use_fixed_seed=USE_FIXED_SEED,
+            )
             return SGA
 
             # NOTE: I tried using a sequentional (Function structure) but this is not possible
@@ -636,38 +779,101 @@ class LAC(object):
 
                 # s = self.normalize_input(s)
                 batch_size = tf.shape(s)[0]
-                squash_bijector = (SquashBijector())
-                base_distribution = tfp.distributions.MultivariateNormalDiag(loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim))
+                squash_bijector = SquashBijector()
+                base_distribution = tfp.distributions.MultivariateNormalDiag(
+                    loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
+                )
                 epsilon = base_distribution.sample(batch_size)
                 ## Construct the feedforward action
-                n1 = self.network_structure['actor'][0]
-                n2 = self.network_structure['actor'][1]
+                n1 = self.network_structure["actor"][0]
+                n2 = self.network_structure["actor"][1]
 
                 # FIXME: Remove random seed
                 # DEBUG: Changed order of randomization of weights - check this!
                 if USE_FIXED_SEED:
                     torch.manual_seed(0)
-                    w_init_net_0 = tf.constant_initializer(torch.transpose(torch.randn((n1, s.shape[1].value)),0,1).numpy())
+                    w_init_net_0 = tf.constant_initializer(
+                        torch.transpose(
+                            torch.randn((n1, s.shape[1].value)), 0, 1
+                        ).numpy()
+                    )
                     b_init_net_0 = tf.constant_initializer(torch.randn((n1)).numpy())
-                    net_0 = tf.layers.dense(s, n1, activation=tf.nn.relu, name='l1', bias_initializer=b_init_net_0, kernel_initializer=w_init_net_0, trainable=trainable)#原始是30
-                    w_init_net_1 = tf.constant_initializer(torch.transpose(torch.randn((n2, net_0.shape[1].value)),0,1).numpy())
+                    net_0 = tf.layers.dense(
+                        s,
+                        n1,
+                        activation=tf.nn.relu,
+                        name="l1",
+                        bias_initializer=b_init_net_0,
+                        kernel_initializer=w_init_net_0,
+                        trainable=trainable,
+                    )  # 原始是30
+                    w_init_net_1 = tf.constant_initializer(
+                        torch.transpose(
+                            torch.randn((n2, net_0.shape[1].value)), 0, 1
+                        ).numpy()
+                    )
                     b_init_net_1 = tf.constant_initializer(torch.randn((n2)).numpy())
-                    net_1 = tf.layers.dense(net_0, n2, activation=tf.nn.relu, name='l4', bias_initializer=b_init_net_1, kernel_initializer=w_init_net_1, trainable=trainable)  # 原始是30
-                    w_init_mu = tf.constant_initializer(torch.transpose(torch.randn((self.a_dim, net_1.shape[1].value)),0,1).numpy())
-                    b_init_mu = tf.constant_initializer(torch.randn((self.a_dim)).numpy())
-                    mu = tf.layers.dense(net_1, self.a_dim, activation= None, name='a', bias_initializer=b_init_mu, kernel_initializer=w_init_mu, trainable=trainable)
-                    w_init_log_sigma = tf.constant_initializer(torch.transpose(torch.randn((self.a_dim, net_1.shape[1].value)),0,1).numpy())
-                    b_init_log_sigma = tf.constant_initializer(torch.randn((self.a_dim)).numpy())
-                    log_sigma = tf.layers.dense(net_1, self.a_dim, None, bias_initializer=b_init_log_sigma, kernel_initializer=w_init_log_sigma, trainable=trainable)
+                    net_1 = tf.layers.dense(
+                        net_0,
+                        n2,
+                        activation=tf.nn.relu,
+                        name="l4",
+                        bias_initializer=b_init_net_1,
+                        kernel_initializer=w_init_net_1,
+                        trainable=trainable,
+                    )  # 原始是30
+                    w_init_mu = tf.constant_initializer(
+                        torch.transpose(
+                            torch.randn((self.a_dim, net_1.shape[1].value)), 0, 1
+                        ).numpy()
+                    )
+                    b_init_mu = tf.constant_initializer(
+                        torch.randn((self.a_dim)).numpy()
+                    )
+                    mu = tf.layers.dense(
+                        net_1,
+                        self.a_dim,
+                        activation=None,
+                        name="a",
+                        bias_initializer=b_init_mu,
+                        kernel_initializer=w_init_mu,
+                        trainable=trainable,
+                    )
+                    w_init_log_sigma = tf.constant_initializer(
+                        torch.transpose(
+                            torch.randn((self.a_dim, net_1.shape[1].value)), 0, 1
+                        ).numpy()
+                    )
+                    b_init_log_sigma = tf.constant_initializer(
+                        torch.randn((self.a_dim)).numpy()
+                    )
+                    log_sigma = tf.layers.dense(
+                        net_1,
+                        self.a_dim,
+                        None,
+                        bias_initializer=b_init_log_sigma,
+                        kernel_initializer=w_init_log_sigma,
+                        trainable=trainable,
+                    )
                 else:
-                    net_0 = tf.layers.dense(s, n1, activation=tf.nn.relu, name='l1', trainable=trainable)#原始是30
-                    net_1 = tf.layers.dense(net_0, n2, activation=tf.nn.relu, name='l4', trainable=trainable)  # 原始是30
-                    mu = tf.layers.dense(net_1, self.a_dim, activation= None, name='a', trainable=trainable)
-                    log_sigma = tf.layers.dense(net_1, self.a_dim, None, trainable=trainable)
-
+                    net_0 = tf.layers.dense(
+                        s, n1, activation=tf.nn.relu, name="l1", trainable=trainable
+                    )  # 原始是30
+                    net_1 = tf.layers.dense(
+                        net_0, n2, activation=tf.nn.relu, name="l4", trainable=trainable
+                    )  # 原始是30
+                    mu = tf.layers.dense(
+                        net_1,
+                        self.a_dim,
+                        activation=None,
+                        name="a",
+                        trainable=trainable,
+                    )
+                    log_sigma = tf.layers.dense(
+                        net_1, self.a_dim, None, trainable=trainable
+                    )
 
                 # log_sigma = tf.layers.dense(s, self.a_dim, None, trainable=trainable)
-
 
                 log_sigma = tf.clip_by_value(log_sigma, *SCALE_DIAG_MIN_MAX)
                 sigma = tf.exp(log_sigma)
@@ -677,15 +883,12 @@ class LAC(object):
                 clipped_a = squash_bijector.forward(raw_action)
 
                 ## Construct the distribution
-                bijector = tfp.bijectors.Chain((
-                    squash_bijector,
-                    tfp.bijectors.Affine(
-                        shift=mu,
-                        scale_diag=sigma),
-                ))
+                bijector = tfp.bijectors.Chain(
+                    (squash_bijector, tfp.bijectors.Affine(shift=mu, scale_diag=sigma),)
+                )
                 distribution = tfp.distributions.ConditionalTransformedDistribution(
-                        distribution=base_distribution,
-                        bijector=bijector)
+                    distribution=base_distribution, bijector=bijector
+                )
 
                 clipped_mu = squash_bijector.forward(mu)
 
@@ -703,7 +906,9 @@ class LAC(object):
             a_dim = self.a_dim
 
             # Create and return Squashed Gaussian actor
-            LC = MLPLFunction(s_dim, a_dim, self.network_structure, use_fixed_seed=USE_FIXED_SEED)
+            LC = MLPLFunction(
+                s_dim, a_dim, self.network_structure, use_fixed_seed=USE_FIXED_SEED
+            )
             # l = LC(torch.cat([s.unsqueeze(0),s.unsqueeze(0)]), a) # test network
             return LC
 
@@ -735,44 +940,92 @@ class LAC(object):
         else:
             trainable = True if reuse is None else False
 
-            with tf.variable_scope('Lyapunov', reuse=reuse, custom_getter=custom_getter):
-                n1 = self.network_structure['critic'][0]
+            with tf.variable_scope(
+                "Lyapunov", reuse=reuse, custom_getter=custom_getter
+            ):
+                n1 = self.network_structure["critic"][0]
 
                 if USE_FIXED_SEED:
                     # FIXME: Remove random seed
                     torch.manual_seed(5)
-                    w1_s_init = tf.constant_initializer(torch.randn((self.s_dim, n1)).numpy())
-                    w1_a_init = tf.constant_initializer(torch.randn((self.a_dim, n1)).numpy())
+                    w1_s_init = tf.constant_initializer(
+                        torch.randn((self.s_dim, n1)).numpy()
+                    )
+                    w1_a_init = tf.constant_initializer(
+                        torch.randn((self.a_dim, n1)).numpy()
+                    )
                     b1_init = tf.constant_initializer(torch.randn((n1)).numpy())
                     layers = []
-                    w1_s = tf.get_variable('w1_s', [self.s_dim, n1], initializer=w1_s_init, trainable=trainable)
-                    w1_a = tf.get_variable('w1_a', [self.a_dim, n1], initializer=w1_a_init, trainable=trainable)
-                    b1 = tf.get_variable('b1', [1, n1], initializer=b1_init ,trainable=trainable)
+                    w1_s = tf.get_variable(
+                        "w1_s",
+                        [self.s_dim, n1],
+                        initializer=w1_s_init,
+                        trainable=trainable,
+                    )
+                    w1_a = tf.get_variable(
+                        "w1_a",
+                        [self.a_dim, n1],
+                        initializer=w1_a_init,
+                        trainable=trainable,
+                    )
+                    b1 = tf.get_variable(
+                        "b1", [1, n1], initializer=b1_init, trainable=trainable
+                    )
                     net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
                     layers.append(net_0)
 
                     # FIXME: Remove random seed
                     # DEBUG: Changed order weight randomization - check this!
                     torch.manual_seed(10)
-                    for i in range(1, len(self.network_structure['critic'])):
-                        n = self.network_structure['critic'][i]
-                        w_init = tf.constant_initializer(torch.transpose(torch.randn(n, (layers[i-1].shape[1].value)),0,1).numpy())
+                    for i in range(1, len(self.network_structure["critic"])):
+                        n = self.network_structure["critic"][i]
+                        w_init = tf.constant_initializer(
+                            torch.transpose(
+                                torch.randn(n, (layers[i - 1].shape[1].value)), 0, 1
+                            ).numpy()
+                        )
                         b_init = tf.constant_initializer(torch.randn((n)).numpy())
-                        layers.append(tf.layers.dense(layers[i-1], n, bias_initializer=b_init, kernel_initializer=w_init, activation=tf.nn.relu, name='l'+str(i+1), trainable=trainable))
+                        layers.append(
+                            tf.layers.dense(
+                                layers[i - 1],
+                                n,
+                                bias_initializer=b_init,
+                                kernel_initializer=w_init,
+                                activation=tf.nn.relu,
+                                name="l" + str(i + 1),
+                                trainable=trainable,
+                            )
+                        )
 
-                    return tf.expand_dims(tf.reduce_sum(tf.square(layers[-1]), axis=1),axis=1)  # Q(s,a)
+                    return tf.expand_dims(
+                        tf.reduce_sum(tf.square(layers[-1]), axis=1), axis=1
+                    )  # Q(s,a)
                 else:
                     layers = []
-                    w1_s = tf.get_variable('w1_s', [self.s_dim, n1], trainable=trainable)
-                    w1_a = tf.get_variable('w1_a', [self.a_dim, n1], trainable=trainable)
-                    b1 = tf.get_variable('b1', [1, n1], trainable=trainable)
+                    w1_s = tf.get_variable(
+                        "w1_s", [self.s_dim, n1], trainable=trainable
+                    )
+                    w1_a = tf.get_variable(
+                        "w1_a", [self.a_dim, n1], trainable=trainable
+                    )
+                    b1 = tf.get_variable("b1", [1, n1], trainable=trainable)
                     net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
                     layers.append(net_0)
-                    for i in range(1, len(self.network_structure['critic'])):
-                        n = self.network_structure['critic'][i]
-                        layers.append(tf.layers.dense(layers[i-1], n, activation=tf.nn.relu, name='l'+str(i+1), trainable=trainable))
+                    for i in range(1, len(self.network_structure["critic"])):
+                        n = self.network_structure["critic"][i]
+                        layers.append(
+                            tf.layers.dense(
+                                layers[i - 1],
+                                n,
+                                activation=tf.nn.relu,
+                                name="l" + str(i + 1),
+                                trainable=trainable,
+                            )
+                        )
 
-                    return tf.expand_dims(tf.reduce_sum(tf.square(layers[-1]), axis=1),axis=1)  # Q(s,a)
+                    return tf.expand_dims(
+                        tf.reduce_sum(tf.square(layers[-1]), axis=1), axis=1
+                    )  # Q(s,a)
 
     def save_result(self, path):
         if USE_PYTORCH:
@@ -792,14 +1045,14 @@ class LAC(object):
 
             # Create models state dict and save
             models_state_save_dict = {
-                'ga_state_dict': self.ga.state_dict(),
-                'lc_state_dict': self.lc.state_dict(),
-                'ga_targ_state_dict': self.ga_.state_dict(),
-                'lc_targ_state_dict': self.lc_.state_dict(),
-                'lya_ga_targ_state_dict': self.lya_ga_.state_dict(),
-                'lya_lc_state_dict': self.lya_lc_.state_dict(),
-                'log_alpha': self.log_alpha,
-                'log_labda': self.log_labda,
+                "ga_state_dict": self.ga.state_dict(),
+                "lc_state_dict": self.lc.state_dict(),
+                "ga_targ_state_dict": self.ga_.state_dict(),
+                "lc_targ_state_dict": self.lc_.state_dict(),
+                "lya_ga_targ_state_dict": self.lya_ga_.state_dict(),
+                "lya_lc_state_dict": self.lya_lc_.state_dict(),
+                "log_alpha": self.log_alpha,
+                "log_labda": self.log_labda,
             }
             torch.save(models_state_save_dict, save_path)
             # ===============================
@@ -840,7 +1093,7 @@ class LAC(object):
             # END <<<<< Pytorch CODE ========
             # ===============================
         else:
-            model_file = tf.train.latest_checkpoint(path+'/')
+            model_file = tf.train.latest_checkpoint(path + "/")
             if model_file is None:
                 success_load = False
                 return success_load
@@ -848,40 +1101,45 @@ class LAC(object):
             success_load = True
             return success_load
 
+
 def train(variant):
     if USE_FIXED_SEED:
-        seed_i = 0 # Used for increasing random seed of batch
+        seed_i = 0  # Used for increasing random seed of batch
 
-    env_name = variant['env_name']
+    env_name = variant["env_name"]
     env = get_env_from_name(env_name)
 
-    env_params = variant['env_params']
+    env_params = variant["env_params"]
 
-    max_episodes = env_params['max_episodes']
-    max_ep_steps = env_params['max_ep_steps']
-    max_global_steps = env_params['max_global_steps']
-    store_last_n_paths = variant['num_of_training_paths']
-    evaluation_frequency = variant['evaluation_frequency']
+    max_episodes = env_params["max_episodes"]
+    max_ep_steps = env_params["max_ep_steps"]
+    max_global_steps = env_params["max_global_steps"]
+    store_last_n_paths = variant["num_of_training_paths"]
+    evaluation_frequency = variant["evaluation_frequency"]
 
-    policy_params = variant['alg_params']
-    policy_params['network_structure'] = env_params['network_structure']
+    policy_params = variant["alg_params"]
+    policy_params["network_structure"] = env_params["network_structure"]
 
+    min_memory_size = policy_params["min_memory_size"]
+    steps_per_cycle = policy_params["steps_per_cycle"]
+    train_per_cycle = policy_params["train_per_cycle"]
+    batch_size = policy_params["batch_size"]
 
-
-    min_memory_size = policy_params['min_memory_size']
-    steps_per_cycle = policy_params['steps_per_cycle']
-    train_per_cycle = policy_params['train_per_cycle']
-    batch_size = policy_params['batch_size']
-
-    lr_a, lr_c, lr_l = policy_params['lr_a'], policy_params['lr_c'], policy_params['lr_l']
+    lr_a, lr_c, lr_l = (
+        policy_params["lr_a"],
+        policy_params["lr_c"],
+        policy_params["lr_l"],
+    )
     lr_a_now = lr_a  # learning rate for actor
     lr_c_now = lr_c  # learning rate for critic
     lr_l_now = lr_l  # learning rate for critic
 
-    if 'Fetch' in env_name or 'Hand' in env_name:
-        s_dim = env.observation_space.spaces['observation'].shape[0]\
-                + env.observation_space.spaces['achieved_goal'].shape[0]+ \
-                env.observation_space.spaces['desired_goal'].shape[0]
+    if "Fetch" in env_name or "Hand" in env_name:
+        s_dim = (
+            env.observation_space.spaces["observation"].shape[0]
+            + env.observation_space.spaces["achieved_goal"].shape[0]
+            + env.observation_space.spaces["desired_goal"].shape[0]
+        )
     else:
         s_dim = env.observation_space.shape[0]
     a_dim = env.action_space.shape[0]
@@ -892,25 +1150,25 @@ def train(variant):
 
     a_upperbound = env.action_space.high
     a_lowerbound = env.action_space.low
-    policy = LAC(a_dim,s_dim, policy_params, log_path=variant["log_path"])
+    policy = LAC(a_dim, s_dim, policy_params, log_path=variant["log_path"])
 
     pool_params = {
-        's_dim': s_dim,
-        'a_dim': a_dim,
-        'd_dim': 1,
-        'store_last_n_paths': store_last_n_paths,
-        'memory_capacity': policy_params['memory_capacity'],
-        'min_memory_size': policy_params['min_memory_size'],
-        'history_horizon': policy_params['history_horizon'],
-        'finite_horizon':policy_params['finite_horizon']
+        "s_dim": s_dim,
+        "a_dim": a_dim,
+        "d_dim": 1,
+        "store_last_n_paths": store_last_n_paths,
+        "memory_capacity": policy_params["memory_capacity"],
+        "min_memory_size": policy_params["min_memory_size"],
+        "history_horizon": policy_params["history_horizon"],
+        "finite_horizon": policy_params["finite_horizon"],
     }
-    if 'value_horizon' in policy_params.keys():
-        pool_params.update({'value_horizon': policy_params['value_horizon']})
+    if "value_horizon" in policy_params.keys():
+        pool_params.update({"value_horizon": policy_params["value_horizon"]})
     else:
-        pool_params['value_horizon'] = None
+        pool_params["value_horizon"] = None
     pool = Pool(pool_params)
     # For analyse
-    Render = env_params['eval_render']
+    Render = env_params["eval_render"]
 
     # Training setting
     t1 = time.time()
@@ -918,45 +1176,85 @@ def train(variant):
     last_training_paths = deque(maxlen=store_last_n_paths)
     training_started = False
 
-    log_path = variant['log_path']
-    logger.configure(dir=log_path, format_strs=['csv'])
-    logger.logkv('tau', policy_params['tau'])
+    log_path = variant["log_path"]
+    logger.configure(dir=log_path, format_strs=["csv"])
+    logger.logkv("tau", policy_params["tau"])
 
-    logger.logkv('alpha3', policy_params['alpha3'])
-    logger.logkv('batch_size', policy_params['batch_size'])
-    logger.logkv('target_entropy', policy.target_entropy)
+    logger.logkv("alpha3", policy_params["alpha3"])
+    logger.logkv("batch_size", policy_params["batch_size"])
+    logger.logkv("target_entropy", policy.target_entropy)
 
     # Log starting weights to tensorboard
     if USE_PYTORCH:
         # Log weights to tensorboard
         ## == Gaussian actors ==
-        policy.tb_writer.add_histogram("Ga/L1/weight", policy.ga.net[0][0].weight, global_step)
-        policy.tb_writer.add_histogram("Ga/L1/bias", policy.ga.net[0][0].bias, global_step)
-        policy.tb_writer.add_histogram("Ga/L2/weight", policy.ga.net[1][0].weight, global_step)
-        policy.tb_writer.add_histogram("Ga/L2/bias", policy.ga.net[1][0].bias, global_step)
-        policy.tb_writer.add_histogram("Ga/mu_layer/weight", policy.ga.mu_layer.weight, global_step)
-        policy.tb_writer.add_histogram("Ga/mu_layer/bias", policy.ga.mu_layer.bias, global_step)
-        policy.tb_writer.add_histogram("Ga/log_sigma/weight", policy.ga.log_sigma.weight, global_step)
-        policy.tb_writer.add_histogram("Ga/log_sigma/bias", policy.ga.log_sigma.bias, global_step)
-        policy.tb_writer.add_histogram("Ga_/L1/weight", policy.ga_.net[0][0].weight, global_step)
-        policy.tb_writer.add_histogram("Ga_/L1/bias", policy.ga_.net[0][0].bias, global_step)
-        policy.tb_writer.add_histogram("Ga_/L2/weight", policy.ga_.net[1][0].weight, global_step)
-        policy.tb_writer.add_histogram("Ga_/L2/bias", policy.ga_.net[1][0].bias, global_step)
-        policy.tb_writer.add_histogram("Ga_/mu_layer/weight", policy.ga_.mu_layer.weight, global_step)
-        policy.tb_writer.add_histogram("Ga_/mu_layer/bias", policy.ga_.mu_layer.bias, global_step)
-        policy.tb_writer.add_histogram("Ga_/log_sigma/weight", policy.ga_.log_sigma.weight, global_step)
-        policy.tb_writer.add_histogram("Ga_/log_sigma/bias", policy.ga_.log_sigma.bias, global_step)
+        policy.tb_writer.add_histogram(
+            "Ga/L1/weight", policy.ga.net[0][0].weight, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga/L1/bias", policy.ga.net[0][0].bias, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga/L2/weight", policy.ga.net[1][0].weight, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga/L2/bias", policy.ga.net[1][0].bias, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga/mu_layer/weight", policy.ga.mu_layer.weight, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga/mu_layer/bias", policy.ga.mu_layer.bias, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga/log_sigma/weight", policy.ga.log_sigma.weight, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga/log_sigma/bias", policy.ga.log_sigma.bias, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga_/L1/weight", policy.ga_.net[0][0].weight, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga_/L1/bias", policy.ga_.net[0][0].bias, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga_/L2/weight", policy.ga_.net[1][0].weight, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga_/L2/bias", policy.ga_.net[1][0].bias, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga_/mu_layer/weight", policy.ga_.mu_layer.weight, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga_/mu_layer/bias", policy.ga_.mu_layer.bias, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga_/log_sigma/weight", policy.ga_.log_sigma.weight, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Ga_/log_sigma/bias", policy.ga_.log_sigma.bias, global_step
+        )
         ## == Lyapunov critics ==
         policy.tb_writer.add_histogram("Lc/L1/w1_a", policy.lc.w1_a, global_step)
         policy.tb_writer.add_histogram("Lc/L1/w1_s", policy.lc.w1_s, global_step)
         policy.tb_writer.add_histogram("Lc/L1/b1", policy.lc.b1, global_step)
-        policy.tb_writer.add_histogram("Lc/L2/weight", policy.lc.l_net[0].weight, global_step)
-        policy.tb_writer.add_histogram("Lc/L2/bias", policy.lc.l_net[0].bias, global_step)
+        policy.tb_writer.add_histogram(
+            "Lc/L2/weight", policy.lc.l_net[0].weight, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Lc/L2/bias", policy.lc.l_net[0].bias, global_step
+        )
         policy.tb_writer.add_histogram("Lc_/L1/w1_a", policy.lc_.w1_a, global_step)
         policy.tb_writer.add_histogram("Lc_/L1/w1_s", policy.lc_.w1_s, global_step)
         policy.tb_writer.add_histogram("Lc_/L1/b1", policy.lc_.b1, global_step)
-        policy.tb_writer.add_histogram("Lc_/L2/weight", policy.lc_.l_net[0].weight, global_step)
-        policy.tb_writer.add_histogram("Lc_/L2/bias", policy.lc_.l_net[0].bias, global_step)
+        policy.tb_writer.add_histogram(
+            "Lc_/L2/weight", policy.lc_.l_net[0].weight, global_step
+        )
+        policy.tb_writer.add_histogram(
+            "Lc_/L2/bias", policy.lc_.l_net[0].bias, global_step
+        )
         # ## == Lyapunov target networks ==
         # policy.tb_writer.add_histogram("Lya_ga_/L1/weight", policy.lya_ga_.net[0][0].weight, global_step)
         # policy.tb_writer.add_histogram("Lya_ga_/L1/bias", policy.lya_ga_.net[0][0].bias, global_step)
@@ -985,19 +1283,20 @@ def train(variant):
         #     policy.tb_writer.add_scalar("LearningRates/lr_c", lr_c_now, global_step)
         #     policy.tb_writer.add_scalar("LearningRates/lr_l", lr_l_now, global_step)
 
-        current_path = {'rewards': [],
-                        'a_loss': [],
-                        'alpha': [],
-                        'lambda': [],
-                        'lyapunov_error': [],
-                        'entropy': [],
-                        }
+        current_path = {
+            "rewards": [],
+            "a_loss": [],
+            "alpha": [],
+            "lambda": [],
+            "lyapunov_error": [],
+            "entropy": [],
+        }
 
         if global_step > max_global_steps:
             break
 
         s = env.reset()
-        if 'Fetch' in env_name or 'Hand' in env_name:
+        if "Fetch" in env_name or "Hand" in env_name:
             s = np.concatenate([s[key] for key in s.keys()])
 
         for j in range(max_ep_steps):
@@ -1007,19 +1306,19 @@ def train(variant):
             # FIXME: Remove random seed
             if USE_FIXED_SEED:
                 np.random.seed(seed_i)
-                a = np.squeeze(np.random.uniform(low=-1.0, high=1.0, size=(1,2)))
+                a = np.squeeze(np.random.uniform(low=-1.0, high=1.0, size=(1, 2)))
             else:
                 a = policy.choose_action(s)
             if USE_PYTORCH:
                 # ===============================
                 # BEGIN >>> Pytorch CODE ========
                 # ===============================
-                action = a_lowerbound + (a + 1.) * (a_upperbound - a_lowerbound) / 2
+                action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
                 # ===============================
                 # END <<<<< Pytorch CODE ========
                 # ===============================
             else:
-                action = a_lowerbound + (a + 1.) * (a_upperbound - a_lowerbound) / 2
+                action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
             # action = a
 
             # Run in simulator
@@ -1030,9 +1329,9 @@ def train(variant):
             # Add vars
             EpLen += 1
             EpRet += r
-            if 'Fetch' in env_name or 'Hand' in env_name:
+            if "Fetch" in env_name or "Hand" in env_name:
                 s_ = np.concatenate([s_[key] for key in s_.keys()])
-                if info['done'] > 0:
+                if info["done"] > 0:
                     done = True
 
             if training_started:
@@ -1042,11 +1341,14 @@ def train(variant):
             if j == max_ep_steps - 1:
                 done = True
 
-            terminal = 1. if done else 0.
+            terminal = 1.0 if done else 0.0
             pool.store(s, a, np.zeros([1]), np.zeros([1]), r, terminal, s_)
             # policy.store_transition(s, a, disturbance, r,0, terminal, s_)
 
-            if pool.memory_pointer > min_memory_size and global_step % steps_per_cycle == 0:
+            if (
+                pool.memory_pointer > min_memory_size
+                and global_step % steps_per_cycle == 0
+            ):
                 training_started = True
 
                 for _ in range(train_per_cycle):
@@ -1055,9 +1357,19 @@ def train(variant):
                         torch.manual_seed(seed_i)
                         torch.cuda.manual_seed(seed_i)
                         np.random.seed(seed_i)
-                        seed_i +=1
+                        seed_i += 1
                     batch = pool.sample(batch_size)
-                    labda, alpha, l_loss, entropy, a_loss, labda_loss, alpha_loss, log_pis, l_vals = policy.learn(lr_a_now, lr_c_now, lr_l_now, lr_a, batch)
+                    (
+                        labda,
+                        alpha,
+                        l_loss,
+                        entropy,
+                        a_loss,
+                        labda_loss,
+                        alpha_loss,
+                        log_pis,
+                        l_vals,
+                    ) = policy.learn(lr_a_now, lr_c_now, lr_l_now, lr_a, batch)
 
                 # Log losses to tensorboard
                 policy.tb_writer.add_scalar("Loss/alpha_loss", alpha_loss, global_step)
@@ -1073,33 +1385,85 @@ def train(variant):
 
                     # Log weights to tensorboard
                     ## == Gaussian actors ==
-                    policy.tb_writer.add_histogram("Ga/L1/weight", policy.ga.net[0][0].weight, global_step)
-                    policy.tb_writer.add_histogram("Ga/L1/bias", policy.ga.net[0][0].bias, global_step)
-                    policy.tb_writer.add_histogram("Ga/L2/weight", policy.ga.net[1][0].weight, global_step)
-                    policy.tb_writer.add_histogram("Ga/L2/bias", policy.ga.net[1][0].bias, global_step)
-                    policy.tb_writer.add_histogram("Ga/mu_layer/weight", policy.ga.mu_layer.weight, global_step)
-                    policy.tb_writer.add_histogram("Ga/mu_layer/bias", policy.ga.mu_layer.bias, global_step)
-                    policy.tb_writer.add_histogram("Ga/log_sigma/weight", policy.ga.log_sigma.weight, global_step)
-                    policy.tb_writer.add_histogram("Ga/log_sigma/bias", policy.ga.log_sigma.bias, global_step)
-                    policy.tb_writer.add_histogram("Ga_/L1/weight", policy.ga_.net[0][0].weight, global_step)
-                    policy.tb_writer.add_histogram("Ga_/L1/bias", policy.ga_.net[0][0].bias, global_step)
-                    policy.tb_writer.add_histogram("Ga_/L2/weight", policy.ga_.net[1][0].weight, global_step)
-                    policy.tb_writer.add_histogram("Ga_/L2/bias", policy.ga_.net[1][0].bias, global_step)
-                    policy.tb_writer.add_histogram("Ga_/mu_layer/weight", policy.ga_.mu_layer.weight, global_step)
-                    policy.tb_writer.add_histogram("Ga_/mu_layer/bias", policy.ga_.mu_layer.bias, global_step)
-                    policy.tb_writer.add_histogram("Ga_/log_sigma/weight", policy.ga_.log_sigma.weight, global_step)
-                    policy.tb_writer.add_histogram("Ga_/log_sigma/bias", policy.ga_.log_sigma.bias, global_step)
+                    policy.tb_writer.add_histogram(
+                        "Ga/L1/weight", policy.ga.net[0][0].weight, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga/L1/bias", policy.ga.net[0][0].bias, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga/L2/weight", policy.ga.net[1][0].weight, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga/L2/bias", policy.ga.net[1][0].bias, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga/mu_layer/weight", policy.ga.mu_layer.weight, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga/mu_layer/bias", policy.ga.mu_layer.bias, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga/log_sigma/weight", policy.ga.log_sigma.weight, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga/log_sigma/bias", policy.ga.log_sigma.bias, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga_/L1/weight", policy.ga_.net[0][0].weight, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga_/L1/bias", policy.ga_.net[0][0].bias, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga_/L2/weight", policy.ga_.net[1][0].weight, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga_/L2/bias", policy.ga_.net[1][0].bias, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga_/mu_layer/weight", policy.ga_.mu_layer.weight, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga_/mu_layer/bias", policy.ga_.mu_layer.bias, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga_/log_sigma/weight", policy.ga_.log_sigma.weight, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Ga_/log_sigma/bias", policy.ga_.log_sigma.bias, global_step
+                    )
                     ## == Lyapunov critics ==
-                    policy.tb_writer.add_histogram("Lc/L1/w1_a", policy.lc.w1_a, global_step)
-                    policy.tb_writer.add_histogram("Lc/L1/w1_s", policy.lc.w1_s, global_step)
-                    policy.tb_writer.add_histogram("Lc/L1/b1", policy.lc.b1, global_step)
-                    policy.tb_writer.add_histogram("Lc/L2/weight", policy.lc.l_net[0].weight, global_step)
-                    policy.tb_writer.add_histogram("Lc/L2/bias", policy.lc.l_net[0].bias, global_step)
-                    policy.tb_writer.add_histogram("Lc_/L1/w1_a", policy.lc_.w1_a, global_step)
-                    policy.tb_writer.add_histogram("Lc_/L1/w1_s", policy.lc_.w1_s, global_step)
-                    policy.tb_writer.add_histogram("Lc_/L1/b1", policy.lc_.b1, global_step)
-                    policy.tb_writer.add_histogram("Lc_/L2/weight", policy.lc_.l_net[0].weight, global_step)
-                    policy.tb_writer.add_histogram("Lc_/L2/bias", policy.lc_.l_net[0].bias, global_step)
+                    policy.tb_writer.add_histogram(
+                        "Lc/L1/w1_a", policy.lc.w1_a, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Lc/L1/w1_s", policy.lc.w1_s, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Lc/L1/b1", policy.lc.b1, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Lc/L2/weight", policy.lc.l_net[0].weight, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Lc/L2/bias", policy.lc.l_net[0].bias, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Lc_/L1/w1_a", policy.lc_.w1_a, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Lc_/L1/w1_s", policy.lc_.w1_s, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Lc_/L1/b1", policy.lc_.b1, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Lc_/L2/weight", policy.lc_.l_net[0].weight, global_step
+                    )
+                    policy.tb_writer.add_histogram(
+                        "Lc_/L2/bias", policy.lc_.l_net[0].bias, global_step
+                    )
                     # ## == Lyapunov target networks ==
                     # policy.tb_writer.add_histogram("Lya_ga_/L1/weight", policy.lya_ga_.net[0][0].weight, global_step)
                     # policy.tb_writer.add_histogram("Lya_ga_/L1/bias", policy.lya_ga_.net[0][0].bias, global_step)
@@ -1117,39 +1481,55 @@ def train(variant):
 
             if training_started:
                 # TODO: You now only take the variables in the last potimization step. This is very insufficient
-                current_path['rewards'].append(r)
-                current_path['lyapunov_error'].append(l_loss)
-                current_path['alpha'].append(alpha)
-                current_path['lambda'].append(labda)
-                current_path['entropy'].append(entropy)
-                current_path['a_loss'].append(a_loss)
+                current_path["rewards"].append(r)
+                current_path["lyapunov_error"].append(l_loss)
+                current_path["alpha"].append(alpha)
+                current_path["lambda"].append(labda)
+                current_path["entropy"].append(entropy)
+                current_path["a_loss"].append(a_loss)
                 # current_path['alpha_loss'].append(alpha_loss)
                 # current_path['labda_loss'].append(labda_loss)
 
-
-
-            if training_started and global_step % evaluation_frequency == 0 and global_step > 0:
+            if (
+                training_started
+                and global_step % evaluation_frequency == 0
+                and global_step > 0
+            ):
 
                 logger.logkv("total_timesteps", global_step)
 
-                training_diagnotic = evaluate_training_rollouts(last_training_paths)
-                if training_diagnotic is not None:
-                    if variant['num_of_evaluation_paths'] > 0:
-                        eval_diagnotic = training_evaluation(variant, env, policy)
-                        [logger.logkv(key, eval_diagnotic[key]) for key in eval_diagnotic.keys()]
-                        training_diagnotic.pop('return')
-                    [logger.logkv(key, training_diagnotic[key]) for key in training_diagnotic.keys()]
-                    logger.logkv('lr_a', lr_a_now)
-                    logger.logkv('lr_c', lr_c_now)
-                    logger.logkv('lr_l', lr_l_now)
+                training_diagnostics = evaluate_training_rollouts(last_training_paths)
+                if training_diagnostics is not None:
+                    if variant["num_of_evaluation_paths"] > 0:
+                        eval_diagnostics = training_evaluation(variant, env, policy)
+                        [
+                            logger.logkv(key, eval_diagnostics[key])
+                            for key in eval_diagnostics.keys()
+                        ]
+                        training_diagnostics.pop("return")
+                    [
+                        logger.logkv(key, training_diagnostics[key])
+                        for key in training_diagnostics.keys()
+                    ]
+                    logger.logkv("lr_a", lr_a_now)
+                    logger.logkv("lr_c", lr_c_now)
+                    logger.logkv("lr_l", lr_l_now)
 
-                    string_to_print = ['time_step:', str(global_step), '|']
-                    if variant['num_of_evaluation_paths'] > 0:
-                        [string_to_print.extend([key, ':', str(eval_diagnotic[key]), '|'])
-                         for key in eval_diagnotic.keys()]
-                    [string_to_print.extend([key, ':', str(round(training_diagnotic[key], 2)) , '|'])
-                     for key in training_diagnotic.keys()]
-                    print(''.join(string_to_print))
+                    string_to_print = ["time_step:", str(global_step), "|"]
+                    if variant["num_of_evaluation_paths"] > 0:
+                        [
+                            string_to_print.extend(
+                                [key, ":", str(eval_diagnostics[key]), "|"]
+                            )
+                            for key in eval_diagnostics.keys()
+                        ]
+                    [
+                        string_to_print.extend(
+                            [key, ":", str(round(training_diagnostics[key], 2)), "|"]
+                        )
+                        for key in training_diagnostics.keys()
+                    ]
+                    print("".join(string_to_print))
 
                 logger.dumpkvs()
             # 状态更新
@@ -1177,5 +1557,5 @@ def train(variant):
                 break
     policy.save_result(log_path)
 
-    print('Running time: ', time.time() - t1)
+    print("Running time: ", time.time() - t1)
     return

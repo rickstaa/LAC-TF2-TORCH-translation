@@ -1,7 +1,6 @@
 from collections import OrderedDict
 
 import numpy as np
-import matplotlib.pyplot as plt
 import copy
 
 from variant import (
@@ -10,7 +9,7 @@ from variant import (
 )
 
 
-def get_env_from_name(name, ENV_SEED):
+def get_env_from_name(name, ENV_SEED=None):
     """Initializes the gym environment with the given name
 
     Args:
@@ -34,9 +33,10 @@ def get_env_from_name(name, ENV_SEED):
 
         env = env()
         env = env.unwrapped
-    if ENV_SEED:
+    if ENV_SEED is not None:
         env.seed(ENV_SEED)
     return env
+
 
 def evaluate_training_rollouts(paths):
     """Evaluate the performance of the policy in the training rollouts."""
@@ -44,13 +44,15 @@ def evaluate_training_rollouts(paths):
     if len(data) < 1:
         return None
     try:
-        diagnostics = OrderedDict((
-            ('return', np.mean([np.sum(path['rewards']) for path in data])),
-            ('length', np.mean([len(p['rewards']) for p in data])),
-        ))
+        diagnostics = OrderedDict(
+            (
+                ("return", np.mean([np.sum(path["rewards"]) for path in data])),
+                ("length", np.mean([len(p["rewards"]) for p in data])),
+            )
+        )
     except KeyError:
         return
-    [path.pop('rewards') for path in data]
+    [path.pop("rewards") for path in data]
     for key in data[0].keys():
         result = [np.mean(path[key]) for path in data]
         diagnostics.update({key: np.mean(result)})

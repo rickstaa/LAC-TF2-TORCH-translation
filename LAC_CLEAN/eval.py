@@ -163,7 +163,6 @@ def evaluation(
     ref_paths = []
 
     # Evalute policy in several rollouts
-    print("hihihih")
     print(trial_list)
 
     # Check if agent is present

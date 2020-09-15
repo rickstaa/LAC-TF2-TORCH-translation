@@ -648,7 +648,6 @@ def evaluation(variant, env, policy, disturber= None):
     value_paths = []
     state_paths = []
     ref_paths = []
-    print('hihihih')
     print(trial_list)
     for trial in trial_list:
         if trial == 'eval':

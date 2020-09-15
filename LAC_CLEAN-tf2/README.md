@@ -1,6 +1,6 @@
 # Cleaned up version of the LAC script (tf>2.0)
 
-This folder contains the cleaned up version of the LAC script. It uses tf>2.0.
+This folder contains the cleaned up version of the LAC script. It uses `tf>2.0`.
 
 ## Performance
 
@@ -20,7 +20,7 @@ conda create -n lac_clean_tf2 python=3.8
 
 To activate the env:
 
-```
+```bash
 conda activate lac_clean_tf2
 ```
 
