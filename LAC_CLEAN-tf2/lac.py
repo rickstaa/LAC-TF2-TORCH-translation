@@ -47,9 +47,9 @@ if not USE_GPU:
     tf.config.set_visible_devices([], "GPU")
 
 # Tensorboard settings
-USE_TB = True  # Whether you want to log to tensorboard
+USE_TB = False  # Whether you want to log to tensorboard
 TB_FREQ = 4  # After how many episode we want to log to tensorboard
-WRITE_W_B = True  # Whether you want to log the model weights and biases
+WRITE_W_B = False  # Whether you want to log the model weights and biases
 
 
 ###############################################
@@ -222,6 +222,7 @@ class LAC(object):
                 self.entropy,
                 self.a_loss,
                 l_target,
+                alpha_loss,
                 labda_loss,
                 self.l_delta,
                 log_labda,
@@ -379,6 +380,7 @@ class LAC(object):
             entropy,
             a_loss,
             l_target,
+            alpha_loss,
             labda_loss,
             l_delta,
             log_labda,
@@ -685,6 +687,7 @@ def train(log_dir):
 
             # Retrieve (scaled) action based on the current policy
             a = policy.choose_action(s)
+            # a = np.squeeze(np.random.uniform(low=-1.0, high=1.0, size=(1, 2)))  # DEBUG
             action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
 
             # Perform action in env

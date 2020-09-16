@@ -1,6 +1,4 @@
-from copy import deepcopy
-from collections import OrderedDict, deque
-
+from collections import deque
 import numpy as np
 import tensorflow as tf
 

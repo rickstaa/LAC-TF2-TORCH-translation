@@ -29,6 +29,7 @@ from variant import (
     ENV_PARAMS,
     LOG_SIGMA_MIN_MAX,
     SCALE_lambda_MIN_MAX,
+    DEBUG_PARAMS,
 )
 
 # Set random seed to get comparable results for each run
@@ -48,16 +49,9 @@ if not USE_GPU:
     tf.config.set_visible_devices([], "GPU")
 
 # Tensorboard settings
-USE_TB = True  # Whether you want to log to tensorboard
+USE_TB = False  # Whether you want to log to tensorboard
 TB_FREQ = 4  # After how many episode we want to log to tensorboard
-WRITE_W_B = True  # Whether you want to log the model weights and biases
-
-# Debug Parameters
-DEBUG_PARAMS = {
-    "debug": True,  # Whether we want to debug and thus execute tf.functions eagerly
-    "trace_net": False,  # Whether we want to trace the network.
-    "trace_learn": False,  # Whether we want trace the learn method.
-}
+WRITE_W_B = False  # Whether you want to log the model weights and biases
 
 # Disable tf.function graph execution if debug
 if DEBUG_PARAMS["debug"] and not (
@@ -531,6 +525,7 @@ def train(log_dir):
 
             # Retrieve (scaled) action based on the current policy
             a = policy.choose_action(s)
+            # a = np.squeeze(np.random.uniform(low=-1.0, high=1.0, size=(1, 2)))  # DEBUG
             action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
 
             # Perform action in env

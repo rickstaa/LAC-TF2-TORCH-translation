@@ -46,8 +46,10 @@ ALG_PARAMS = {
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
-    "labda": 1.0,  # Initial value for the lyapunov constraint lagrance multiplier
-    "alpha": 1.0,  # The initial value for the entropy lagrance multiplier
+    # "labda": 1.0,  # Initial value for the lyapunov constraint lagrance multiplier
+    "labda": 0.99,  # Initial value for the lyapunov constraint lagrance multiplier
+    # "alpha": 1.0,  # The initial value for the entropy lagrance multiplier
+    "alpha": 0.99,  # The initial value for the entropy lagrance multiplier
     "alpha3": 0.2,  # The value of the stability condition multiplier
     "tau": 5e-3,  # Decay rate used in the polyak averaging
     "lr_a": 1e-4,  # The actor learning rate
