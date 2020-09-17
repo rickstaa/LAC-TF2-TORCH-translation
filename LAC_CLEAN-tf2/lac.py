@@ -507,7 +507,10 @@ class LAC(object):
             w1_a = tf.compat.v1.get_variable(
                 "w1_a", [self.a_dim, n1], trainable=trainable
             )
-            b1 = tf.compat.v1.get_variable("b1", [1, n1], trainable=trainable)
+            # b1 = tf.compat.v1.get_variable("b1", [1, n1], trainable=trainable)
+            b1 = tf.compat.v1.get_variable(
+                "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer()
+            )  # DEBUG
             net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
             layers.append(net_0)
             for i in range(1, len(self.network_structure["critic"])):

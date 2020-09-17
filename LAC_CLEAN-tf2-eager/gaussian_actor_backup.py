@@ -23,6 +23,7 @@ class SquashedGaussianActor(tf.keras.Model):
         super().__init__(name=name, **kwargs)
 
         # Get class parameters
+        # FIXME: Cleanup build!
         self._log_std_min = log_std_min
         self._log_std_max = log_std_max
         self.s_dim = obs_dim
@@ -30,39 +31,22 @@ class SquashedGaussianActor(tf.keras.Model):
         self.tfp_seed = tfp.util.SeedStream(seed, salt="random_beta")
 
         # Create fully connected layers
-        self.net = tf.keras.Sequential(
-            [
-                tf.keras.layers.InputLayer(
-                    dtype=tf.float32, input_shape=(self.s_dim), name="input"
-                )
-            ]
+        self.net_0 = tf.keras.layers.Dense(
+            hidden_sizes[0], activation="relu", name="l1"
         )
-        for i, hidden_size_i in enumerate(hidden_sizes):
-            self.net.add(
-                tf.keras.layers.Dense(
-                    hidden_size_i, activation="relu", name="l{}".format(i)
-                )
-            )
+        self.net_0.build(input_shape=(self.s_dim))
+        self.net_1 = tf.keras.layers.Dense(
+            hidden_sizes[1], activation="relu", name="l2"
+        )
+        self.net_1.build(input_shape=(hidden_sizes[0]))
 
         # Create Mu and log sigma output layers
-        self.mu = tf.keras.Sequential(
-            [
-                tf.keras.layers.InputLayer(
-                    dtype=tf.float32, input_shape=hidden_sizes[-1]
-                ),
-                tf.keras.layers.Dense(act_dim, activation=None, name=name + "mu"),
-            ]
+        self.mu = tf.keras.layers.Dense(act_dim, name="mu", activation=None)
+        self.mu.build(input_shape=(hidden_sizes[1]))
+        self.log_sigma = tf.keras.layers.Dense(
+            act_dim, name="log_sigma", activation=None
         )
-        self.log_sigma = tf.keras.Sequential(
-            [
-                tf.keras.layers.InputLayer(
-                    dtype=tf.float32, input_shape=hidden_sizes[-1]
-                ),
-                tf.keras.layers.Dense(
-                    act_dim, activation=None, name=name + "log_sigma"
-                ),
-            ]
-        )
+        self.log_sigma.build(input_shape=(hidden_sizes[1]))
 
     @tf.function
     def call(self, inputs):
@@ -72,7 +56,8 @@ class SquashedGaussianActor(tf.keras.Model):
         obs = inputs
 
         # Perform forward pass through fully connected layers
-        net_out = self.net(obs)
+        net_out = self.net_0(obs)
+        net_out = self.net_1(net_out)
 
         # Calculate mu and log_sigma
         mu = self.mu(net_out)

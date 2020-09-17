@@ -15,58 +15,33 @@ class LyapunovCritic(tf.keras.Model):
         log_std_max=2.0,
         **kwargs
     ):
-        # TODO: Check if name results in problem
         super().__init__(name=name, **kwargs)
 
         # Get class parameters
         self.s_dim = obs_dim
         self.a_dim = act_dim
 
-        # Create input layer weights and biases
-        # FIXME: Cleanup build!
-        # FIXME: Check if same initializer is used in pytorch
-        self.w1_s = tf.Variable(
-            tf.keras.initializers.GlorotUniform()(shape=(self.s_dim, hidden_sizes[0])),
-            name="w1_s",
-        )
-        self.w1_a = tf.Variable(
-            tf.keras.initializers.GlorotUniform()(shape=(self.s_dim, hidden_sizes[0])),
-            name="w1_a",
-        )
-        self.b1 = tf.Variable(
-            tf.zeros_initializer()(shape=(1, hidden_sizes[0])), name="b1",
-        )
-
-        # Create fully connected layers
-        # TODO: Check if this is right!
+        # Create network layers
         self.net = tf.keras.Sequential(
             [
                 tf.keras.layers.InputLayer(
-                    input_shape=(hidden_sizes[0]), name=name + "/input",
+                    dtype=tf.float32, input_shape=(obs_dim + act_dim), name="input",
                 )
             ]
         )
-        for i in range(1, len(hidden_sizes)):
-            n = hidden_sizes[i]
+        for i, hidden_size_i in enumerate(hidden_sizes):
             self.net.add(
-                tf.keras.layers.Dense(n, activation="relu", name="l" + str(i + 1),)
+                tf.keras.layers.Dense(
+                    hidden_size_i, activation="relu", name=name + "l{}".format(i)
+                )
             )
 
     @tf.function
     def call(self, inputs):
         """Perform forward pass."""
 
-        # Retrieve inputs
-        obs = inputs[0]
-        acts = inputs[1]
-
         # Perform forward pass through input layers
-        net_out = tf.nn.relu(
-            tf.matmul(obs, self.w1_s) + tf.matmul(acts, self.w1_a) + self.b1
-        )
-
-        # Pass through fully connected layers
-        net_out = self.net(net_out)
+        net_out = self.net(tf.concat(inputs, axis=-1))
 
         # Return result
         return tf.expand_dims(

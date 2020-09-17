@@ -11,6 +11,11 @@ import tensorflow_probability as tfp
 # Disable GPU if requested
 tf.config.set_visible_devices([], "GPU")
 
+# Initiate session_config variable
+session_conf = None
+
+# TODO: Apply new improved Gaussian actor and Lyapunov critic to other scripts
+
 ####################################################
 # Script parameters ################################
 ####################################################
@@ -36,15 +41,33 @@ LR_LAG = 1e-4  # The lagrance multiplier learning rate
 # Seed random number generators ####################
 ####################################################
 RANDOM_SEED = 0  # The random seed
+# RANDOM_SEED = None  # The random seed
 
 # Set random seed to get comparable results for each run
+# NOTE: https://stackoverflow.com/questions/32419510/how-to-get-reproducible-results-in-keras
 if RANDOM_SEED is not None:
+
+    # Configure a new global `tensorflow` session
+    # session_conf = tf.compat.v1.ConfigProto(
+    #     intra_op_parallelism_threads=1, inter_op_parallelism_threads=1
+    # )
+    # sess = tf.compat.v1.Session(
+    #     graph=tf.compat.v1.get_default_graph(), config=session_conf
+    # )
+    # tf.compat.v1.keras.backend.set_session(sess)
+
+    # Set random seeds
     os.environ["PYTHONHASHSEED"] = str(RANDOM_SEED)
     os.environ["TF_CUDNN_DETERMINISTIC"] = "1"  # new flag present in tf 2.0+
-    np.random.seed(RANDOM_SEED)
-    tf.compat.v1.reset_default_graph()
-    tf.random.set_seed(RANDOM_SEED)
     random.seed(RANDOM_SEED)
+    np.random.seed(RANDOM_SEED)
+    # tf.compat.v1.set_random_seed(RANDOM_SEED)
+    tf.random.set_seed(RANDOM_SEED)
+    # tf.compat.v1.reset_default_graph()
+    TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="random_beta")
+
+# USED FOR DEBUGGING
+tf.config.experimental_run_functions_eagerly(True)
 
 
 ####################################################
@@ -70,6 +93,60 @@ class SquashBijector(tfp.bijectors.Bijector):
         return 2.0 * (tf.math.log(2.0) - x - tf.nn.softplus(-2.0 * x))
 
 
+def retrieve_weights_biases():
+    """Returns the current weight and biases from the (target) Gaussian Actor and
+    Lyapunov critic.
+
+    Returns:
+        tuple: Tuple containing the weight and biases dictionaries of the (target)
+        Gaussian Actor andLyapunov critic
+    """
+
+    # Retrieve initial network weights
+    ga_weights_biases = {
+        "l1/weights": policy.ga.net.weights[0],
+        "l1/bias": policy.ga.net.weights[1],
+        "l2/weights": policy.ga.net.weights[2],
+        "l2/bias": policy.ga.net.weights[3],
+        "mu/weights": policy.ga.mu.weights[0],
+        "mu/bias": policy.ga.mu.weights[1],
+        "log_sigma/weights": policy.ga.log_sigma.weights[0],
+        "log_sigma/bias": policy.ga.log_sigma.weights[1],
+    }
+    ga_target_weights_biases = {
+        "l1/weights": policy.ga_.net.weights[0],
+        "l1/bias": policy.ga_.net.weights[1],
+        "l2/weights": policy.ga_.net.weights[2],
+        "l2/bias": policy.ga_.net.weights[3],
+        "mu/weights": policy.ga_.mu.weights[0],
+        "mu/bias": policy.ga_.mu.weights[1],
+        "log_sigma/weights": policy.ga_.log_sigma.weights[0],
+        "log_sigma/bias": policy.ga_.log_sigma.weights[1],
+    }
+    lc_weights_biases = {
+        "l1/w1_s": policy.lc.w1_s,
+        "l1/w1_a": policy.lc.w1_a,
+        "l1/b1": policy.lc.b1,
+        "l2/weights": policy.lc.net.weights[0],
+        "l2/bias": policy.lc.net.weights[1],
+    }
+    lc_target_weights_biases = {
+        "l1/w1_s": policy.lc.w1_s,
+        "l1/w1_a": policy.lc.w1_a,
+        "l1/b1": policy.lc.b1,
+        "l2/weights": policy.lc.net.weights[0],
+        "l2/bias": policy.lc.net.weights[1],
+    }
+
+    # Return weights and biases
+    return (
+        ga_weights_biases,
+        ga_target_weights_biases,
+        lc_weights_biases,
+        lc_target_weights_biases,
+    )
+
+
 ####################################################
 # Used network functions ###########################
 ####################################################
@@ -82,19 +159,27 @@ class SquashedGaussianActor(tf.keras.Model):
         name,
         log_std_min=-20,
         log_std_max=2.0,
-        seed=None,
+        seeds=None,
         **kwargs
     ):
         """Squashed Gaussian actor network.
 
         Args:
             obs_dim (int): The dimension of the observation space.
+
             act_dim (int): The dimension of the action space.
+
             hidden_sizes (list): Array containing the sizes of the hidden layers.
+
             name (str): The keras module name.
+
             log_std_min (int, optional): The min log_std. Defaults to -20.
+
             log_std_max (float, optional): The max log_std. Defaults to 2.0.
-            seed (int, optional): The random seed. Defaults to None.
+
+            seeds (list, optional): The random seeds used for the weight initialization
+                and the sampling ([weights_seed, sampling_seed]). Defaults to
+                [None, None]
         """
         super().__init__(name=name, **kwargs)
 
@@ -103,25 +188,57 @@ class SquashedGaussianActor(tf.keras.Model):
         self._log_std_max = log_std_max
         self.s_dim = obs_dim
         self.a_dim = act_dim
-        self.tfp_seed = tfp.util.SeedStream(seed, salt="random_beta")
+        self._seed = seeds[0]
+        self._initializer = tf.keras.initializers.GlorotUniform(
+            seed=self._seed
+        )  # Seed weights initializer
+        self._tfp_seed = seeds[1]
 
         # Create fully connected layers
-        self.net_0 = tf.keras.layers.Dense(
-            hidden_sizes[0], activation="relu", name="l1"
+        self.net = tf.keras.Sequential(
+            [
+                tf.keras.layers.InputLayer(
+                    dtype=tf.float32, input_shape=(self.s_dim), name="input"
+                )
+            ]
         )
-        self.net_0.build(input_shape=(self.s_dim))
-        self.net_1 = tf.keras.layers.Dense(
-            hidden_sizes[1], activation="relu", name="l2"
-        )
-        self.net_1.build(input_shape=(hidden_sizes[0]))
+        for i, hidden_size_i in enumerate(hidden_sizes):
+            self.net.add(
+                tf.keras.layers.Dense(
+                    hidden_size_i,
+                    activation="relu",
+                    name="l{}".format(i),
+                    kernel_initializer=self._initializer,
+                )
+            )
 
         # Create Mu and log sigma output layers
-        self.mu = tf.keras.layers.Dense(act_dim, name="mu", activation=None)
-        self.mu.build(input_shape=(hidden_sizes[1]))
-        self.log_sigma = tf.keras.layers.Dense(
-            act_dim, name="log_sigma", activation=None
+        self.mu = tf.keras.Sequential(
+            [
+                tf.keras.layers.InputLayer(
+                    dtype=tf.float32, input_shape=hidden_sizes[-1]
+                ),
+                tf.keras.layers.Dense(
+                    act_dim,
+                    activation=None,
+                    name=name + "mu",
+                    kernel_initializer=self._initializer,
+                ),
+            ]
         )
-        self.log_sigma.build(input_shape=(hidden_sizes[1]))
+        self.log_sigma = tf.keras.Sequential(
+            [
+                tf.keras.layers.InputLayer(
+                    dtype=tf.float32, input_shape=hidden_sizes[-1]
+                ),
+                tf.keras.layers.Dense(
+                    act_dim,
+                    activation=None,
+                    name=name + "log_sigma",
+                    kernel_initializer=self._initializer,
+                ),
+            ]
+        )
 
     @tf.function
     def call(self, inputs):
@@ -131,8 +248,7 @@ class SquashedGaussianActor(tf.keras.Model):
         obs = inputs
 
         # Perform forward pass through fully connected layers
-        net_out = self.net_0(obs)
-        net_out = self.net_1(net_out)
+        net_out = self.net(obs)
 
         # Calculate mu and log_sigma
         mu = self.mu(net_out)
@@ -151,7 +267,7 @@ class SquashedGaussianActor(tf.keras.Model):
         base_distribution = tfp.distributions.MultivariateNormalDiag(
             loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
         )
-        epsilon = base_distribution.sample(batch_size, seed=self.tfp_seed())
+        epsilon = base_distribution.sample(batch_size, seed=self._tfp_seed)
         raw_action = affine_bijector.forward(epsilon)
         clipped_a = squash_bijector.forward(raw_action)
 
@@ -161,7 +277,7 @@ class SquashedGaussianActor(tf.keras.Model):
             distribution=base_distribution, bijector=reparm_trick_bijector
         )
         clipped_mu = squash_bijector.forward(mu)
-        return clipped_a, clipped_mu, distribution.log_prob(clipped_a)
+        return clipped_a, clipped_mu, distribution.log_prob(clipped_a), epsilon
 
 
 class LyapunovCritic(tf.keras.Model):
@@ -171,6 +287,7 @@ class LyapunovCritic(tf.keras.Model):
         act_dim,
         hidden_sizes,
         name,
+        seed=None,
         log_std_min=-20,
         log_std_max=2.0,
         **kwargs
@@ -179,26 +296,35 @@ class LyapunovCritic(tf.keras.Model):
 
         Args:
             obs_dim (int): The dimension of the observation space.
+
             act_dim (int): The dimension of the action space.
+
             hidden_sizes (list): Array containing the sizes of the hidden layers.
+
             name (str): The keras module name.
+
             log_std_min (int, optional): The min log_std. Defaults to -20.
+
             log_std_max (float, optional): The max log_std. Defaults to 2.0.
+
+            seed (int, optional): The random seed. Defaults to None.
         """
         super().__init__(name=name, **kwargs)
 
         # Get class parameters
         self.s_dim = obs_dim
         self.a_dim = act_dim
+        self._seed = seed
+        self._initializer = tf.keras.initializers.GlorotUniform(
+            seed=self._seed
+        )  # Seed weights initializer
 
         # Create input layer weights and biases
         self.w1_s = tf.Variable(
-            tf.keras.initializers.GlorotUniform()(shape=(self.s_dim, hidden_sizes[0])),
-            name="w1_s",
+            self._initializer(shape=(self.s_dim, hidden_sizes[0])), name="w1_s",
         )
         self.w1_a = tf.Variable(
-            tf.keras.initializers.GlorotUniform()(shape=(self.s_dim, hidden_sizes[0])),
-            name="w1_a",
+            self._initializer(shape=(self.s_dim, hidden_sizes[0])), name="w1_a",
         )
         self.b1 = tf.Variable(
             tf.zeros_initializer()(shape=(1, hidden_sizes[0])), name="b1",
@@ -206,18 +332,16 @@ class LyapunovCritic(tf.keras.Model):
 
         # Create fully connected layers
         self.net = tf.keras.Sequential(
-            [
-                tf.keras.layers.InputLayer(
-                    input_shape=(hidden_sizes[0]), name=name + "/input",
-                )
-            ]
+            [tf.keras.layers.InputLayer(input_shape=(hidden_sizes[0]), name="input")]
         )
-        # FIXME: This layer is a different object that the one in guassian actor it has
-        # no BIAS attribute
-        for i in range(1, len(hidden_sizes)):
-            n = hidden_sizes[i]
+        for i, hidden_size_i in enumerate(hidden_sizes[1:]):
             self.net.add(
-                tf.keras.layers.Dense(n, activation="relu", name="l" + str(i + 1))
+                tf.keras.layers.Dense(
+                    hidden_size_i,
+                    activation="relu",
+                    name="l{}".format(i + 1),
+                    kernel_initializer=self._initializer,
+                )
             )
 
     @tf.function
@@ -255,6 +379,19 @@ class LAC(object):
 
         # Set algorithm parameters as class objects
         self.network_structure = NETWORK_STRUCTURE
+        self.polyak = POLYAK
+
+        # Create network seeds
+        self.ga_seeds = [
+            RANDOM_SEED,
+            TFP_SEED_STREAM(),
+        ]  # [weight init seed, sample seed]
+        self.ga_target_seeds = [
+            RANDOM_SEED + 1,
+            TFP_SEED_STREAM(),
+        ]  # [weight init seed, sample seed]
+        self.lc_seed = RANDOM_SEED + 2  # Weight init seed
+        self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
 
         # Determine target entropy
         self.target_entropy = -A_DIM  # lower bound of the policy entropy
@@ -273,14 +410,14 @@ class LAC(object):
         ###########################################
 
         # Create Gaussian Actor (GA) and Lyapunov critic (LC) Networks
-        self.ga = self._build_a()
-        self.lc = self._build_l()
+        self.ga = self._build_a(seeds=self.ga_seeds)
+        self.lc = self._build_l(seed=self.lc_seed)
 
         # Create GA and LC target networks
         # Don't get optimized but get updated according to the EMA of the main
         # networks
-        self.ga_ = self._build_a()
-        self.lc_ = self._build_l()
+        self.ga_ = self._build_a(seeds=self.ga_target_seeds)
+        self.lc_ = self._build_l(seed=self.lc_target_seed)
         self.target_init()
 
         ###########################################
@@ -292,11 +429,15 @@ class LAC(object):
         self.a_train = tf.keras.optimizers.Adam(learning_rate=self.LR_A)
         self.l_train = tf.keras.optimizers.Adam(learning_rate=self.LR_L)
 
-    def _build_a(self, name="gaussian_actor"):
+    def _build_a(self, name="gaussian_actor", seeds=[None, None]):
         """Setup SquashedGaussianActor Graph.
 
         Args:
             name (str, optional): Network name. Defaults to "gaussian_actor".
+
+            seeds (list, optional): The random seeds used for the weight initialization
+                and the sampling ([weights_seed, sampling_seed]). Defaults to
+                [None, None]
 
         Returns:
             tuple: Tuple with network output tensors.
@@ -310,14 +451,17 @@ class LAC(object):
             name=name,
             log_std_min=LOG_SIGMA_MIN_MAX[0],
             log_std_max=LOG_SIGMA_MIN_MAX[1],
-            seed=RANDOM_SEED,
+            seeds=seeds,
         )
 
-    def _build_l(self, name="lyapunov_critic"):
+    def _build_l(self, name="lyapunov_critic", seed=None):
         """Setup lyapunov critic graph.
 
         Args:
             name (str, optional): Network name. Defaults to "lyapunov_critic".
+
+            seed (int, optional): The seed used for the weight initialization. Defaults
+                to None.
 
         Returns:
             tuple: Tuple with network output tensors.
@@ -329,6 +473,7 @@ class LAC(object):
             act_dim=self.a_dim,
             hidden_sizes=self.network_structure["critic"],
             name=name,
+            seed=seed,
         )
 
     @tf.function
@@ -353,7 +498,7 @@ class LAC(object):
         bs_ = batch["s_"]  # next state
 
         # Calculate current value and target lyapunov multiplier value
-        lya_a_, _, _ = self.ga(bs_)
+        lya_a_, _, _, _ = self.ga(bs_)
         l_ = self.lc([bs_, lya_a_])
 
         # Calculate current lyapunov value
@@ -371,7 +516,7 @@ class LAC(object):
         self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
 
         # Calculate log probability of a_input based on current policy
-        _, _, log_pis = self.ga(bs)
+        _, _, log_pis, _ = self.ga(bs)
 
         # Calculate alpha loss
         with tf.GradientTape() as tape:
@@ -383,14 +528,14 @@ class LAC(object):
         alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
         self.alpha_train.apply_gradients(zip(alpha_grads, [self.log_alpha]))
 
-        # Calculate Lyapunov constraint function
-        self.l_delta = tf.reduce_mean(l_ - l + ALPHA_3 * br)
+        # # Calculate Lyapunov constraint function
+        # self.l_delta = tf.reduce_mean(l_ - l + ALPHA_3 * br)
 
         # Actor loss and optimizer graph
         with tf.GradientTape() as tape:
 
             # Calculate log probability of a_input based on current policy
-            _, _, log_pis = self.ga(bs)
+            _, _, log_pis, _ = self.ga(bs)
 
             # Calculate actor loss
             a_loss = tf.stop_gradient(self.labda) * self.l_delta + tf.stop_gradient(
@@ -405,7 +550,7 @@ class LAC(object):
         self.update_target()
 
         # Get Lypaunov target
-        a_, _, _ = self.ga_(bs_)
+        a_, _, _, _ = self.ga_(bs_)
         l_ = self.lc_([bs_, a_])
         l_target = br + GAMMA * (1 - bterminal) * tf.stop_gradient(l_)
 
@@ -426,11 +571,11 @@ class LAC(object):
 
         # Return results
         return (
-            l_delta,
-            labda,
-            alpha,
-            log_labda,
-            log_alpha,
+            self.l_delta,
+            self.labda,
+            self.alpha,
+            self.log_labda,
+            self.log_alpha,
             labda_loss,
             alpha_loss,
             l_target,
@@ -439,6 +584,8 @@ class LAC(object):
             tf.reduce_mean(tf.stop_gradient(-log_pis)),
             l_,
             l,
+            a_,
+            lya_a_,
         )
 
     @property
@@ -477,49 +624,47 @@ if __name__ == "__main__":
     policy = LAC()
 
     # Retrieve initial network weights
-    ga_weights_biases = {
-        "l1/weights": policy.ga.net_0.weights[0],
-        "l1/bias": policy.ga.net_0.bias,
-        "l2/weights": policy.ga.net_1.weights[0],
-        "l2/bias": policy.ga.net_1.bias,
-        "mu/weights": policy.ga.mu.weights[0],
-        "mu/bias": policy.ga.mu.bias,
-        "log_sigma/weights": policy.ga.log_sigma.weights[0],
-        "log_sigma/bias": policy.ga.log_sigma.bias,
-    }
-    ga_target_weights_biases = {
-        "l1/weights": policy.ga_.net_0.weights[0],
-        "l1/bias": policy.ga_.net_0.bias,
-        "l2/weights": policy.ga_.net_1.weights[0],
-        "l2/bias": policy.ga_.net_1.bias,
-        "mu/weights": policy.ga_.mu.weights[0],
-        "mu/bias": policy.ga_.mu.bias,
-        "log_sigma/weights": policy.ga_.log_sigma.weights[0],
-        "log_sigma/bias": policy.ga_.log_sigma.bias,
-    }
-    lc_weights_biases = {
-        "l1/w1_s": policy.lc.w1_s,
-        "l1/w1_a": policy.lc.w1_a,
-        "l1/b1": policy.lc.b1,
-        "l2/weights": policy.lc.net.weights[0],
-        "l2/bias": policy.lc.net.weights[1],
-    }
-    lc_target_weights_biases = {
-        "l1/w1_s": policy.lc.w1_s,
-        "l1/w1_a": policy.lc.w1_a,
-        "l1/b1": policy.lc.b1,
-        "l2/weights": policy.lc.net.weights[0],
-        "l2/bias": policy.lc.net.weights[1],
-    }
+    (
+        ga_weights_biases,
+        ga_target_weights_biases,
+        lc_weights_biases,
+        lc_target_weights_biases,
+    ) = retrieve_weights_biases()
 
     # Create dummy input
+    # NOTE: Explicit seeding because of the difference between eager and graph mode
+    tf.random.set_seed(0)
+    s_tmp = tf.random.uniform((BATCH_SIZE, policy.s_dim), seed=0)
+    a_tmp = tf.random.uniform((BATCH_SIZE, policy.a_dim), seed=1)
+    r_tmp = tf.random.uniform((BATCH_SIZE, 1), seed=2)
+    terminal_tmp = tf.cast(
+        tf.random.uniform((BATCH_SIZE, 1), minval=0, maxval=2, dtype=tf.int32, seed=3),
+        tf.float32,
+    )
+    s_target_tmp = tf.random.uniform((BATCH_SIZE, policy.s_dim), seed=4)
     batch = {
-        "s": tf.random.uniform((BATCH_SIZE, policy.s_dim)),
-        "a": tf.random.uniform((BATCH_SIZE, policy.a_dim)),
-        "r": tf.random.uniform((BATCH_SIZE, 1)),
-        "terminal": tf.zeros((BATCH_SIZE, 1)),
-        "s_": tf.random.uniform((BATCH_SIZE, policy.s_dim)),
+        "s": s_tmp,
+        "a": a_tmp,
+        "r": r_tmp,
+        "terminal": terminal_tmp,
+        "s_": s_target_tmp,
     }
+
+    # Perform forward pass through networks (Same input)
+    a, a_det, log_pis, epsilon = policy.ga(batch["s"])
+    a_, a_det_, log_pis_, epsilon_ = policy.ga_(batch["s"])
+    lya_a_, lya_a_det_, lya_log_pis_, lya_epsilon_ = policy.ga(batch["s"])
+    l = policy.lc([batch["s"], batch["a"]])
+    l_ = policy.lc_([batch["s"], batch["a"]])  # FIXME: CHECK IF THIS THE CASE
+    lya_l_ = policy.lc([batch["s"], batch["a"]])
+
+    # Perform forward pass through networks (As implemented in learn)
+    a, a_det, log_pis, epsilon = policy.ga(batch["s"])
+    a_, a_det_, log_pis_, epsilon_ = policy.ga_(batch["s_"])
+    lya_a_, lya_a_det_, lya_log_pis_, lya_epsilon_ = policy.ga(batch["s_"])
+    l = policy.lc([batch["s"], batch["a"]])
+    l_ = policy.lc_([batch["s_"], a_])  # FIXME: CHECK IF THIS THE CASE
+    lya_l_ = policy.lc([batch["s_"], lya_a_])
 
     # Perform training epoch
     (
@@ -536,7 +681,12 @@ if __name__ == "__main__":
         entropy,
         l_,
         l,
+        a_,
+        lya_a_,
     ) = policy.learn(LR_A, LR_L, LR_LAG, batch)
+
+    # In tf2 eager we don't need to retrieve the weights and biases again
+    print("Check updated weights and biases.")
 
     # Pause here to debug
     print("DEBUG")

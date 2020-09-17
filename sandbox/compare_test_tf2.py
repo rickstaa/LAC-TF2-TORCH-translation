@@ -8,12 +8,14 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-
 # Disable eager
 tf.compat.v1.disable_eager_execution()
 
 # Disable GPU if requested
 tf.config.set_visible_devices([], "GPU")
+
+# Initiate session_config variable
+session_conf = None
 
 ####################################################
 # Script parameters ################################
@@ -40,15 +42,26 @@ LR_LAG = 1e-4  # The lagrance multiplier learning rate
 # Seed random number generators ####################
 ####################################################
 RANDOM_SEED = 0  # The random seed
+# RANDOM_SEED = None  # The random seed
 
 # Set random seed to get comparable results for each run
+# NOTE: https://stackoverflow.com/questions/32419510/how-to-get-reproducible-results-in-keras
 if RANDOM_SEED is not None:
+
+    # Configure a new global `tensorflow` session
+    # session_conf = tf.compat.v1.ConfigProto(
+    #     intra_op_parallelism_threads=1, inter_op_parallelism_threads=1
+    # )
+
+    # Set random seeds
     os.environ["PYTHONHASHSEED"] = str(RANDOM_SEED)
     os.environ["TF_CUDNN_DETERMINISTIC"] = "1"  # new flag present in tf 2.0+
-    np.random.seed(RANDOM_SEED)
-    tf.compat.v1.reset_default_graph()
-    tf.random.set_seed(RANDOM_SEED)
     random.seed(RANDOM_SEED)
+    np.random.seed(RANDOM_SEED)
+    # tf.compat.v1.set_random_seed(RANDOM_SEED)
+    tf.random.set_seed(RANDOM_SEED)
+    # tf.compat.v1.reset_default_graph()
+    TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="random_beta")
 
 
 ####################################################
@@ -74,6 +87,76 @@ class SquashBijector(tfp.bijectors.Bijector):
         return 2.0 * (tf.math.log(2.0) - x - tf.nn.softplus(-2.0 * x))
 
 
+def retrieve_weights_biases():
+    """Returns the current weight and biases from the (target) Gaussian Actor and
+    Lyapunov critic.
+
+    Returns:
+        tuple: Tuple containing the weight and biases dictionaries of the (target)
+        Gaussian Actor andLyapunov critic
+    """
+
+    # Retrieve initial network weights
+    ga_vars = tf.compat.v1.get_collection(
+        tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/gaussian_actor",
+    )
+    ga_target_vars = tf.compat.v1.get_collection(
+        tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/Actor/gaussian_actor",
+    )
+    lc_vars = tf.compat.v1.get_collection(
+        tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/lyapunov_critic",
+    )
+    lc_target_vars = tf.compat.v1.get_collection(
+        tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/Actor/lyapunov_critic",
+    )
+    ga_weights_biases = policy.sess.run(ga_vars)
+    ga_target_weights_biases = policy.sess.run(ga_target_vars)
+    lc_weights_biases = policy.sess.run(lc_vars)
+    lc_target_weights_biases = policy.sess.run(lc_target_vars)
+    ga_weights_biases = {
+        "l1/weights": ga_weights_biases[0],
+        "l1/bias": ga_weights_biases[1],
+        "l2/weights": ga_weights_biases[2],
+        "l2/bias": ga_weights_biases[3],
+        "mu/weights": ga_weights_biases[4],
+        "mu/bias": ga_weights_biases[5],
+        "log_sigma/weights": ga_weights_biases[6],
+        "log_sigma/bias": ga_weights_biases[7],
+    }
+    ga_target_weights_biases = {
+        "l1/weights": ga_target_weights_biases[0],
+        "l1/bias": ga_target_weights_biases[1],
+        "l2/weights": ga_target_weights_biases[2],
+        "l2/bias": ga_target_weights_biases[3],
+        "mu/weights": ga_target_weights_biases[4],
+        "mu/bias": ga_target_weights_biases[5],
+        "log_sigma/weights": ga_target_weights_biases[6],
+        "log_sigma/bias": ga_target_weights_biases[7],
+    }
+    lc_weights_biases = {
+        "l1/w1_s": lc_weights_biases[0],
+        "l1/w1_a": lc_weights_biases[1],
+        "l1/b1": lc_weights_biases[2],
+        "l2/weights": lc_weights_biases[3],
+        "l2/bias": lc_weights_biases[4],
+    }
+    lc_target_weights_biases = {
+        "l1/w1_s": lc_target_weights_biases[0],
+        "l1/w1_a": lc_target_weights_biases[1],
+        "l1/b1": lc_target_weights_biases[2],
+        "l2/weights": lc_target_weights_biases[3],
+        "l2/bias": lc_target_weights_biases[4],
+    }
+
+    # Return weights and biases
+    return (
+        ga_weights_biases,
+        ga_target_weights_biases,
+        lc_weights_biases,
+        lc_target_weights_biases,
+    )
+
+
 ####################################################
 # Agent class ######################################
 ####################################################
@@ -89,12 +172,27 @@ class LAC(object):
 
         # Set algorithm parameters as class objects
         self.network_structure = NETWORK_STRUCTURE
+        self.polyak = POLYAK
+
+        # Create network seeds
+        self.ga_seeds = [
+            RANDOM_SEED,
+            TFP_SEED_STREAM(),
+        ]  # [weight init seed, sample seed]
+        self.ga_target_seeds = [
+            RANDOM_SEED + 1,
+            TFP_SEED_STREAM(),
+        ]  # [weight init seed, sample seed]
+        self.lc_seed = RANDOM_SEED + 2  # Weight init seed
+        self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
 
         # Determine target entropy
         self.target_entropy = -A_DIM  # lower bound of the policy entropy
 
         # Create tensorflow session
         self.sess = tf.compat.v1.Session()
+        # self.sess = tf.compat.v1.Session(config=session_conf)  # DEBUG
+        # tf.compat.v1.keras.backend.set_session(self.sess)  # Set keras global session
 
         # Create networks, optimizers and variables inside the Actor scope
         with tf.compat.v1.variable_scope("Actor"):
@@ -131,8 +229,10 @@ class LAC(object):
             ###########################################
 
             # Create Gaussian Actor (GA) and Lyapunov critic (LC) Networks
-            self.a, self.deterministic_a, self.a_dist = self._build_a(self.S)
-            self.l = self._build_l(self.S, self.a_input)
+            self.a, self.deterministic_a, self.a_dist, self.epsilon = self._build_a(
+                self.S, seeds=self.ga_seeds
+            )
+            self.l = self._build_l(self.S, self.a_input, seed=self.lc_seed)
             self.log_pis = log_pis = self.a_dist.log_prob(
                 self.a
             )  # Gaussian actor action log_probability
@@ -147,7 +247,7 @@ class LAC(object):
             )
 
             # Create EMA target network update policy (Soft replacement)
-            ema = tf.train.ExponentialMovingAverage(decay=(POLYAK))
+            ema = tf.train.ExponentialMovingAverage(decay=(self.polyak))
 
             def ema_getter(getter, name, *args, **kwargs):
                 return ema.average(getter(name, *args, **kwargs))
@@ -160,17 +260,39 @@ class LAC(object):
             # Create GA and LC target networks
             # Don't get optimized but get updated according to the EMA of the main
             # networks
-            a_, _, a_dist_ = self._build_a(
-                self.S_, reuse=True, custom_getter=ema_getter
+            self.a_, self.deterministic_a_, self.a_dist_, self.epsilon_ = self._build_a(
+                self.S_,
+                reuse=True,
+                custom_getter=ema_getter,
+                seeds=self.ga_target_seeds,
             )
-            l_ = self._build_l(self.S_, a_, reuse=True, custom_getter=ema_getter)
+            self.log_pis_ = self.a_dist_.log_prob(
+                self.a_
+            )  # Gaussian actor action log_probability
+            self.l_ = self._build_l(
+                self.S_,
+                self.a_,
+                reuse=True,
+                custom_getter=ema_getter,
+                seed=self.lc_target_seed,
+            )
 
             # Create Networks for the (fixed) lyapunov temperature boundary
             # DEBUG: This graph has the same parameters as the original gaussian actor
             # but now it receives the next state. This was needed as the target network
             # uses exponential moving average.
-            lya_a_, _, _ = self._build_a(self.S_, reuse=True)
-            self.l_ = self._build_l(self.S_, lya_a_, reuse=True)
+            (
+                self.lya_a_,
+                self.lya_deterministic_a_,
+                self.lya_a_dist_,
+                self.lya_epsilon_,
+            ) = self._build_a(self.S_, reuse=True, seeds=self.ga_seeds)
+            self.lya_log_pis_ = self.lya_a_dist_.log_prob(
+                self.lya_a_
+            )  # Gaussian actor action log_probability
+            self.lya_l_ = self._build_l(
+                self.S_, self.lya_a_, reuse=True, seed=self.lc_seed,
+            )
 
             ###########################################
             # Create Loss functions and optimizers ####
@@ -178,7 +300,7 @@ class LAC(object):
 
             # Lyapunov constraint function
             self.l_delta = tf.reduce_mean(
-                input_tensor=(self.l_ - self.l + ALPHA_3 * self.R)
+                input_tensor=(self.lya_l_ - self.l + ALPHA_3 * self.R)
             )
 
             # Lagrance multiplier loss functions and optimizers graphs
@@ -210,7 +332,9 @@ class LAC(object):
             with tf.control_dependencies(target_update):
 
                 # Lyapunov candidate constraint function graph
-                l_target = self.R + GAMMA * (1 - self.terminal) * tf.stop_gradient(l_)
+                l_target = self.R + GAMMA * (1 - self.terminal) * tf.stop_gradient(
+                    self.l_
+                )
 
                 self.l_error = tf.compat.v1.losses.mean_squared_error(
                     labels=l_target, predictions=self.l
@@ -235,14 +359,25 @@ class LAC(object):
                 self.l_error,
                 self.a_loss,
                 self.entropy,
-                self.l_,
                 self.l,
+                self.l_,
+                self.lya_l_,
+                self.a,
+                self.a_,
+                self.lya_a_,
             ]
 
             # Create optimizer array
             self.opt = [self.l_train, self.lambda_train, self.a_train, self.alpha_train]
 
-    def _build_a(self, s, name="gaussian_actor", reuse=None, custom_getter=None):
+    def _build_a(
+        self,
+        s,
+        name="gaussian_actor",
+        reuse=None,
+        custom_getter=None,
+        seeds=[None, None],
+    ):
         """Setup SquashedGaussianActor Graph.
 
         Args:
@@ -256,12 +391,19 @@ class LAC(object):
             custom_getter (object, optional): Overloads variable creation process.
                 Defaults to None.
 
+            seeds (list, optional): The random seeds used for the weight initialization
+                and the sampling ([weights_seed, sampling_seed]). Defaults to
+                [None, None]
+
         Returns:
             tuple: Tuple with network output tensors.
         """
 
         # Set trainability
         trainable = True if reuse is None else False
+
+        # Create weight initializer
+        initializer = tf.keras.initializers.GlorotUniform(seed=seeds[0])
 
         # Create graph
         with tf.compat.v1.variable_scope(
@@ -274,13 +416,28 @@ class LAC(object):
 
             # Create actor hidden/ output layers
             net_0 = tf.compat.v1.layers.dense(
-                s, n1, activation=tf.nn.relu, name="l1", trainable=trainable
+                s,
+                n1,
+                activation=tf.nn.relu,
+                name="l1",
+                trainable=trainable,
+                kernel_initializer=initializer,
             )  # 原始是30
             net_1 = tf.compat.v1.layers.dense(
-                net_0, n2, activation=tf.nn.relu, name="l2", trainable=trainable
+                net_0,
+                n2,
+                activation=tf.nn.relu,
+                name="l2",
+                trainable=trainable,
+                kernel_initializer=initializer,
             )  # 原始是30
             mu = tf.compat.v1.layers.dense(
-                net_1, self.a_dim, activation=None, name="mu", trainable=trainable
+                net_1,
+                self.a_dim,
+                activation=None,
+                name="mu",
+                trainable=trainable,
+                kernel_initializer=initializer,
             )
             log_sigma = tf.compat.v1.layers.dense(
                 net_1,
@@ -288,6 +445,7 @@ class LAC(object):
                 activation=None,
                 name="log_sigma",
                 trainable=trainable,
+                kernel_initializer=initializer,
             )
             log_sigma = tf.clip_by_value(log_sigma, *LOG_SIGMA_MIN_MAX)
 
@@ -303,8 +461,7 @@ class LAC(object):
             base_distribution = tfp.distributions.MultivariateNormalDiag(
                 loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
             )
-            tfp_seed = tfp.util.SeedStream(RANDOM_SEED, salt="random_beta")
-            epsilon = base_distribution.sample(batch_size, seed=tfp_seed())
+            epsilon = base_distribution.sample(batch_size, seed=seeds[1])
             raw_action = affine_bijector.forward(epsilon)
             clipped_a = squash_bijector.forward(raw_action)
 
@@ -318,9 +475,11 @@ class LAC(object):
 
             clipped_mu = squash_bijector.forward(mu)
 
-        return clipped_a, clipped_mu, distribution
+        return clipped_a, clipped_mu, distribution, epsilon
 
-    def _build_l(self, s, a, name="lyapunov_critic", reuse=None, custom_getter=None):
+    def _build_l(
+        self, s, a, name="lyapunov_critic", reuse=None, custom_getter=None, seed=None,
+    ):
         """Setup lyapunov critic graph.
 
         Args:
@@ -334,12 +493,19 @@ class LAC(object):
             custom_getter (object, optional): Overloads variable creation process.
                 Defaults to None.
 
+            seed (int, optional): The seed used for the weight initialization. Defaults
+                to None.
+
+
         Returns:
             tuple: Tuple with network output tensors.
         """
 
         # Set trainability
         trainable = True if reuse is None else False
+
+        # Create weight initializer
+        initializer = tf.keras.initializers.GlorotUniform(seed=seed)
 
         # Create graph
         with tf.compat.v1.variable_scope(
@@ -352,12 +518,14 @@ class LAC(object):
             # Create actor hidden/ output layers
             layers = []
             w1_s = tf.compat.v1.get_variable(
-                "w1_s", [self.s_dim, n1], trainable=trainable
+                "w1_s", [self.s_dim, n1], trainable=trainable, initializer=initializer,
             )
             w1_a = tf.compat.v1.get_variable(
-                "w1_a", [self.a_dim, n1], trainable=trainable
+                "w1_a", [self.a_dim, n1], trainable=trainable, initializer=initializer,
             )
-            b1 = tf.compat.v1.get_variable("b1", [1, n1], trainable=trainable)
+            b1 = tf.compat.v1.get_variable(
+                "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer()
+            )
             net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
             layers.append(net_0)
             for i in range(1, len(self.network_structure["critic"])):
@@ -369,6 +537,7 @@ class LAC(object):
                         activation=tf.nn.relu,
                         name="l" + str(i + 1),
                         trainable=trainable,
+                        kernel_initializer=initializer,
                     )
                 )
 
@@ -425,66 +594,87 @@ if __name__ == "__main__":
     policy = LAC()
 
     # Retrieve initial network weights
-    ga_vars = tf.compat.v1.get_collection(
-        tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/gaussian_actor",
-    )
-    ga_target_vars = tf.compat.v1.get_collection(
-        tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/Actor/gaussian_actor",
-    )
-    lc_vars = tf.compat.v1.get_collection(
-        tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/lyapunov_critic",
-    )
-    lc_target_vars = tf.compat.v1.get_collection(
-        tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/Actor/lyapunov_critic",
-    )
-    ga_weights_biases = policy.sess.run(ga_vars)
-    ga_target_weights_biases = policy.sess.run(ga_target_vars)
-    lc_weights_biases = policy.sess.run(lc_vars)
-    lc_target_weights_biases = policy.sess.run(lc_target_vars)
-    ga_weights_biases = {
-        "l1/weights": ga_weights_biases[0],
-        "l1/bias": ga_weights_biases[1],
-        "l2/weights": ga_weights_biases[2],
-        "l2/bias": ga_weights_biases[3],
-        "mu/weights": ga_weights_biases[4],
-        "mu/bias": ga_weights_biases[5],
-        "log_sigma/weights": ga_weights_biases[6],
-        "log_sigma/bias": ga_weights_biases[7],
-    }
-    ga_target_weights_biases = {
-        "l1/weights": ga_target_weights_biases[0],
-        "l1/bias": ga_target_weights_biases[1],
-        "l2/weights": ga_target_weights_biases[2],
-        "l2/bias": ga_target_weights_biases[3],
-        "mu/weights": ga_target_weights_biases[4],
-        "mu/bias": ga_target_weights_biases[5],
-        "log_sigma/weights": ga_target_weights_biases[6],
-        "log_sigma/bias": ga_target_weights_biases[7],
-    }
-    lc_weights_biases = {
-        "l1/w1_s": lc_weights_biases[0],
-        "l1/w1_a": lc_weights_biases[1],
-        "l1/b1": lc_weights_biases[2],
-        "l2/weights": lc_weights_biases[3],
-        "l2/bias": lc_weights_biases[4],
-    }
-    lc_target_weights_biases = {
-        "l1/w1_s": lc_target_weights_biases[0],
-        "l1/w1_a": lc_target_weights_biases[1],
-        "l1/b1": lc_target_weights_biases[2],
-        "l2/weights": lc_target_weights_biases[3],
-        "l2/bias": lc_target_weights_biases[4],
-    }
+    (
+        ga_weights_biases,
+        ga_target_weights_biases,
+        lc_weights_biases,
+        lc_target_weights_biases,
+    ) = retrieve_weights_biases()
 
     # Create dummy input
+    # NOTE: Explicit seeding because of the difference between eager and graph mode
+    tf.random.set_seed(0)
+    s_tmp = tf.random.uniform((BATCH_SIZE, policy.s_dim), seed=0)
+    a_tmp = tf.random.uniform((BATCH_SIZE, policy.a_dim), seed=1)
+    r_tmp = tf.random.uniform((BATCH_SIZE, 1), seed=2)
+    terminal_tmp = tf.cast(
+        tf.random.uniform((BATCH_SIZE, 1), minval=0, maxval=2, dtype=tf.int32, seed=3),
+        tf.float32,
+    )
+    s_target_tmp = tf.random.uniform((BATCH_SIZE, policy.s_dim), seed=4)
     batch = {
-        "s": tf.random.uniform((BATCH_SIZE, policy.s_dim)),
-        "a": tf.random.uniform((BATCH_SIZE, policy.a_dim)),
-        "r": tf.random.uniform((BATCH_SIZE, 1)),
-        "terminal": tf.zeros((BATCH_SIZE, 1)),
-        "s_": tf.random.uniform((BATCH_SIZE, policy.s_dim)),
+        "s": policy.sess.run(s_tmp),
+        "a": policy.sess.run(a_tmp),
+        "r": policy.sess.run(r_tmp),
+        "terminal": policy.sess.run(terminal_tmp),
+        "s_": policy.sess.run(s_target_tmp),
     }
-    batch = policy.sess.run(batch)
+
+    # Perform forward pass through networks (Same input)
+    a, a_det, log_pis, epsilon = policy.sess.run(
+        [policy.a, policy.deterministic_a, policy.log_pis, policy.epsilon],
+        feed_dict={policy.S: batch["s"]},
+    )
+    a_, a_det, log_pis, epsilon = policy.sess.run(
+        [policy.a_, policy.deterministic_a_, policy.log_pis_, policy.epsilon_],
+        feed_dict={policy.S_: batch["s"]},
+    )
+    lya_a_, lya_a_det_, lya_log_pis_, lya_epsilon_ = policy.sess.run(
+        [
+            policy.lya_a_,
+            policy.lya_deterministic_a_,
+            policy.lya_log_pis_,
+            policy.lya_epsilon_,
+        ],
+        feed_dict={policy.S_: batch["s"]},
+    )
+    l = policy.sess.run(
+        policy.l, feed_dict={policy.S: batch["s"], policy.a_input: batch["a"]}
+    )
+    l_ = policy.sess.run(
+        policy.l_, feed_dict={policy.S_: batch["s"], policy.a_input: batch["a"]}
+    )
+    lya_l_ = policy.sess.run(
+        policy.lya_l_, feed_dict={policy.S_: batch["s"], policy.lya_a_: batch["a"]}
+    )
+
+    # Perform forward pass through networks (As implemented in learn)
+    a, a_det, log_pis, epsilon = policy.sess.run(
+        [policy.a, policy.deterministic_a, policy.log_pis, policy.epsilon],
+        feed_dict={policy.S: batch["s"]},
+    )
+    a_, a_det, log_pis, epsilon = policy.sess.run(
+        [policy.a_, policy.deterministic_a_, policy.log_pis_, policy.epsilon_],
+        feed_dict={policy.S_: batch["s_"]},
+    )
+    lya_a_, lya_a_det_, lya_log_pis_, lya_epsilon_ = policy.sess.run(
+        [
+            policy.lya_a_,
+            policy.lya_deterministic_a_,
+            policy.lya_log_pis_,
+            policy.lya_epsilon_,
+        ],
+        feed_dict={policy.S_: batch["s_"]},
+    )
+    l = policy.sess.run(
+        policy.l, feed_dict={policy.S: batch["s"], policy.a_input: batch["a"]}
+    )
+    l_ = policy.sess.run(
+        policy.l_, feed_dict={policy.S_: batch["s_"], policy.a_input: a_}
+    )
+    lya_l_ = policy.sess.run(
+        policy.lya_l_, feed_dict={policy.S_: batch["s"], policy.lya_a_: lya_a_}
+    )
 
     # Perform training epoch
     (
@@ -499,9 +689,22 @@ if __name__ == "__main__":
         l_error,
         a_loss,
         entropy,
-        l_,
         l,
+        l_,
+        lya_l_,
+        a,
+        a_,
+        lya_a_,
     ) = policy.learn(LR_A, LR_L, LR_LAG, batch)
+
+    # In tf2 graph mode we need to retrieve them again
+    (
+        ga_weights_biases,
+        ga_target_weights_biases,
+        lc_weights_biases,
+        lc_target_weights_biases,
+    ) = retrieve_weights_biases()
+    print("Check updated weights and biases")
 
     # Pause here to debug
     print("DEBUG")
