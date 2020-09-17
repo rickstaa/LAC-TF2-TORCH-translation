@@ -217,13 +217,13 @@ class LAC(object):
 
         # Calculate current value and target lyapunov multiplier value
         lya_a_, _, _ = self.ga(bs_)
-        l_ = self.lc([bs_, lya_a_])
+        lya_l_ = self.lc([bs_, lya_a_])
 
         # Calculate current lyapunov value
         l = self.lc([bs, ba])
 
         # # Calculate Lyapunov constraint function
-        self.l_delta = tf.reduce_mean(l_ - l + (ALG_PARAMS["alpha3"]) * br)
+        self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
 
         # Lagrance multiplier loss functions and optimizers graphs
         with tf.GradientTape() as tape:
@@ -247,7 +247,7 @@ class LAC(object):
         self.alpha_train.apply_gradients(zip(alpha_grads, [self.log_alpha]))
 
         # Calculate Lyapunov constraint function
-        self.l_delta = tf.reduce_mean(l_ - l + (ALG_PARAMS["alpha3"]) * br)
+        self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
 
         # Actor loss and optimizer graph
         with tf.GradientTape() as tape:

@@ -64,8 +64,7 @@ if RANDOM_SEED is not None:
     # tf.compat.v1.set_random_seed(RANDOM_SEED)
     tf.random.set_seed(RANDOM_SEED)
     # tf.compat.v1.reset_default_graph()
-    TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_1")
-    TFP_SEED_STREAM2 = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_2")
+    TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="random_beta")
 
 # USED FOR DEBUGGING
 tf.config.experimental_run_functions_eagerly(True)
@@ -391,10 +390,6 @@ class LAC(object):
             RANDOM_SEED + 1,
             TFP_SEED_STREAM(),
         ]  # [weight init seed, sample seed]
-        self.lya_ga_target_seeds = [
-            RANDOM_SEED,
-            TFP_SEED_STREAM(),
-        ]  # [weight init seed, sample seed]
         self.lc_seed = RANDOM_SEED + 2  # Weight init seed
         self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
 
@@ -423,7 +418,7 @@ class LAC(object):
         # networks
         self.ga_ = self._build_a(seeds=self.ga_target_seeds)
         self.lc_ = self._build_l(seed=self.lc_target_seed)
-        self.lya_ga_ = self._build_a(seeds=self.lya_ga_target_seeds)
+        self.lya_ga_ = self._build_a(seeds=self.ga_seeds)
         self.lya_init()
         self.target_init()
 
@@ -672,13 +667,21 @@ if __name__ == "__main__":
         "s_": s_target_tmp,
     }
 
+    # Perform forward pass through networks (Same input)
+    a, a_det, log_pis, epsilon = policy.ga(batch["s"])
+    a_, a_det_, log_pis_, epsilon_ = policy.ga_(batch["s"])
+    lya_a_, lya_a_det_, lya_log_pis_, lya_epsilon_ = policy.lya_ga_(batch["s"])
+    l = policy.lc([batch["s"], batch["a"]])
+    l_ = policy.lc_([batch["s"], batch["a"]])  # FIXME: CHECK IF THIS THE CASE
+    lya_l_ = policy.lc([batch["s"], batch["a"]])
+
     # Perform forward pass through networks (As implemented in learn)
     a, a_det, log_pis, epsilon = policy.ga(batch["s"])
     a_, a_det_, log_pis_, epsilon_ = policy.ga_(batch["s_"])
     lya_a_, lya_a_det_, lya_log_pis_, lya_epsilon_ = policy.lya_ga_(batch["s_"])
     l = policy.lc([batch["s"], batch["a"]])
-    l_ = policy.lc_([batch["s_"], policy.ga_(batch["s_"])[0]])
-    lya_l_ = policy.lc([batch["s_"], policy.lya_ga_(batch["s_"])[0]])
+    l_ = policy.lc_([batch["s_"], a_])  # FIXME: CHECK IF THIS THE CASE
+    lya_l_ = policy.lc([batch["s_"], lya_a_])
 
     # Perform training epoch
     (

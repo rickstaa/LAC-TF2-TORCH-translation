@@ -61,7 +61,8 @@ if RANDOM_SEED is not None:
     # tf.compat.v1.set_random_seed(RANDOM_SEED)
     tf.random.set_seed(RANDOM_SEED)
     # tf.compat.v1.reset_default_graph()
-    TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="random_beta")
+    TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_1")
+    TFP_SEED_STREAM2 = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_2")
 
 
 ####################################################
@@ -183,6 +184,10 @@ class LAC(object):
             RANDOM_SEED + 1,
             TFP_SEED_STREAM(),
         ]  # [weight init seed, sample seed]
+        self.lya_ga_target_seeds = [
+            RANDOM_SEED,
+            TFP_SEED_STREAM(),
+        ]  # [weight init seed, sample seed]
         self.lc_seed = RANDOM_SEED + 2  # Weight init seed
         self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
 
@@ -286,7 +291,7 @@ class LAC(object):
                 self.lya_deterministic_a_,
                 self.lya_a_dist_,
                 self.lya_epsilon_,
-            ) = self._build_a(self.S_, reuse=True, seeds=self.ga_seeds)
+            ) = self._build_a(self.S_, reuse=True, seeds=self.lya_ga_target_seeds)
             self.lya_log_pis_ = self.lya_a_dist_.log_prob(
                 self.lya_a_
             )  # Gaussian actor action log_probability
@@ -566,7 +571,7 @@ class LAC(object):
         bterminal = batch["terminal"]
         bs_ = batch["s_"]  # next state
 
-        # Fill optimizer variable feed cictic
+        # Fill optimizer variable feed critic
         feed_dict = {
             self.a_input: ba,
             self.S: bs,
@@ -620,40 +625,12 @@ if __name__ == "__main__":
         "s_": policy.sess.run(s_target_tmp),
     }
 
-    # Perform forward pass through networks (Same input)
-    a, a_det, log_pis, epsilon = policy.sess.run(
-        [policy.a, policy.deterministic_a, policy.log_pis, policy.epsilon],
-        feed_dict={policy.S: batch["s"]},
-    )
-    a_, a_det, log_pis, epsilon = policy.sess.run(
-        [policy.a_, policy.deterministic_a_, policy.log_pis_, policy.epsilon_],
-        feed_dict={policy.S_: batch["s"]},
-    )
-    lya_a_, lya_a_det_, lya_log_pis_, lya_epsilon_ = policy.sess.run(
-        [
-            policy.lya_a_,
-            policy.lya_deterministic_a_,
-            policy.lya_log_pis_,
-            policy.lya_epsilon_,
-        ],
-        feed_dict={policy.S_: batch["s"]},
-    )
-    l = policy.sess.run(
-        policy.l, feed_dict={policy.S: batch["s"], policy.a_input: batch["a"]}
-    )
-    l_ = policy.sess.run(
-        policy.l_, feed_dict={policy.S_: batch["s"], policy.a_input: batch["a"]}
-    )
-    lya_l_ = policy.sess.run(
-        policy.lya_l_, feed_dict={policy.S_: batch["s"], policy.lya_a_: batch["a"]}
-    )
-
     # Perform forward pass through networks (As implemented in learn)
     a, a_det, log_pis, epsilon = policy.sess.run(
         [policy.a, policy.deterministic_a, policy.log_pis, policy.epsilon],
         feed_dict={policy.S: batch["s"]},
     )
-    a_, a_det, log_pis, epsilon = policy.sess.run(
+    a_, a_det_, log_pis_, epsilon_ = policy.sess.run(
         [policy.a_, policy.deterministic_a_, policy.log_pis_, policy.epsilon_],
         feed_dict={policy.S_: batch["s_"]},
     )
@@ -669,12 +646,8 @@ if __name__ == "__main__":
     l = policy.sess.run(
         policy.l, feed_dict={policy.S: batch["s"], policy.a_input: batch["a"]}
     )
-    l_ = policy.sess.run(
-        policy.l_, feed_dict={policy.S_: batch["s_"], policy.a_input: a_}
-    )
-    lya_l_ = policy.sess.run(
-        policy.lya_l_, feed_dict={policy.S_: batch["s"], policy.lya_a_: lya_a_}
-    )
+    l_ = policy.sess.run(policy.l_, feed_dict={policy.S_: batch["s_"]})
+    lya_l_ = policy.sess.run(policy.lya_l_, feed_dict={policy.S_: batch["s_"]})
 
     # Perform training epoch
     (
