@@ -1,5 +1,9 @@
-"""Small example script used to investigate the difference in performance when enabling
-eager execution. This is the non-eager script."""
+"""Eager mode disabled grad debug script
+Small debug script to validate whether the computed Actor and Critic gradients in the
+new eager mode are equal to the computed gradients when using disable_eager_execution.
+
+The Agent is based on this paper: http://arxiv.org/abs/2004.14288
+"""
 
 import os
 import random
@@ -8,14 +12,12 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-# Disable eager
-tf.compat.v1.disable_eager_execution()
-
 # Disable GPU if requested
+# NOTE: Done so i can run both scripts in a debugger side by side
 tf.config.set_visible_devices([], "GPU")
 
-# Initiate session_config variable
-session_conf = None
+# Disable eager
+tf.compat.v1.disable_eager_execution()
 
 ####################################################
 # Script parameters ################################
@@ -30,9 +32,7 @@ GAMMA = 0.9  # Discount factor
 ALPHA = 0.99  # The initial value for the entropy lagrance multiplier
 LAMBDA = 0.99  # Initial value for the lyapunov constraint lagrance multiplier
 NETWORK_STRUCTURE = {
-    # "critic": [128, 128],
     "critic": [6, 6],
-    # "actor": [64, 64],
     "actor": [6, 6],
 }  # The network structure of the agent.
 POLYAK = 0.995  # Decay rate used in the polyak averaging
@@ -44,27 +44,18 @@ LR_LAG = 1e-4  # The lagrance multiplier learning rate
 # Seed random number generators ####################
 ####################################################
 RANDOM_SEED = 0  # The random seed
-# RANDOM_SEED = None  # The random seed
 
 # Set random seed to get comparable results for each run
 # NOTE: https://stackoverflow.com/questions/32419510/how-to-get-reproducible-results-in-keras
 if RANDOM_SEED is not None:
-
-    # Configure a new global `tensorflow` session
-    # session_conf = tf.compat.v1.ConfigProto(
-    #     intra_op_parallelism_threads=1, inter_op_parallelism_threads=1
-    # )
 
     # Set random seeds
     os.environ["PYTHONHASHSEED"] = str(RANDOM_SEED)
     os.environ["TF_CUDNN_DETERMINISTIC"] = "1"  # new flag present in tf 2.0+
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
-    # tf.compat.v1.set_random_seed(RANDOM_SEED)
     tf.random.set_seed(RANDOM_SEED)
-    # tf.compat.v1.reset_default_graph()
     TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_1")
-    TFP_SEED_STREAM2 = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_2")
 
 
 ####################################################
@@ -198,8 +189,6 @@ class LAC(object):
 
         # Create tensorflow session
         self.sess = tf.compat.v1.Session()
-        # self.sess = tf.compat.v1.Session(config=session_conf)  # DEBUG
-        # tf.compat.v1.keras.backend.set_session(self.sess)  # Set keras global session
 
         # Create networks, optimizers and variables inside the Actor scope
         with tf.compat.v1.variable_scope("Actor"):
@@ -320,50 +309,32 @@ class LAC(object):
                 )
             )
 
-            # New splitted optimizer
-            # DEBUG
+            # Create optimizers
+
+            # Alpha optimizer graph
             self.alpha_opt = tf.compat.v1.train.AdamOptimizer(self.LR_A)
             self.alpha_grads = self.alpha_opt.compute_gradients(
                 self.alpha_loss, var_list=self.log_alpha
             )
             self.alpha_train = self.alpha_opt.apply_gradients(self.alpha_grads)
 
-            # # Old optimizer
-            # self.alpha_train = tf.compat.v1.train.AdamOptimizer(self.LR_A).minimize(
-            #     self.alpha_loss, var_list=self.log_alpha
-            # )
-
-            # New splitted optimizer
-            # DEBUG
+            # Lambda optimizer graph
             self.lambda_opt = tf.compat.v1.train.AdamOptimizer(self.LR_lag)
             self.lambda_grads = self.lambda_opt.compute_gradients(
                 self.labda_loss, var_list=self.log_labda
             )
             self.lambda_train = self.lambda_opt.apply_gradients(self.lambda_grads)
 
-            # # Old optimizer
-            # self.lambda_train = tf.compat.v1.train.AdamOptimizer(self.LR_lag).minimize(
-            #     self.labda_loss, var_list=self.log_labda
-            # )
-
-            # Actor loss and optimizer graph
+            # Actor optimizer graph
             a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(
                 input_tensor=log_pis
             )
             self.a_loss = a_loss
-
-            # New splitted optimizer
-            # DEBUG
             self.a_opt = tf.compat.v1.train.AdamOptimizer(self.LR_A)
             self.a_grads = self.a_opt.compute_gradients(
                 self.a_loss, var_list=self.a_params
             )
             self.a_train = self.a_opt.apply_gradients(self.a_grads)
-
-            # # Old optimizer
-            # self.a_train = tf.compat.v1.train.AdamOptimizer(self.LR_A).minimize(
-            #     a_loss, var_list=self.a_params
-            # )
 
             # Create Lyapunov Critic loss function and optimizer
             # NOTE: The control dependency makes sure the target networks are updated
@@ -380,17 +351,11 @@ class LAC(object):
                 )
 
                 # New splitted optimizer
-                # DEBUG
                 self.l_opt = tf.compat.v1.train.AdamOptimizer(self.LR_L)
                 self.l_grads = self.l_opt.compute_gradients(
                     self.l_error, var_list=self.l_params
                 )
                 self.l_train = self.l_opt.apply_gradients(self.l_grads)
-
-                # # Old optimizer
-                # self.l_train = tf.compat.v1.train.AdamOptimizer(self.LR_L).minimize(
-                #     self.l_error, var_list=self.l_params
-                # )
 
             # Initialize variables, create saver and diagnostics graph
             self.entropy = tf.reduce_mean(input_tensor=-self.log_pis)
@@ -420,7 +385,7 @@ class LAC(object):
                 self.l_grads,
             ]
 
-            # Create optimizer array
+            # Concatentate optimizer graphs
             self.opt = [self.l_train, self.lambda_train, self.a_train, self.alpha_train]
 
     def _build_a(
@@ -525,9 +490,9 @@ class LAC(object):
             distribution = tfp.distributions.TransformedDistribution(
                 distribution=base_distribution, bijector=reparm_trick_bijector
             )
-
             clipped_mu = squash_bijector.forward(mu)
 
+        # Return network output graphs
         return clipped_a, clipped_mu, distribution, epsilon
 
     def _build_l(
@@ -634,9 +599,6 @@ class LAC(object):
         # Run optimization and return diagnostics
         return self.sess.run([self.opt, self.diagnostics], feed_dict)[1]
 
-        # # Retrieve diagnostic variables from the optimization
-        # return self.sess.run(self.diagnostics, feed_dict)
-
 
 ####################################################
 # Main function ####################################
@@ -688,20 +650,21 @@ if __name__ == "__main__":
     alpha = tf.exp(log_alpha)
     policy.sess.run(tf.compat.v1.global_variables_initializer())
 
-    # Compute log probabilities and lyapunov difference
+    # Compute Lyapunov difference
     # NOTE: This is similar to the Q backup (Q_- Q + alpha * R) but now while the agent
     # tries to satisfy the the lyapunov stability constraint.
     l_delta = tf.reduce_mean(
         input_tensor=(policy.lya_l_ - policy.l + ALPHA_3 * policy.R)
     )
 
-    # Compute actor loss (Scale by 500 to make effects more prevalent)
+    # Compute actor loss
+    # NOTE: Scale by 500 to make effects more prevalent.
     a_loss = 500 * (
         labda * l_delta + alpha * tf.reduce_mean(input_tensor=policy.log_pis)
     )
 
     # Create diagnostics retrieval graph
-    diagnostics = [
+    a_diagnostics = [
         labda,
         alpha,
         l_delta,
@@ -713,9 +676,9 @@ if __name__ == "__main__":
     ]
 
     # Compute actor gradients
-    a_grads_test = policy.a_opt.compute_gradients(a_loss, var_list=policy.a_params)
-    (a_grads_output, diagnostics) = policy.sess.run(
-        [a_grads_test, diagnostics],
+    a_grads_graph = policy.a_opt.compute_gradients(a_loss, var_list=policy.a_params)
+    (a_grads, a_diagnostics) = policy.sess.run(
+        [a_grads_graph, a_diagnostics],
         feed_dict={
             policy.a_input: batch["a"],
             policy.S_: batch["s_"],
@@ -723,32 +686,70 @@ if __name__ == "__main__":
             policy.R: batch["r"],
         },
     )
-    a_grads = [
-        grads[0] for grads in a_grads_output
+    a_grads_unpacked = [
+        grads[0] for grads in a_grads
     ]  # Unpack gradients for easy comparison
 
     # Unpack diagnostics
-    (labda, alpha, l_delta, a_loss, log_pis, lya_l_, l, R) = diagnostics
+    (labda, alpha, l_delta, a_loss, log_pis, lya_l_, l, R) = a_diagnostics
 
     # Print gradients
-    print("==GAUSSIAN ACTOR_GRADIENTS==")
-    print(f"grad/l1/weights: {a_grads[0][0]}")
-    print(f"grad/l1/bias: {a_grads[1]}")
-    print(f"grad/l2/weights: {a_grads[2][0]}")
-    print(f"grad/l2/bias: {a_grads[3]}")
-    print(f"grad/mu/weights: {a_grads[4][0]}")
-    print(f"grad/mu/bias: {a_grads[5]}")
-    print(f"grad/log_sigma/weights: {a_grads[6][0]}")
-    print(f"grad/log_sigma/bias: {a_grads[7]}")
+    print("\n==GAUSSIAN ACTOR GRADIENTS==")
+    print(f"grad/l1/weights: {a_grads_unpacked[0][0]}")
+    print(f"grad/l1/bias: {a_grads_unpacked[1]}")
+    print(f"grad/l2/weights: {a_grads_unpacked[2][0]}")
+    print(f"grad/l2/bias: {a_grads_unpacked[3]}")
+    print(f"grad/mu/weights: {a_grads_unpacked[4][0]}")
+    print(f"grad/mu/bias: {a_grads_unpacked[5]}")
+    print(f"grad/log_sigma/weights: {a_grads_unpacked[6][0]}")
+    print(f"grad/log_sigma/bias: {a_grads_unpacked[7]}")
 
-    # Apply grads
-    policy.a_opt.apply_gradients(a_grads_output)
+    ################################################
+    # Validate critic grads ########################
+    ################################################
 
-    # Retrieve new weights and biases
-    (
-        ga_weights_biases,
-        ga_target_weights_biases,
-        lc_weights_biases,
-        lc_target_weights_biases,
-    ) = retrieve_weights_biases()
-    print("Check updated weights and biases")
+    # Compute lyapunov Critic error
+    # NOTE: Scale by 500 to make effects more prevalent.
+    l_error = 500 * tf.compat.v1.losses.mean_squared_error(
+        labels=policy.l_target, predictions=policy.l
+    )
+
+    # Create diagnostics retrieval graph
+    l_diagnostics = [
+        policy.l_target,
+        l_error,
+        policy.l,
+        policy.l_,
+        policy.R,
+        policy.terminal,
+    ]
+
+    # Compute actor gradients
+    l_grads_graph = policy.a_opt.compute_gradients(l_error, var_list=policy.l_params)
+    (l_grads, l_diagnostics) = policy.sess.run(
+        [l_grads_graph, l_diagnostics],
+        feed_dict={
+            policy.a_input: batch["a"],
+            policy.S: batch["s"],
+            policy.S_: batch["s_"],
+            policy.terminal: batch["terminal"],
+            policy.R: batch["r"],
+        },
+    )
+    l_grads_unpacked = [
+        grads[0] for grads in l_grads
+    ]  # Unpack gradients for easy comparison
+
+    # Unpack diagnostics
+    (l_target, l_error, l, l_, R, terminal) = l_diagnostics
+
+    # Print gradients
+    print("\n==LYAPUNOV CRITIC GRADIENTS==")
+    print(f"grad/l1/w1_s: {l_grads[0][0]}")
+    print(f"grad/l1/w1_a: {l_grads[1][0]}")
+    print(f"grad/l1/b1: {l_grads[2][0]}")
+    print(f"grad/l2/weights: {l_grads[3][0]}")
+    print(f"grad/l2/bias: {l_grads[4][0]}")
+
+    # End of the script
+    print("End")
