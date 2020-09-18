@@ -245,10 +245,10 @@ class LAC(object):
             )  # Gaussian actor action log_probability
 
             # Retrieve GA and LC network parameters
-            a_params = tf.compat.v1.get_collection(
+            self.a_params = tf.compat.v1.get_collection(
                 tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/gaussian_actor"
             )
-            l_params = tf.compat.v1.get_collection(
+            self.l_params = tf.compat.v1.get_collection(
                 tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
                 scope="Actor/lyapunov_critic",
             )
@@ -260,8 +260,8 @@ class LAC(object):
                 return ema.average(getter(name, *args, **kwargs))
 
             target_update = [
-                ema.apply(a_params),
-                ema.apply(l_params),
+                ema.apply(self.a_params),
+                ema.apply(self.l_params),
             ]
 
             # Create GA and LC target networks
@@ -355,12 +355,14 @@ class LAC(object):
             # New splitted optimizer
             # DEBUG
             self.a_opt = tf.compat.v1.train.AdamOptimizer(self.LR_A)
-            self.a_grads = self.a_opt.compute_gradients(self.a_loss, var_list=a_params)
+            self.a_grads = self.a_opt.compute_gradients(
+                self.a_loss, var_list=self.a_params
+            )
             self.a_train = self.a_opt.apply_gradients(self.a_grads)
 
             # # Old optimizer
             # self.a_train = tf.compat.v1.train.AdamOptimizer(self.LR_A).minimize(
-            #     a_loss, var_list=a_params
+            #     a_loss, var_list=self.a_params
             # )
 
             # Create Lyapunov Critic loss function and optimizer
@@ -381,13 +383,13 @@ class LAC(object):
                 # DEBUG
                 self.l_opt = tf.compat.v1.train.AdamOptimizer(self.LR_L)
                 self.l_grads = self.l_opt.compute_gradients(
-                    self.l_error, var_list=l_params
+                    self.l_error, var_list=self.l_params
                 )
                 self.l_train = self.l_opt.apply_gradients(self.l_grads)
 
                 # # Old optimizer
                 # self.l_train = tf.compat.v1.train.AdamOptimizer(self.LR_L).minimize(
-                #     self.l_error, var_list=l_params
+                #     self.l_error, var_list=self.l_params
                 # )
 
             # Initialize variables, create saver and diagnostics graph
@@ -412,9 +414,6 @@ class LAC(object):
                 self.a,
                 self.a_,
                 self.lya_a_,
-                self.log_pis,
-                self.log_pis_,
-                self.lya_log_pis_,
                 self.lambda_grads,
                 self.alpha_grads,
                 self.a_grads,
@@ -632,20 +631,11 @@ class LAC(object):
             self.LR_lag: LR_lag,
         }
 
-        # Compute diagnostics
-        # diagnostics_before = self.sess.run(self.diagnostics, feed_dict)
-
         # Run optimization and return diagnostics
-        diagnostics_during = self.sess.run([self.opt, self.diagnostics], feed_dict)[1]
+        return self.sess.run([self.opt, self.diagnostics], feed_dict)[1]
 
-        # Diagnostics after
-        # self.sess.run(self.opt, feed_dict)
-        # diagnostics_after = self.sess.run(self.diagnostics, feed_dict)
-
-        # Retrieve diagnostic variables from the optimization
-        # return diagnostics_before
-        return diagnostics_during
-        # return diagnostics_after
+        # # Retrieve diagnostic variables from the optimization
+        # return self.sess.run(self.diagnostics, feed_dict)
 
 
 ####################################################
@@ -683,60 +673,58 @@ if __name__ == "__main__":
         "s_": policy.sess.run(s_target_tmp),
     }
 
-    # # Perform forward pass through networks (As implemented in learn)
-    # a, a_det, log_pis, epsilon = policy.sess.run(
-    #     [policy.a, policy.deterministic_a, policy.log_pis, policy.epsilon],
-    #     feed_dict={policy.S: batch["s"]},
-    # )
-    # a_, a_det_, log_pis_, epsilon_ = policy.sess.run(
-    #     [policy.a_, policy.deterministic_a_, policy.log_pis_, policy.epsilon_],
-    #     feed_dict={policy.S_: batch["s_"]},
-    # )
-    # lya_a_, lya_a_det_, lya_log_pis_, lya_epsilon_ = policy.sess.run(
-    #     [
-    #         policy.lya_a_,
-    #         policy.lya_deterministic_a_,
-    #         policy.lya_log_pis_,
-    #         policy.lya_epsilon_,
-    #     ],
-    #     feed_dict={policy.S_: batch["s_"]},
-    # )
-    # l = policy.sess.run(
-    #     policy.l, feed_dict={policy.S: batch["s"], policy.a_input: batch["a"]}
-    # )
-    # l_ = policy.sess.run(policy.l_, feed_dict={policy.S_: batch["s_"]})
-    # lya_l_ = policy.sess.run(policy.lya_l_, feed_dict={policy.S_: batch["s_"]})
+    # Create actor loss variables
+    log_labda = tf.compat.v1.get_variable(
+        "lambda", None, tf.float32, initializer=tf.math.log(LAMBDA)
+    )
+    log_alpha = tf.compat.v1.get_variable(
+        "alpha", None, tf.float32, initializer=tf.math.log(ALPHA)
+    )
+    labda = tf.clip_by_value(tf.exp(log_labda), *SCALE_lambda_MIN_MAX)
+    alpha = tf.exp(log_alpha)
+    policy.sess.run(tf.compat.v1.global_variables_initializer())
 
-    # Perform training epoch
-    (
-        l_delta,
+    # Compute log_pis and l_delta
+    l_delta = tf.reduce_mean(
+        input_tensor=(policy.lya_l_ - policy.l + ALPHA_3 * policy.R)
+    )
+
+    # Compute actor loss (Scale to make effects more prevalent)
+    a_loss = 500 * (
+        labda * l_delta + alpha * tf.reduce_mean(input_tensor=policy.log_pis)
+    )
+
+    # Create diagnostics list
+    diagnostics = [
         labda,
         alpha,
-        log_labda,
-        log_alpha,
-        labda_loss,
-        alpha_loss,
-        l_target,
-        l_error,
+        l_delta,
         a_loss,
-        entropy,
-        l,
-        l_,
-        lya_l_,
-        a,
-        a_,
-        lya_a_,
-        log_pis,
-        log_pis_,
-        lya_log_pis_,
-        lambda_grads,
-        alpha_grads,
-        a_grads,
-        l_grads,
-    ) = policy.learn(LR_A, LR_L, LR_LAG, batch)
+        policy.log_pis,
+        policy.lya_l_,
+        policy.l,
+        policy.R,
+    ]
 
-    # Compute a_loss
-    # self.labda * self.l_delta + self.alpha * tf.reduce_mean(input_tensor=log_pis)
+    # Compute gradients
+    a_grads_test = policy.a_opt.compute_gradients(a_loss, var_list=policy.a_params)
+    (a_grads_output, diagnostics) = policy.sess.run(
+        [a_grads_test, diagnostics],
+        feed_dict={
+            policy.a_input: batch["a"],
+            policy.S_: batch["s_"],
+            policy.S: batch["s"],
+            policy.R: batch["r"],
+        },
+    )
+    a_grads = [grads[0] for grads in a_grads_output]
+
+    # Unpack diagnostics
+    (labda, alpha, l_delta, a_loss, log_pis, lya_l_, l, R) = diagnostics
+
+    # Apply grads
+    policy.a_opt.apply_gradients(a_grads_output)
+
     # In tf2 graph mode we need to retrieve them again
     (
         ga_weights_biases,
@@ -745,6 +733,3 @@ if __name__ == "__main__":
         lc_target_weights_biases,
     ) = retrieve_weights_biases()
     print("Check updated weights and biases")
-
-    # Pause here to debug
-    print("DEBUG")

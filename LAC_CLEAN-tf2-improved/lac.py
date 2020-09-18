@@ -47,7 +47,7 @@ if not USE_GPU:
     tf.config.set_visible_devices([], "GPU")
 
 # Tensorboard settings
-USE_TB = True  # Whether you want to log to tensorboard
+USE_TB = False  # Whether you want to log to tensorboard
 TB_FREQ = 4  # After how many episode we want to log to tensorboard
 WRITE_W_B = False  # Whether you want to log the model weights and biases
 
@@ -219,17 +219,24 @@ class LAC(object):
                 self.labda,
                 self.alpha,
                 self.l_error,
-                self.entropy,
+                tf.reduce_mean(-self.log_pis),
                 self.a_loss,
-                l_target,
-                alpha_loss,
-                labda_loss,
-                self.l_delta,
-                log_labda,
-                self.l_,
-                self.l,
-                self.R,
             ]
+            # self.diagnostics = [
+            #     self.labda,
+            #     self.alpha,
+            #     self.l_error,
+            #     self.entropy,
+            #     self.a_loss,
+            #     l_target,
+            #     alpha_loss,
+            #     labda_loss,
+            #     self.l_delta,
+            #     log_labda,
+            #     self.l_,
+            #     self.l,
+            #     self.R,
+            # ] # DEBUG
 
             # Create optimizer array
             self.opt = [self.l_train, self.lambda_train, self.a_train]
@@ -369,28 +376,29 @@ class LAC(object):
             self.LR_lag: LR_lag,
         }
 
-        # Run optimization
-        self.sess.run(self.opt, feed_dict)
+        # # Run optimization
+        return self.sess.run([self.opt, self.diagnostics], feed_dict)[1]
+        # self.sess.run(self.opt, feed_dict)
 
-        # Retrieve diagnostic variables from the optimization
-        (
-            labda,
-            alpha,
-            l_error,
-            entropy,
-            a_loss,
-            l_target,
-            alpha_loss,
-            labda_loss,
-            l_delta,
-            log_labda,
-            l_,
-            l,
-            R,
-        ) = self.sess.run(self.diagnostics, feed_dict)
+        # # Retrieve diagnostic variables from the optimization
+        # (
+        #     labda,
+        #     alpha,
+        #     l_error,
+        #     entropy,
+        #     a_loss,
+        #     l_target,
+        #     alpha_loss,
+        #     labda_loss,
+        #     l_delta,
+        #     log_labda,
+        #     l_,
+        #     l,
+        #     R,
+        # ) = self.sess.run(self.diagnostics, feed_dict)
 
-        # Return optimization results
-        return labda, alpha, l_error, entropy, a_loss
+        # # Return optimization results
+        # return labda, alpha, l_error, entropy, a_loss
 
     def _build_a(self, s, name="gaussian_actor", reuse=None, custom_getter=None):
         """Setup SquashedGaussianActor Graph.
@@ -649,10 +657,9 @@ def train(log_dir):
         policy.tb_writer.add_summary(
             policy.sess.run(main_sum), policy.sess.run(policy.step)
         )
-        if WRITE_W_B:
-            policy.tb_writer.add_summary(
-                policy.sess.run(policy.w_b_sum), policy.sess.run(policy.step),
-            )
+        policy.tb_writer.add_summary(
+            policy.sess.run(policy.w_b_sum), policy.sess.run(policy.step),
+        )
         policy.tb_writer.flush()  # Above summaries are known from the start
 
     # Setup logger and log hyperparameters

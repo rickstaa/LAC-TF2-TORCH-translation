@@ -49,7 +49,7 @@ if not USE_GPU:
     tf.config.set_visible_devices([], "GPU")
 
 # Tensorboard settings
-USE_TB = True  # Whether you want to log to tensorboard
+USE_TB = False  # Whether you want to log to tensorboard
 TB_FREQ = 4  # After how many episode we want to log to tensorboard
 WRITE_W_B = False  # Whether you want to log the model weights and biases
 
@@ -194,6 +194,322 @@ class LAC(object):
             a, _, _ = self.ga(tf.reshape(s, (1, -1)))
             return a[0]
 
+    # # DEBUG: ORIGINAL ORDER
+    # @tf.function
+    # def learn(self, LR_A, LR_L, LR_lag, batch):
+    #     """Runs the SGD to update all the optimize parameters.
+
+    #     Args:
+    #         LR_A (float): Current actor learning rate.
+    #         LR_L (float): Lyapunov critic learning rate.
+    #         LR_lag (float): Lyapunov constraint langrance multiplier learning rate.
+    #         batch (numpy.ndarray): The batch of experiences.
+
+    #     Returns:
+    #         [type]: [description]
+    #     """
+
+    #     # Retrieve state, action and reward from the batch
+    #     bs = batch["s"]  # state
+    #     ba = batch["a"]  # action
+    #     br = batch["r"]  # reward
+    #     bterminal = batch["terminal"]
+    #     bs_ = batch["s_"]  # next state
+
+    #     # Calculate current value and target lyapunov multiplier value
+    #     lya_a_, _, _ = self.ga(bs_)
+    #     lya_l_ = self.lc([bs_, lya_a_])
+
+    #     # Calculate current lyapunov value
+    #     l = self.lc([bs, ba])
+
+    #     # # Calculate Lyapunov constraint function
+    #     self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
+
+    #     # Lagrance multiplier loss functions and optimizers graphs
+    #     with tf.GradientTape() as tape:
+    #         labda_loss = -tf.reduce_mean(self.log_labda * self.l_delta)
+
+    #     # Apply gradients
+    #     lambda_grads = tape.gradient(labda_loss, [self.log_labda])
+    #     self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
+
+    #     # Calculate log probability of a_input based on current policy
+    #     _, _, log_pis = self.ga(bs)
+
+    #     # Calculate alpha loss
+    #     with tf.GradientTape() as tape:
+    #         alpha_loss = -tf.reduce_mean(
+    #             self.log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
+    #         )
+
+    #     # Apply gradients
+    #     alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+    #     self.alpha_train.apply_gradients(zip(alpha_grads, [self.log_alpha]))
+
+    #     # Calculate Lyapunov constraint function
+    #     self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
+
+    #     # Actor loss and optimizer graph
+    #     with tf.GradientTape() as tape:
+
+    #         # Calculate log probability of a_input based on current policy
+    #         _, _, log_pis = self.ga(bs)
+
+    #         # Calculate actor loss
+    #         # TODO: VAliate whether tf.stop_gradient() is needed
+    #         # a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(log_pis)
+    #         a_loss = tf.stop_gradient(self.labda) * self.l_delta + tf.stop_gradient(
+    #             self.alpha
+    #         ) * tf.reduce_mean(log_pis)
+
+    #     # Apply gradients
+    #     a_grads = tape.gradient(a_loss, self.ga.trainable_variables)
+    #     self.a_train.apply_gradients(zip(a_grads, self.ga.trainable_variables))
+
+    #     # Update target networks
+    #     self.update_target()
+
+    #     # Get Lypaunov target
+    #     a_, _, _ = self.ga_(bs_)
+    #     l_ = self.lc_([bs_, a_])
+    #     l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * tf.stop_gradient(l_)
+
+    #     # Lyapunov candidate constraint function graph
+    #     with tf.GradientTape() as tape:
+
+    #         # Calculate current lyapunov value
+    #         l = self.lc([bs, ba])
+
+    #         # Calculate L_backup
+    #         l_error = tf.compat.v1.losses.mean_squared_error(
+    #             labels=l_target, predictions=l
+    #         )
+
+    #     # Apply gradients
+    #     l_grads = tape.gradient(l_error, self.lc.trainable_variables)
+    #     self.l_train.apply_gradients(zip(l_grads, self.lc.trainable_variables))
+
+    #     # Return results
+    #     return (
+    #         self.labda,
+    #         self.alpha,
+    #         l_error,
+    #         tf.reduce_mean(tf.stop_gradient(-log_pis)),
+    #         a_loss,
+    #     )
+
+    # # DEBUG: Order based on LAC - Order 1
+    # @tf.function
+    # def learn(self, LR_A, LR_L, LR_lag, batch):
+    #     """Runs the SGD to update all the optimize parameters.
+
+    #     Args:
+    #         LR_A (float): Current actor learning rate.
+    #         LR_L (float): Lyapunov critic learning rate.
+    #         LR_lag (float): Lyapunov constraint langrance multiplier learning rate.
+    #         batch (numpy.ndarray): The batch of experiences.
+
+    #     Returns:
+    #         [type]: [description]
+    #     """
+
+    #     # Retrieve state, action and reward from the batch
+    #     bs = batch["s"]  # state
+    #     ba = batch["a"]  # action
+    #     br = batch["r"]  # reward
+    #     bterminal = batch["terminal"]
+    #     bs_ = batch["s_"]  # next state
+
+    #     # Update target networks
+    #     self.update_target()
+
+    #     # Get Lypaunov target
+    #     a_, _, _ = self.ga_(bs_)
+    #     l_ = self.lc_([bs_, a_])
+    #     l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * tf.stop_gradient(l_)
+
+    #     # Lyapunov candidate constraint function graph
+    #     with tf.GradientTape() as tape:
+
+    #         # Calculate current lyapunov value
+    #         l = self.lc([bs, ba])
+
+    #         # Calculate L_backup
+    #         l_error = tf.compat.v1.losses.mean_squared_error(
+    #             labels=l_target, predictions=l
+    #         )
+
+    #     # Apply gradients
+    #     l_grads = tape.gradient(l_error, self.lc.trainable_variables)
+    #     self.l_train.apply_gradients(zip(l_grads, self.lc.trainable_variables))
+
+    #     # Calculate current value and target lyapunov multiplier value
+    #     lya_a_, _, _ = self.ga(bs_)
+    #     lya_l_ = self.lc([bs_, lya_a_])
+
+    #     # Calculate current lyapunov value
+    #     l = self.lc([bs, ba])
+
+    #     # # Calculate Lyapunov constraint function
+    #     self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
+
+    #     # Lagrance multiplier loss functions and optimizers graphs
+    #     with tf.GradientTape() as tape:
+    #         labda_loss = -tf.reduce_mean(self.log_labda * self.l_delta)
+
+    #     # Apply gradients
+    #     lambda_grads = tape.gradient(labda_loss, [self.log_labda])
+    #     self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
+
+    #     # Calculate Lyapunov constraint function
+    #     self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
+
+    #     # Actor loss and optimizer graph
+    #     with tf.GradientTape() as tape:
+
+    #         # Calculate log probability of a_input based on current policy
+    #         _, _, log_pis = self.ga(bs)
+
+    #         # Calculate actor loss
+    #         # TODO: VAliate whether tf.stop_gradient() is needed
+    #         # a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(log_pis)
+    #         a_loss = tf.stop_gradient(self.labda) * self.l_delta + tf.stop_gradient(
+    #             self.alpha
+    #         ) * tf.reduce_mean(log_pis)
+
+    #     # Apply gradients
+    #     a_grads = tape.gradient(a_loss, self.ga.trainable_variables)
+    #     self.a_train.apply_gradients(zip(a_grads, self.ga.trainable_variables))
+
+    #     # Calculate log probability of a_input based on current policy
+    #     _, _, log_pis = self.ga(bs)
+
+    #     # Calculate alpha loss
+    #     with tf.GradientTape() as tape:
+    #         alpha_loss = -tf.reduce_mean(
+    #             self.log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
+    #         )
+
+    #     # Apply gradients
+    #     alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+    #     self.alpha_train.apply_gradients(zip(alpha_grads, [self.log_alpha]))
+
+    #     # Return results
+    #     return (
+    #         self.labda,
+    #         self.alpha,
+    #         l_error,
+    #         tf.reduce_mean(tf.stop_gradient(-log_pis)),
+    #         a_loss,
+    #     )
+
+    # # DEBUG: Order based on LAC - Order 2
+    # @tf.function
+    # def learn(self, LR_A, LR_L, LR_lag, batch):
+    #     """Runs the SGD to update all the optimize parameters.
+
+    #     Args:
+    #         LR_A (float): Current actor learning rate.
+    #         LR_L (float): Lyapunov critic learning rate.
+    #         LR_lag (float): Lyapunov constraint langrance multiplier learning rate.
+    #         batch (numpy.ndarray): The batch of experiences.
+
+    #     Returns:
+    #         [type]: [description]
+    #     """
+
+    #     # Retrieve state, action and reward from the batch
+    #     bs = batch["s"]  # state
+    #     ba = batch["a"]  # action
+    #     br = batch["r"]  # reward
+    #     bterminal = batch["terminal"]
+    #     bs_ = batch["s_"]  # next state
+
+    #     # Update target networks
+    #     self.update_target()
+
+    #     # Get Lypaunov target
+    #     a_, _, _ = self.ga_(bs_)
+    #     l_ = self.lc_([bs_, a_])
+    #     l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * tf.stop_gradient(l_)
+
+    #     # Lyapunov candidate constraint function graph
+    #     with tf.GradientTape() as tape:
+
+    #         # Calculate current lyapunov value
+    #         l = self.lc([bs, ba])
+
+    #         # Calculate L_backup
+    #         l_error = tf.compat.v1.losses.mean_squared_error(
+    #             labels=l_target, predictions=l
+    #         )
+
+    #     # Apply gradients
+    #     l_grads = tape.gradient(l_error, self.lc.trainable_variables)
+    #     self.l_train.apply_gradients(zip(l_grads, self.lc.trainable_variables))
+
+    #     # Calculate current value and target lyapunov multiplier value
+    #     lya_a_, _, _ = self.ga(bs_)
+    #     lya_l_ = self.lc([bs_, lya_a_])
+
+    #     # Calculate Lyapunov constraint function
+    #     self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
+
+    #     # Actor loss and optimizer graph
+    #     with tf.GradientTape() as tape:
+
+    #         # Calculate log probability of a_input based on current policy
+    #         _, _, log_pis = self.ga(bs)
+
+    #         # Calculate actor loss
+    #         # TODO: VAliate whether tf.stop_gradient() is needed
+    #         # a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(log_pis)
+    #         a_loss = tf.stop_gradient(self.labda) * self.l_delta + tf.stop_gradient(
+    #             self.alpha
+    #         ) * tf.reduce_mean(log_pis)
+
+    #     # Apply gradients
+    #     a_grads = tape.gradient(a_loss, self.ga.trainable_variables)
+    #     self.a_train.apply_gradients(zip(a_grads, self.ga.trainable_variables))
+
+    #     # Calculate log probability of a_input based on current policy
+    #     _, _, log_pis = self.ga(bs)
+
+    #     # Calculate alpha loss
+    #     with tf.GradientTape() as tape:
+    #         alpha_loss = -tf.reduce_mean(
+    #             self.log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
+    #         )
+
+    #     # Apply gradients
+    #     alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+    #     self.alpha_train.apply_gradients(zip(alpha_grads, [self.log_alpha]))
+
+    #     # Calculate current lyapunov value
+    #     l = self.lc([bs, ba])
+
+    #     # # Calculate Lyapunov constraint function
+    #     self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
+
+    #     # Lagrance multiplier loss functions and optimizers graphs
+    #     with tf.GradientTape() as tape:
+    #         labda_loss = -tf.reduce_mean(self.log_labda * self.l_delta)
+
+    #     # Apply gradients
+    #     lambda_grads = tape.gradient(labda_loss, [self.log_labda])
+    #     self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
+
+    #     # Return results
+    #     return (
+    #         self.labda,
+    #         self.alpha,
+    #         l_error,
+    #         tf.reduce_mean(tf.stop_gradient(-log_pis)),
+    #         a_loss,
+    #     )
+
+    # DEBUG: Order based on LAC - Order 3
     @tf.function
     def learn(self, LR_A, LR_L, LR_lag, batch):
         """Runs the SGD to update all the optimize parameters.
@@ -215,36 +531,29 @@ class LAC(object):
         bterminal = batch["terminal"]
         bs_ = batch["s_"]  # next state
 
-        # Calculate current value and target lyapunov multiplier value
-        lya_a_, _, _ = self.ga(bs_)
-        lya_l_ = self.lc([bs_, lya_a_])
+        # Get Lypaunov target
+        a_, _, _ = self.ga_(bs_)
+        l_ = self.lc_([bs_, a_])
+        l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * tf.stop_gradient(l_)
 
-        # Calculate current lyapunov value
-        l = self.lc([bs, ba])
-
-        # # Calculate Lyapunov constraint function
-        self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
-
-        # Lagrance multiplier loss functions and optimizers graphs
+        # Lyapunov candidate constraint function graph
         with tf.GradientTape() as tape:
-            labda_loss = -tf.reduce_mean(self.log_labda * self.l_delta)
 
-        # Apply gradients
-        lambda_grads = tape.gradient(labda_loss, [self.log_labda])
-        self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
+            # Calculate current lyapunov value
+            l = self.lc([bs, ba])
 
-        # Calculate log probability of a_input based on current policy
-        _, _, log_pis = self.ga(bs)
-
-        # Calculate alpha loss
-        with tf.GradientTape() as tape:
-            alpha_loss = -tf.reduce_mean(
-                self.log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
+            # Calculate L_backup
+            l_error = tf.compat.v1.losses.mean_squared_error(
+                labels=l_target, predictions=l
             )
 
         # Apply gradients
-        alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
-        self.alpha_train.apply_gradients(zip(alpha_grads, [self.log_alpha]))
+        l_grads = tape.gradient(l_error, self.lc.trainable_variables)
+        self.l_train.apply_gradients(zip(l_grads, self.lc.trainable_variables))
+
+        # Calculate current value and target lyapunov multiplier value
+        lya_a_, _, _ = self.ga(bs_)
+        lya_l_ = self.lc([bs_, lya_a_])
 
         # Calculate Lyapunov constraint function
         self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
@@ -266,28 +575,35 @@ class LAC(object):
         a_grads = tape.gradient(a_loss, self.ga.trainable_variables)
         self.a_train.apply_gradients(zip(a_grads, self.ga.trainable_variables))
 
-        # Update target networks
-        self.update_target()
+        # Calculate log probability of a_input based on current policy
+        _, _, log_pis = self.ga(bs)
 
-        # Get Lypaunov target
-        a_, _, _ = self.ga_(bs_)
-        l_ = self.lc_([bs_, a_])
-        l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * tf.stop_gradient(l_)
-
-        # Lyapunov candidate constraint function graph
+        # Calculate alpha loss
         with tf.GradientTape() as tape:
-
-            # Calculate current lyapunov value
-            l = self.lc([bs, ba])
-
-            # Calculate L_backup
-            l_error = tf.compat.v1.losses.mean_squared_error(
-                labels=l_target, predictions=l
+            alpha_loss = -tf.reduce_mean(
+                self.log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
             )
 
         # Apply gradients
-        l_grads = tape.gradient(l_error, self.lc.trainable_variables)
-        self.l_train.apply_gradients(zip(l_grads, self.lc.trainable_variables))
+        alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+        self.alpha_train.apply_gradients(zip(alpha_grads, [self.log_alpha]))
+
+        # Calculate current lyapunov value
+        l = self.lc([bs, ba])
+
+        # # Calculate Lyapunov constraint function
+        self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
+
+        # Lagrance multiplier loss functions and optimizers graphs
+        with tf.GradientTape() as tape:
+            labda_loss = -tf.reduce_mean(self.log_labda * self.l_delta)
+
+        # Apply gradients
+        lambda_grads = tape.gradient(labda_loss, [self.log_labda])
+        self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
+
+        # Update target networks
+        self.update_target()
 
         # Return results
         return (
@@ -452,7 +768,7 @@ def train(log_dir):
 
         # Trace learn method (Used for debugging)
         if DEBUG_PARAMS["debug"]:
-            if DEBUG_PARAMS["trace_learn"]:
+            if DEBUG_PARAMS["trace_net"]:
 
                 # Create dummy input
                 batch = {

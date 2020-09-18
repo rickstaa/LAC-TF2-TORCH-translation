@@ -47,7 +47,7 @@ if not USE_GPU:
     tf.config.set_visible_devices([], "GPU")
 
 # Tensorboard settings
-USE_TB = True  # Whether you want to log to tensorboard
+USE_TB = False  # Whether you want to log to tensorboard
 TB_FREQ = 4  # After how many episode we want to log to tensorboard
 WRITE_W_B = False  # Whether you want to log the model weights and biases
 
@@ -160,7 +160,7 @@ class LAC(object):
             # uses exponential moving average.
             # NOTE: Used as a minimum lambda constraint boundary
             lya_a_, _, _ = self._build_a(self.S_, reuse=True)
-            self.l_ = self._build_l(self.S_, lya_a_, reuse=True)
+            self.lya_l_ = self._build_l(self.S_, lya_a_, reuse=True)
 
             ###########################################
             # Create Loss functions and optimizers ####
@@ -168,31 +168,59 @@ class LAC(object):
 
             # Lyapunov constraint function
             self.l_delta = tf.reduce_mean(
-                input_tensor=(self.l_ - self.l + (ALG_PARAMS["alpha3"]) * self.R)
+                input_tensor=(self.lya_l_ - self.l + (ALG_PARAMS["alpha3"]) * self.R)
             )
 
             # Lagrance multiplier loss functions and optimizers graphs
-            labda_loss = -tf.reduce_mean(input_tensor=(log_labda * self.l_delta))
-            alpha_loss = -tf.reduce_mean(
+            self.labda_loss = -tf.reduce_mean(input_tensor=(log_labda * self.l_delta))
+            self.alpha_loss = -tf.reduce_mean(
                 input_tensor=(
                     log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
                 )
             )
-            self.alpha_train = tf.compat.v1.train.AdamOptimizer(self.LR_A).minimize(
-                alpha_loss, var_list=log_alpha
+
+            # New splitted optimizer
+            # DEBUG
+            self.alpha_opt = tf.compat.v1.train.AdamOptimizer(self.LR_A)
+            self.alpha_grads = self.alpha_opt.compute_gradients(
+                self.alpha_loss, var_list=log_alpha
             )
-            self.lambda_train = tf.compat.v1.train.AdamOptimizer(self.LR_lag).minimize(
-                labda_loss, var_list=log_labda
+            self.alpha_train = self.alpha_opt.apply_gradients(self.alpha_grads)
+
+            # # Old optimizer
+            # self.alpha_train = tf.compat.v1.train.AdamOptimizer(self.LR_A).minimize(
+            #     self.alpha_loss, var_list=log_alpha
+            # )
+
+            # New splitted optimizer
+            # DEBUG
+            self.lambda_opt = tf.compat.v1.train.AdamOptimizer(self.LR_lag)
+            self.lambda_grads = self.lambda_opt.compute_gradients(
+                self.labda_loss, var_list=log_labda
             )
+            self.lambda_train = self.lambda_opt.apply_gradients(self.lambda_grads)
+
+            # # # Old optimizer
+            # self.lambda_train = tf.compat.v1.train.AdamOptimizer(self.LR_lag).minimize(
+            #     self.labda_loss, var_list=log_labda
+            # )
 
             # Actor loss and optimizer graph
             a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(
                 input_tensor=log_pis
             )
             self.a_loss = a_loss  # FIXME: IS this needed?
-            self.a_train = tf.compat.v1.train.AdamOptimizer(self.LR_A).minimize(
-                a_loss, var_list=a_params
-            )
+
+            # New splitted optimizer
+            # DEBUG
+            self.a_opt = tf.compat.v1.train.AdamOptimizer(self.LR_A)
+            self.a_grads = self.a_opt.compute_gradients(self.a_loss, var_list=a_params)
+            self.a_train = self.a_opt.apply_gradients(self.a_grads)
+
+            # # Old optimizer
+            # self.a_train = tf.compat.v1.train.AdamOptimizer(self.LR_A).minimize(
+            #     a_loss, var_list=a_params
+            # )
 
             # Create Lyapunov Critic loss function and optimizer
             # NOTE: The control dependency makes sure the target networks are updated \
@@ -207,28 +235,46 @@ class LAC(object):
                 self.l_error = tf.compat.v1.losses.mean_squared_error(
                     labels=l_target, predictions=self.l
                 )
-                self.l_train = tf.compat.v1.train.AdamOptimizer(self.LR_L).minimize(
+
+                # New splitted optimizer
+                # DEBUG
+                self.l_opt = tf.compat.v1.train.AdamOptimizer(self.LR_L)
+                self.l_grads = self.l_opt.compute_gradients(
                     self.l_error, var_list=l_params
                 )
+                self.l_train = self.l_opt.apply_gradients(self.l_grads)
+
+                # # # Old optimizer
+                # self.l_train = tf.compat.v1.train.AdamOptimizer(self.LR_L).minimize(
+                #     self.l_error, var_list=l_params
+                # )
 
             # Initialize variables, create saver and diagnostics graph
             self.entropy = tf.reduce_mean(input_tensor=-self.log_pis)
             self.sess.run(tf.compat.v1.global_variables_initializer())
             self.saver = tf.compat.v1.train.Saver()
             self.diagnostics = [
+                self.l_delta,
                 self.labda,
                 self.alpha,
-                self.l_error,
-                self.entropy,
-                self.a_loss,
-                l_target,
-                alpha_loss,
-                labda_loss,
-                self.l_delta,
                 log_labda,
-                self.l_,
+                log_alpha,
+                self.labda_loss,
+                self.alpha_loss,
+                l_target,
+                self.l_error,
+                self.a_loss,
+                self.entropy,
                 self.l,
-                self.R,
+                l_,
+                self.lya_l_,
+                self.a,
+                a_,
+                lya_a_,
+                self.lambda_grads,
+                self.alpha_grads,
+                self.a_grads,
+                self.l_grads,
             ]
 
             # Create optimizer array
@@ -372,25 +418,8 @@ class LAC(object):
         # Run optimization
         self.sess.run(self.opt, feed_dict)
 
-        # Retrieve diagnostic variables from the optimization
-        (
-            labda,
-            alpha,
-            l_error,
-            entropy,
-            a_loss,
-            l_target,
-            alpha_loss,
-            labda_loss,
-            l_delta,
-            log_labda,
-            l_,
-            l,
-            R,
-        ) = self.sess.run(self.diagnostics, feed_dict)
-
-        # Return optimization results
-        return labda, alpha, l_error, entropy, a_loss
+        # Run optimization and return diagnostics
+        return self.sess.run([self.opt, self.diagnostics], feed_dict)[1]
 
     def _build_a(self, s, name="gaussian_actor", reuse=None, custom_getter=None):
         """Setup SquashedGaussianActor Graph.
@@ -649,10 +678,9 @@ def train(log_dir):
         policy.tb_writer.add_summary(
             policy.sess.run(main_sum), policy.sess.run(policy.step)
         )
-        if WRITE_W_B:
-            policy.tb_writer.add_summary(
-                policy.sess.run(policy.w_b_sum), policy.sess.run(policy.step),
-            )
+        policy.tb_writer.add_summary(
+            policy.sess.run(policy.w_b_sum), policy.sess.run(policy.step),
+        )
         policy.tb_writer.flush()  # Above summaries are known from the start
 
     # Setup logger and log hyperparameters
@@ -725,14 +753,34 @@ def train(log_dir):
                 # Perform STG a set number of times (train per cycle)
                 for _ in range(ALG_PARAMS["train_per_cycle"]):
                     batch = pool.sample(ALG_PARAMS["batch_size"])
-                    labda, alpha, l_loss, entropy, a_loss = policy.learn(
-                        lr_a_now, lr_l_now, lr_a, batch
-                    )
+                    (
+                        l_delta,
+                        labda,
+                        alpha,
+                        log_labda,
+                        log_alpha,
+                        labda_loss,
+                        alpha_loss,
+                        l_target,
+                        l_error,
+                        a_loss,
+                        entropy,
+                        l,
+                        l_,
+                        lya_l_,
+                        a,
+                        a_,
+                        lya_a_,
+                        lambda_grads,
+                        alpha_grads,
+                        a_grads,
+                        l_grads,
+                    ) = policy.learn(lr_a_now, lr_l_now, lr_a, batch)
 
             # Save path results
             if training_started:
                 current_path["rewards"].append(r)
-                current_path["lyapunov_error"].append(l_loss)
+                current_path["lyapunov_error"].append(l_error)
                 current_path["alpha"].append(alpha)
                 current_path["lambda"].append(labda)
                 current_path["entropy"].append(entropy)

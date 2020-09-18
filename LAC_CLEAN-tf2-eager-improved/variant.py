@@ -10,9 +10,9 @@ USE_GPU = False
 
 # Debug Parameters
 DEBUG_PARAMS = {
-    "debug": True,  # Whether we want to debug and thus execute tf.functions eagerly
-    "trace_net": True,  # Whether we want to trace the network.
-    "trace_learn": True,  # Whether we want trace the learn method.
+    "debug": False,  # Whether we want to debug and thus execute tf.functions eagerly
+    "trace_net": False,  # Whether we want to trace the network.
+    "trace_learn": False,  # Whether we want trace the learn method.
 }
 
 # Environment parameters

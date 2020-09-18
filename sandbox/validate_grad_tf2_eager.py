@@ -29,8 +29,10 @@ GAMMA = 0.9  # Discount factor
 ALPHA = 0.99  # The initial value for the entropy lagrance multiplier
 LAMBDA = 0.99  # Initial value for the lyapunov constraint lagrance multiplier
 NETWORK_STRUCTURE = {
-    "critic": [128, 128],
-    "actor": [64, 64],
+    # "critic": [128, 128],
+    "critic": [6, 6],
+    # "actor": [64, 64],
+    "actor": [6, 6],
 }  # The network structure of the agent.
 POLYAK = 0.995  # Decay rate used in the polyak averaging
 LR_A = 1e-4  # The actor learning rate
@@ -64,7 +66,8 @@ if RANDOM_SEED is not None:
     # tf.compat.v1.set_random_seed(RANDOM_SEED)
     tf.random.set_seed(RANDOM_SEED)
     # tf.compat.v1.reset_default_graph()
-    TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="random_beta")
+    TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_1")
+    TFP_SEED_STREAM2 = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_2")
 
 # USED FOR DEBUGGING
 tf.config.experimental_run_functions_eagerly(True)
@@ -207,7 +210,7 @@ class SquashedGaussianActor(tf.keras.Model):
                 tf.keras.layers.Dense(
                     hidden_size_i,
                     activation="relu",
-                    name="l{}".format(i),
+                    name="l{}".format(i + 1),
                     kernel_initializer=self._initializer,
                 )
             )
@@ -221,7 +224,7 @@ class SquashedGaussianActor(tf.keras.Model):
                 tf.keras.layers.Dense(
                     act_dim,
                     activation=None,
-                    name=name + "mu",
+                    name="mu",
                     kernel_initializer=self._initializer,
                 ),
             ]
@@ -234,7 +237,7 @@ class SquashedGaussianActor(tf.keras.Model):
                 tf.keras.layers.Dense(
                     act_dim,
                     activation=None,
-                    name=name + "log_sigma",
+                    name="log_sigma",
                     kernel_initializer=self._initializer,
                 ),
             ]
@@ -390,6 +393,10 @@ class LAC(object):
             RANDOM_SEED + 1,
             TFP_SEED_STREAM(),
         ]  # [weight init seed, sample seed]
+        self.lya_ga_target_seeds = [
+            RANDOM_SEED,
+            TFP_SEED_STREAM(),
+        ]  # [weight init seed, sample seed]
         self.lc_seed = RANDOM_SEED + 2  # Weight init seed
         self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
 
@@ -418,7 +425,7 @@ class LAC(object):
         # networks
         self.ga_ = self._build_a(seeds=self.ga_target_seeds)
         self.lc_ = self._build_l(seed=self.lc_target_seed)
-        self.lya_ga_ = self._build_a(seeds=self.ga_seeds)
+        self.lya_ga_ = self._build_a(seeds=self.lya_ga_target_seeds)
         self.lya_init()
         self.target_init()
 
@@ -591,6 +598,10 @@ class LAC(object):
             a,
             a_,
             lya_a_,
+            lambda_grads,
+            alpha_grads,
+            a_grads,
+            l_grads,
         )
 
     @property
@@ -667,42 +678,30 @@ if __name__ == "__main__":
         "s_": s_target_tmp,
     }
 
-    # Perform forward pass through networks (Same input)
-    a, a_det, log_pis, epsilon = policy.ga(batch["s"])
-    a_, a_det_, log_pis_, epsilon_ = policy.ga_(batch["s"])
-    lya_a_, lya_a_det_, lya_log_pis_, lya_epsilon_ = policy.lya_ga_(batch["s"])
-    l = policy.lc([batch["s"], batch["a"]])
-    l_ = policy.lc_([batch["s"], batch["a"]])  # FIXME: CHECK IF THIS THE CASE
-    lya_l_ = policy.lc([batch["s"], batch["a"]])
-
     # Perform forward pass through networks (As implemented in learn)
-    a, a_det, log_pis, epsilon = policy.ga(batch["s"])
-    a_, a_det_, log_pis_, epsilon_ = policy.ga_(batch["s_"])
-    lya_a_, lya_a_det_, lya_log_pis_, lya_epsilon_ = policy.lya_ga_(batch["s_"])
     l = policy.lc([batch["s"], batch["a"]])
-    l_ = policy.lc_([batch["s_"], a_])  # FIXME: CHECK IF THIS THE CASE
-    lya_l_ = policy.lc([batch["s_"], lya_a_])
+    lya_l_ = policy.lc([batch["s_"], policy.lya_ga_(batch["s_"])[0]])
 
-    # Perform training epoch
-    (
-        l_delta,
-        labda,
-        alpha,
-        log_labda,
-        log_alpha,
-        labda_loss,
-        alpha_loss,
-        l_target,
-        l_error,
-        a_loss,
-        entropy,
-        l,
-        l_,
-        lya_l_,
-        a,
-        a_,
-        lya_a_,
-    ) = policy.learn(LR_A, LR_L, LR_LAG, batch)
+    # Compute log_pis and l_delta
+    l_delta = tf.reduce_mean(lya_l_ - l + ALPHA_3 * batch["r"])
+
+    # Actor loss and optimizer graph
+    with tf.GradientTape() as tape:
+
+        # Calculate log probability of a_input based on current policy
+        _, _, log_pis, _ = policy.ga(batch["s"])
+
+        # Compute a_loss (Increase to make effects more prevalent)
+        a_loss = 500 * (
+            tf.stop_gradient(policy.labda) * l_delta
+            + tf.stop_gradient(policy.alpha) * tf.reduce_mean(log_pis)
+        )
+
+    # Compute gradients
+    a_grads = tape.gradient(a_loss, policy.ga.trainable_variables)
+
+    # Apply grads
+    policy.a_train.apply_gradients(zip(a_grads, policy.ga.trainable_variables))
 
     # In tf2 eager we don't need to retrieve the weights and biases again
     print("Check updated weights and biases.")

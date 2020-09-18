@@ -49,7 +49,7 @@ if not USE_GPU:
     tf.config.set_visible_devices([], "GPU")
 
 # Tensorboard settings
-USE_TB = True  # Whether you want to log to tensorboard
+USE_TB = False  # Whether you want to log to tensorboard
 TB_FREQ = 4  # After how many episode we want to log to tensorboard
 WRITE_W_B = False  # Whether you want to log the model weights and biases
 
@@ -452,7 +452,7 @@ def train(log_dir):
 
         # Trace learn method (Used for debugging)
         if DEBUG_PARAMS["debug"]:
-            if DEBUG_PARAMS["trace_learn"]:
+            if DEBUG_PARAMS["trace_net"]:
 
                 # Create dummy input
                 batch = {
