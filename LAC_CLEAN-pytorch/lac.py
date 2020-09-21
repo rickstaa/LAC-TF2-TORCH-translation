@@ -211,69 +211,10 @@ class LAC(object):
         bterminal = batch["terminal"]
         bs_ = batch["s_"]  # next state
 
-        # Calculate current value and target lyapunov multiplier value
-        with torch.no_grad():
-            lya_a_, _, _ = self.ga(bs_)
-            l_ = self.lc(bs_, lya_a_)
-
-            # Calculate current lyapunov value
-            l = self.lc(bs, ba)
-
-            # # Calculate Lyapunov constraint function
-            self.l_delta = torch.mean(l_ - l + (ALG_PARAMS["alpha3"]) * br)
-
-        # Zero gradients on labda
-        self.lambda_train.zero_grad()
-
-        # Lagrance multiplier loss functions and optimizers graphs
-        labda_loss = -torch.mean(self.log_labda * self.l_delta)
-
-        # Apply gradients to log_lambda
-        labda_loss.backward()
-        self.lambda_train.step()
-
-        # Zero gradients on alpha
-        self.alpha_train.zero_grad()
-
-        # Calculate log probability of a_input based on current policy
-        with torch.no_grad():
-            _, _, log_pis = self.ga(bs)
-
-        # Calculate alpha loss
-        alpha_loss = -torch.mean(self.log_alpha * (log_pis + self.target_entropy))
-
-        # Apply gradients
-        alpha_loss.backward()
-        self.alpha_train.step()
-
-        # Zero gradients on the actor
-        self.a_train.zero_grad()
-
-        # Calculate Lyapunov constraint function
-        with torch.no_grad():
-            self.l_delta = torch.mean(l_ - l + (ALG_PARAMS["alpha3"]) * br)
-
-        # Calculate log probability of a_input based on current policy
-        _, _, log_pis = self.ga(bs)
-
-        # Calculate actor loss
-        a_loss = self.labda.detach() * self.l_delta + self.alpha.detach() * torch.mean(
-            log_pis
-        )
-
-        # Apply gradients
-        # FIXME: Validate whether grad works
-        # NOTE: Works but very small nubmers
-        a_loss.backward()
-        self.a_train.step()
-
         # Update target networks
         self.update_target()
 
-        # Zero gradients on the critic
-        self.l_train.zero_grad()
-
-        # Get Lyapunov target
+        # Calculate variables from which we do not require the gradients
         with torch.no_grad():
             a_, _, _ = self.ga_(bs_)
             l_ = self.lc_(bs_, a_)
@@ -282,12 +223,55 @@ class LAC(object):
         # Calculate current lyapunov value
         l = self.lc(bs, ba)
 
+        # Calculate current value and target lyapunov multiplier value
+        lya_a_, _, _ = self.ga(bs_)
+        l_ = self.lc(bs_, lya_a_)
+
+        # Calculate log probability of a_input based on current policy
+        _, _, log_pis = self.ga(bs)
+
+        # Calculate Lyapunov constraint function
+        self.l_delta = torch.mean(l_ - l.detach() + (ALG_PARAMS["alpha3"]) * br)
+
+        # Zero gradients on labda
+        self.lambda_train.zero_grad()
+
+        # Lagrance multiplier loss functions and optimizers graphs
+        labda_loss = -torch.mean(self.log_labda * self.l_delta.detach())
+
+        # Apply gradients to log_lambda
+        labda_loss.backward()
+        self.lambda_train.step()
+
+        # Zero gradients on alpha
+        self.alpha_train.zero_grad()
+
+        # Calculate alpha loss
+        alpha_loss = -torch.mean(
+            self.log_alpha * log_pis.detach() + self.target_entropy
+        )
+
+        # Apply gradients
+        alpha_loss.backward()
+        self.alpha_train.step()
+
+        # Zero gradients on the actor
+        self.a_train.zero_grad()
+
+        # Calculate actor loss
+        a_loss = self.labda * self.l_delta + self.alpha * torch.mean(log_pis)
+
+        # Apply gradients
+        a_loss.backward()
+        self.a_train.step()
+
+        # Zero gradients on the critic
+        self.l_train.zero_grad()
+
         # Calculate L_backup
         l_error = F.mse_loss(l_target, l)
 
         # Apply gradients
-        # FIXME: Validate whether grad works
-        # NOTE: Works but except bias of layer 4 everything is small
         l_error.backward()
         self.l_train.step()
 
@@ -359,8 +343,6 @@ class LAC(object):
             "lc_state_dict": self.lc.state_dict(),
             "ga_targ_state_dict": self.ga_.state_dict(),
             "lc_targ_state_dict": self.lc_.state_dict(),
-            "lya_ga_targ_state_dict": self.lya_ga_.state_dict(),
-            "lya_lc_state_dict": self.lya_lc_.state_dict(),
             "log_alpha": self.log_alpha,
             "log_labda": self.log_labda,
         }
@@ -393,8 +375,6 @@ class LAC(object):
         self.lc.load_state_dict(models_state_dict["lc_state_dict"])
         self.ga_.load_state_dict(models_state_dict["ga_targ_state_dict"])
         self.lc_.load_state_dict(models_state_dict["lc_targ_state_dict"])
-        self.lya_ga_.load_state_dict(models_state_dict["lya_ga_targ_state_dict"])
-        self.lya_lc_.load_state_dict(models_state_dict["lya_lc_state_dict"])
         self.log_alpha = models_state_dict["log_alpha"]
         self.log_labda = models_state_dict["log_labda"]
 

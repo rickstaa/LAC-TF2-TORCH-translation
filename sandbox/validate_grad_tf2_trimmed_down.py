@@ -40,6 +40,10 @@ LR_A = 1e-4  # The actor learning rate
 LR_L = 3e-4  # The lyapunov critic
 LR_LAG = 1e-4  # The lagrance multiplier learning rate
 
+
+# Gradient settings
+GRAD_SCALE_FACTOR = 1  # Scale the grads by a factor to make differences more visible
+
 ####################################################
 # Seed random number generators ####################
 ####################################################
@@ -659,7 +663,7 @@ if __name__ == "__main__":
 
     # Compute actor loss
     # NOTE: Scale by 500 to make effects more prevalent.
-    a_loss = 500 * (
+    a_loss = GRAD_SCALE_FACTOR * (
         labda * l_delta + alpha * tf.reduce_mean(input_tensor=policy.log_pis)
     )
 
@@ -695,14 +699,22 @@ if __name__ == "__main__":
 
     # Print gradients
     print("\n==GAUSSIAN ACTOR GRADIENTS==")
-    print(f"grad/l1/weights: {a_grads_unpacked[0][0]}")
-    print(f"grad/l1/bias: {a_grads_unpacked[1]}")
-    print(f"grad/l2/weights: {a_grads_unpacked[2][0]}")
-    print(f"grad/l2/bias: {a_grads_unpacked[3]}")
-    print(f"grad/mu/weights: {a_grads_unpacked[4][0]}")
-    print(f"grad/mu/bias: {a_grads_unpacked[5]}")
-    print(f"grad/log_sigma/weights: {a_grads_unpacked[6][0]}")
-    print(f"grad/log_sigma/bias: {a_grads_unpacked[7]}")
+    print("grad/l1/weights:")
+    print(a_grads_unpacked[0])
+    print("\ngrad/l1/bias:")
+    print(a_grads_unpacked[1])
+    print("\ngrad/l2/weights:")
+    print(a_grads_unpacked[2])
+    print("\ngrad/l2/bias:")
+    print(a_grads_unpacked[3])
+    print("\ngrad/mu/weights:")
+    print(a_grads_unpacked[4])
+    print("\ngrad/mu/bias:")
+    print(a_grads_unpacked[5])
+    print("\ngrad/log_sigma/weights:")
+    print(a_grads_unpacked[6])
+    print("\ngrad/log_sigma/bias:")
+    print(a_grads_unpacked[7])
 
     ################################################
     # Validate critic grads ########################
@@ -710,7 +722,7 @@ if __name__ == "__main__":
 
     # Compute lyapunov Critic error
     # NOTE: Scale by 500 to make effects more prevalent.
-    l_error = 500 * tf.compat.v1.losses.mean_squared_error(
+    l_error = GRAD_SCALE_FACTOR * tf.compat.v1.losses.mean_squared_error(
         labels=policy.l_target, predictions=policy.l
     )
 
@@ -745,11 +757,16 @@ if __name__ == "__main__":
 
     # Print gradients
     print("\n==LYAPUNOV CRITIC GRADIENTS==")
-    print(f"grad/l1/w1_s: {l_grads[0][0]}")
-    print(f"grad/l1/w1_a: {l_grads[1][0]}")
-    print(f"grad/l1/b1: {l_grads[2][0]}")
-    print(f"grad/l2/weights: {l_grads[3][0]}")
-    print(f"grad/l2/bias: {l_grads[4][0]}")
+    print("grad/l1/w1_s:")
+    print(l_grads_unpacked[0])
+    print("\ngrad/l1/w1_a:")
+    print(l_grads_unpacked[1])
+    print("\ngrad/l1/b1:")
+    print(l_grads_unpacked[2])
+    print("\ngrad/l2/weights:")
+    print(l_grads_unpacked[3])
+    print("\ngrad/l2/bias:")
+    print(l_grads_unpacked[4])
 
     # End of the script
     print("End")

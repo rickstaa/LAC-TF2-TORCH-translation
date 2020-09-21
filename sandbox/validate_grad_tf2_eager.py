@@ -16,6 +16,9 @@ session_conf = None
 
 # TODO: Apply new improved Gaussian actor and Lyapunov critic to other scripts
 
+# USED FOR DEBUGGING
+tf.config.experimental_run_functions_eagerly(True)
+
 ####################################################
 # Script parameters ################################
 ####################################################

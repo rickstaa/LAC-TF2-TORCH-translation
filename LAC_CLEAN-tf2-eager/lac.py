@@ -9,6 +9,7 @@ import random
 
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 
 from gaussian_actor import SquashedGaussianActor
 from lyapunov_critic import LyapunovCritic
@@ -36,10 +37,15 @@ from variant import (
 if RANDOM_SEED is not None:
     os.environ["PYTHONHASHSEED"] = str(RANDOM_SEED)
     os.environ["TF_CUDNN_DETERMINISTIC"] = "1"  # new flag present in tf 2.0+
-    np.random.seed(RANDOM_SEED)
-    tf.compat.v1.reset_default_graph()
-    tf.random.set_seed(RANDOM_SEED)
     random.seed(RANDOM_SEED)
+    np.random.seed(RANDOM_SEED)
+    tf.random.set_seed(RANDOM_SEED)
+    TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_1")
+
+
+###############################################
+# Debug options ###############################
+###############################################
 
 # Check if eager mode is enabled
 print("Tensorflow eager mode enabled: " + str(tf.executing_eagerly()))
@@ -47,11 +53,6 @@ print("Tensorflow eager mode enabled: " + str(tf.executing_eagerly()))
 # Disable GPU if requested
 if not USE_GPU:
     tf.config.set_visible_devices([], "GPU")
-
-# Tensorboard settings
-USE_TB = True  # Whether you want to log to tensorboard
-TB_FREQ = 4  # After how many episode we want to log to tensorboard
-WRITE_W_B = False  # Whether you want to log the model weights and biases
 
 # Disable tf.function graph execution if debug
 if DEBUG_PARAMS["debug"] and not (
@@ -63,6 +64,15 @@ if DEBUG_PARAMS["debug"] and not (
         "deployment."
     )  # TODO: MAke warning
     tf.config.experimental_run_functions_eagerly(True)
+
+# Check for numeric errors
+# tf.debugging.enable_check_numerics()
+
+# # Enable tf2 tb debugger
+# NOTE: I did not yet get this to work in eager mode
+# tf.debugging.experimental.enable_dump_debug_info(
+#     LOG_PATH, tensor_debug_mode="FULL_HEALTH", circular_buffer_size=-1
+# )
 
 
 ###############################################
@@ -90,6 +100,22 @@ class LAC(object):
         self.network_structure = ALG_PARAMS["network_structure"]
         self.polyak = 1 - ALG_PARAMS["tau"]
 
+        # Create network seeds
+        self.ga_seeds = [
+            RANDOM_SEED,
+            TFP_SEED_STREAM(),
+        ]  # [weight init seed, sample seed]
+        self.ga_target_seeds = [
+            RANDOM_SEED + 1,
+            TFP_SEED_STREAM(),
+        ]  # [weight init seed, sample seed]
+        # self.lya_ga_target_seeds = [
+        #     RANDOM_SEED,
+        #     TFP_SEED_STREAM(),
+        # ]  # [weight init seed, sample seed]
+        self.lc_seed = RANDOM_SEED + 2  # Weight init seed
+        self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
+
         # Determine target entropy
         if ALG_PARAMS["target_entropy"] is None:
             self.target_entropy = -self.a_dim  # lower bound of the policy entropy
@@ -110,18 +136,18 @@ class LAC(object):
         ###########################################
 
         # Create Gaussian Actor (GA) and Lyapunov critic (LC) Networks
-        self.ga = self._build_a()
-        self.lc = self._build_l()
+        self.ga = self._build_a(seeds=self.ga_seeds)
+        self.lc = self._build_l(seed=self.lc_seed)
 
         # Create GA and LC target networks
         # Don't get optimized but get updated according to the EMA of the main
         # networks
-        self.ga_ = self._build_a()
-        self.lc_ = self._build_l()
+        self.ga_ = self._build_a(seeds=self.ga_target_seeds)
+        self.lc_ = self._build_l(seed=self.lc_target_seed)
         self.target_init()
 
         # Create summary writer
-        if USE_TB:
+        if DEBUG_PARAMS["use_tb"]:
             self.step = 0
             self.tb_writer = tf.summary.create_file_writer(log_dir)
 
@@ -140,7 +166,7 @@ class LAC(object):
         ###########################################
         # Trace networks (DEBUGGING) ##############
         ###########################################
-        if USE_TB:
+        if DEBUG_PARAMS["use_tb"]:
             if DEBUG_PARAMS["debug"]:
                 if DEBUG_PARAMS["trace_net"]:
 
@@ -215,57 +241,6 @@ class LAC(object):
         bterminal = batch["terminal"]
         bs_ = batch["s_"]  # next state
 
-        # Calculate current value and target lyapunov multiplier value
-        lya_a_, _, _ = self.ga(bs_)
-        lya_l_ = self.lc([bs_, lya_a_])
-
-        # Calculate current lyapunov value
-        l = self.lc([bs, ba])
-
-        # # Calculate Lyapunov constraint function
-        self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
-
-        # Lagrance multiplier loss functions and optimizers graphs
-        with tf.GradientTape() as tape:
-            labda_loss = -tf.reduce_mean(self.log_labda * self.l_delta)
-
-        # Apply gradients
-        lambda_grads = tape.gradient(labda_loss, [self.log_labda])
-        self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
-
-        # Calculate log probability of a_input based on current policy
-        _, _, log_pis = self.ga(bs)
-
-        # Calculate alpha loss
-        with tf.GradientTape() as tape:
-            alpha_loss = -tf.reduce_mean(
-                self.log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
-            )
-
-        # Apply gradients
-        alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
-        self.alpha_train.apply_gradients(zip(alpha_grads, [self.log_alpha]))
-
-        # Calculate Lyapunov constraint function
-        self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
-
-        # Actor loss and optimizer graph
-        with tf.GradientTape() as tape:
-
-            # Calculate log probability of a_input based on current policy
-            _, _, log_pis = self.ga(bs)
-
-            # Calculate actor loss
-            # TODO: VAliate whether tf.stop_gradient() is needed
-            # a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(log_pis)
-            a_loss = tf.stop_gradient(self.labda) * self.l_delta + tf.stop_gradient(
-                self.alpha
-            ) * tf.reduce_mean(log_pis)
-
-        # Apply gradients
-        a_grads = tape.gradient(a_loss, self.ga.trainable_variables)
-        self.a_train.apply_gradients(zip(a_grads, self.ga.trainable_variables))
-
         # Update target networks
         self.update_target()
 
@@ -275,7 +250,7 @@ class LAC(object):
         l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * tf.stop_gradient(l_)
 
         # Lyapunov candidate constraint function graph
-        with tf.GradientTape() as tape:
+        with tf.GradientTape() as l_tape:
 
             # Calculate current lyapunov value
             l = self.lc([bs, ba])
@@ -285,8 +260,46 @@ class LAC(object):
                 labels=l_target, predictions=l
             )
 
-        # Apply gradients
-        l_grads = tape.gradient(l_error, self.lc.trainable_variables)
+        # Actor loss and optimizer graph
+        with tf.GradientTape() as a_tape:
+
+            # Calculate current value and target lyapunov multiplier value
+            lya_a_, _, _ = self.ga(bs_)
+            lya_l_ = self.lc([bs_, lya_a_])
+
+            # Calculate Lyapunov constraint function
+            self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
+
+            # Calculate log probability of a_input based on current policy
+            _, _, log_pis = self.ga(bs)
+
+            # Calculate actor loss
+            a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(log_pis)
+
+        # Lagrance multiplier loss functions and optimizers graphs
+        with tf.GradientTape() as lambda_tape:
+            labda_loss = -tf.reduce_mean(self.log_labda * self.l_delta)
+
+        # Calculate alpha loss
+        with tf.GradientTape() as alpha_tape:
+            alpha_loss = -tf.reduce_mean(
+                self.log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
+            )  # Trim down
+
+        # Apply lambda gradients
+        lambda_grads = lambda_tape.gradient(labda_loss, [self.log_labda])
+        self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
+
+        # Apply alpha gradients
+        alpha_grads = alpha_tape.gradient(alpha_loss, [self.log_alpha])
+        self.alpha_train.apply_gradients(zip(alpha_grads, [self.log_alpha]))
+
+        # Apply actor gradients
+        a_grads = a_tape.gradient(a_loss, self.ga.trainable_variables)
+        self.a_train.apply_gradients(zip(a_grads, self.ga.trainable_variables))
+
+        # Apply critic gradients
+        l_grads = l_tape.gradient(l_error, self.lc.trainable_variables)
         self.l_train.apply_gradients(zip(l_grads, self.lc.trainable_variables))
 
         # Return results
@@ -298,16 +311,21 @@ class LAC(object):
             a_loss,
         )
 
-    def _build_a(self, name="gaussian_actor"):
+    def _build_a(self, name="gaussian_actor", trainable=True, seeds=[None, None]):
         """Setup SquashedGaussianActor Graph.
 
         Args:
             name (str, optional): Network name. Defaults to "gaussian_actor".
 
+            trainable (bool, optional): Whether the weights of the network layers should
+                be trainable. Defaults to True.
+
+            seeds (list, optional): The random seeds used for the weight initialization
+                and the sampling ([weights_seed, sampling_seed]). Defaults to
+                [None, None]
         Returns:
             tuple: Tuple with network output tensors.
         """
-        # TODO: Check if trainable is needed
 
         # Return GA
         return SquashedGaussianActor(
@@ -317,14 +335,21 @@ class LAC(object):
             name=name,
             log_std_min=LOG_SIGMA_MIN_MAX[0],
             log_std_max=LOG_SIGMA_MIN_MAX[1],
-            seed=RANDOM_SEED,
+            trainable=trainable,
+            seeds=seeds,
         )
 
-    def _build_l(self, name="lyapunov_critic"):
+    def _build_l(self, name="lyapunov_critic", trainable=True, seed=None):
         """Setup lyapunov critic graph.
 
         Args:
             name (str, optional): Network name. Defaults to "lyapunov_critic".
+
+            trainable (bool, optional): Whether the weights of the network layers should
+                be trainable. Defaults to True.
+
+            seed (int, optional): The seed used for the weight initialization. Defaults
+                to None.
 
         Returns:
             tuple: Tuple with network output tensors.
@@ -337,6 +362,8 @@ class LAC(object):
             act_dim=self.a_dim,
             hidden_sizes=self.network_structure["critic"],
             name=name,
+            trainable=trainable,
+            seed=seed,
         )
 
     def save_result(self, path):
@@ -448,7 +475,7 @@ def train(log_dir):
     training_started = False
 
     # Log initial values to tensorboard
-    if USE_TB:
+    if DEBUG_PARAMS["use_tb"]:
 
         # Trace learn method (Used for debugging)
         if DEBUG_PARAMS["debug"]:
@@ -543,7 +570,7 @@ def train(log_dir):
             # Increment tensorboard step counter
             # NOTE: This was done differently from the global_step counter since
             # otherwise there were inconsistencies in the tb log.
-            if USE_TB:
+            if DEBUG_PARAMS["use_tb"]:
                 policy.step += 1
 
             # Store experience in replay buffer
@@ -622,14 +649,14 @@ def train(log_dir):
                     last_training_paths.appendleft(current_path)
 
                     # Get current model performance for tb
-                    if USE_TB:
+                    if DEBUG_PARAMS["use_tb"]:
                         training_diagnostics = evaluate_training_rollouts(
                             last_training_paths
                         )
 
                 # Log tb variables
-                if USE_TB:
-                    if i % TB_FREQ == 0:
+                if DEBUG_PARAMS["use_tb"]:
+                    if i % DEBUG_PARAMS["tb_freq"] == 0:
 
                         # Log learning rate to tb
                         with policy.tb_writer.as_default():
@@ -669,7 +696,7 @@ def train(log_dir):
                                 )
 
                             # Log network weights
-                            if WRITE_W_B:
+                            if DEBUG_PARAMS["write_w_b"]:
                                 with policy.tb_writer.as_default():
 
                                     # GaussianActor weights/biases

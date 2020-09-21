@@ -16,19 +16,40 @@ class SquashedGaussianActor(tf.keras.Model):
         name,
         log_std_min=-20,
         log_std_max=2.0,
-        seed=None,
+        trainable=True,
+        seeds=None,
         **kwargs
     ):
-        # TODO: Check if name results in problem
+        """Squashed Gaussian actor network.
+
+        Args:
+            obs_dim (int): The dimension of the observation space.
+
+            act_dim (int): The dimension of the action space.
+
+            hidden_sizes (list): Array containing the sizes of the hidden layers.
+
+            name (str): The keras module name.
+
+            trainable (bool, optional): Whether the weights of the network layers should
+                be trainable. Defaults to True.
+
+            seeds (list, optional): The random seeds used for the weight initialization
+                and the sampling ([weights_seed, sampling_seed]). Defaults to
+                [None, None]
+        """
         super().__init__(name=name, **kwargs)
 
         # Get class parameters
-        # FIXME: Cleanup build!
         self._log_std_min = log_std_min
         self._log_std_max = log_std_max
         self.s_dim = obs_dim
         self.a_dim = act_dim
-        self.tfp_seed = tfp.util.SeedStream(seed, salt="random_beta")
+        self._seed = seeds[0]
+        self._initializer = tf.keras.initializers.GlorotUniform(
+            seed=self._seed
+        )  # Seed weights initializer
+        self._tfp_seed = seeds[1]
 
         # Create fully connected layers
         self.net_0 = tf.keras.layers.Dense(
@@ -76,7 +97,7 @@ class SquashedGaussianActor(tf.keras.Model):
         base_distribution = tfp.distributions.MultivariateNormalDiag(
             loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
         )
-        epsilon = base_distribution.sample(batch_size, seed=self.tfp_seed())
+        epsilon = base_distribution.sample(batch_size, seed=self._tfp_seed)
         raw_action = affine_bijector.forward(epsilon)
         clipped_a = squash_bijector.forward(raw_action)
 
