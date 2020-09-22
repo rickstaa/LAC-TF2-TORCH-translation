@@ -1,4 +1,4 @@
-# TF_REWRITE
+# LAC_TF2_TORCH_REWRITE
 
 I used this repository to translate the LAC code of [Minghoa](https://github.com/hithmh/Actor-critic-with-stability-guarantee) into tf2 and pytorch code. I left it here as a
 quick example on how to translate tf1 code to tf2 and pytorch code.
@@ -26,5 +26,3 @@ pip install -r requirements.txt
 ```
 
 Then you are free to run main.py to train agents. Hyperparameters for training LAC in Cartpole are ready to run by default. If you would like to test other environments and algorithms, please open variant.py and choose corresponding 'env_name' and 'algorithm_name'.
-
-# filter_LAC_tf_rewrite
