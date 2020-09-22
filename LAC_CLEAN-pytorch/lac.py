@@ -45,13 +45,13 @@ if RANDOM_SEED is not None:
     random.seed(RANDOM_SEED)
 
 # Tensorboard settings
-USE_TB = True  # Whether you want to log to tensorboard
+USE_TB = False  # Whether you want to log to tensorboard
 TB_FREQ = 4  # After how many episode we want to log to tensorboard
-WRITE_W_B = True  # Whether you want to log the model weights and biases
+WRITE_W_B = False  # Whether you want to log the model weights and biases
 
 # Debug Parameters
 DEBUG_PARAMS = {
-    "trace_net": True,  # Whether we want to trace the network.
+    "trace_net": False,  # Whether we want to trace the network.
 }
 
 
@@ -771,6 +771,6 @@ def train(log_dir):
 
     # Save model and print Running time
     policy.save_result(log_dir)
-    policy.tb_writer.close()
+    # policy.tb_writer.close()
     print("Running time: ", time.time() - t1)
     return

@@ -5,31 +5,23 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python: Current File (lac_clean)",
+      "name": "Python: Current File (OLD_LAC)",
       "type": "python",
       "request": "launch",
       "program": "${file}",
       "console": "integratedTerminal",
-      "pythonPath": "/home/ricks/miniconda3/envs/lac_clean/bin/python"
+      "pythonPath": "/home/ricks/miniconda3/envs/lac_old/bin/python"
     },
     {
-      "name": "Python: Current File (lac_clean_tf2)",
+      "name": "Python: Current File (LAC_NEW)",
       "type": "python",
       "request": "launch",
       "program": "${file}",
       "console": "integratedTerminal",
-      "pythonPath": "/home/ricks/miniconda3/envs/lac_clean_tf2/bin/python"
+      "pythonPath": "/home/ricks/miniconda3/envs/lac_tf2_eager/bin/python"
     },
     {
-      "name": "Python: Current File (lac_clean_tf2_eager)",
-      "type": "python",
-      "request": "launch",
-      "program": "${file}",
-      "console": "integratedTerminal",
-      "pythonPath": "/home/ricks/miniconda3/envs/lac_clean_tf2_eager/bin/python"
-    },
-    {
-      "name": "Python: Current File (lac_clean_torch)",
+      "name": "Python: Current File (LAC_TORCH)",
       "type": "python",
       "request": "launch",
       "program": "${file}",

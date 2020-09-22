@@ -19,7 +19,8 @@ DEBUG_PARAMS = {
 }
 
 # Environment parameters
-ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
+# ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
+ENV_NAME = "oscillator"  # The gym environment you want to train in
 ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
 
@@ -32,7 +33,8 @@ timestr = time.strftime("%Y%m%d_%H%M")
 
 # Main training loop parameters
 TRAIN_PARAMS = {
-    "episodes": int(5e4),  # The number of episodes you want to perform
+    "episodes": int(1e5),  # The number of episodes you want to perform # Oscillator env
+    # "episodes": int(6e4),  # The number of episodes you want to perform # EX3 env
     # "episodes": int(2e4),  # The number of episodes you want to perform
     "num_of_training_paths": 10,  # Number of training rollouts stored for analysis
     "evaluation_frequency": 2048,  # After how many steps the performance is evaluated

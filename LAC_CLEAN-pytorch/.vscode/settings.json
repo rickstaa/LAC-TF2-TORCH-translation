@@ -1,3 +1,18 @@
 {
-    "python.pythonPath": "/home/ricks/miniconda3/envs/tf2_eager/bin/python"
+    "python.pythonPath": "/home/ricks/miniconda3/envs/tf2_eager/bin/python",
+    "workbench.colorCustomizations": {
+        "activityBar.activeBackground": "#96e392",
+        "activityBar.activeBorder": "#8085de",
+        "activityBar.background": "#96e392",
+        "activityBar.foreground": "#15202b",
+        "activityBar.inactiveForeground": "#15202b99",
+        "activityBarBadge.background": "#8085de",
+        "activityBarBadge.foreground": "#15202b",
+        "tab.activeBorder": "#96e392",
+        "titleBar.activeBackground": "#6fd969",
+        "titleBar.activeForeground": "#15202b",
+        "titleBar.inactiveBackground": "#6fd96999",
+        "titleBar.inactiveForeground": "#15202b99"
+    },
+    "peacock.color": "#6fd969"
 }

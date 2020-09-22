@@ -245,7 +245,7 @@ class LAC(object):
         # Update target networks
         self.update_target()
 
-        # Get Lypaunov target
+        # Get Lyapunov target
         a_, _, _ = self.ga_(bs_)
         l_ = self.lc_([bs_, a_])
         l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * tf.stop_gradient(l_)
