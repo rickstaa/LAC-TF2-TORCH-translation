@@ -1,3 +1,4 @@
+"""Script to check what shape the weights in a dense layer have."""
 import tensorflow as tf
 import torch
 

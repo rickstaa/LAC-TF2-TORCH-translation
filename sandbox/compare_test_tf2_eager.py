@@ -14,8 +14,6 @@ tf.config.set_visible_devices([], "GPU")
 # Initiate session_config variable
 session_conf = None
 
-# TODO: Apply new improved Gaussian actor and Lyapunov critic to other scripts
-
 ####################################################
 # Script parameters ################################
 ####################################################

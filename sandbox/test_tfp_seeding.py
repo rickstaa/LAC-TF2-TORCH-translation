@@ -1,3 +1,5 @@
+"""Script used to check how tfp seeding works."""
+
 import os
 import random
 import numpy as np

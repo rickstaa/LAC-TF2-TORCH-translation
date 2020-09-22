@@ -1,3 +1,8 @@
+# TF_REWRITE
+
+I used this repository to translate the LAC code of [Minghoa](https://github.com/hithmh/Actor-critic-with-stability-guarantee) into tf2 and pytorch code. I left it here as a
+quick example on how to translate tf1 code to tf2 and pytorch code.
+
 ## Conda environment
 
 From the general python package sanity perspective, it is a good idea to use conda environments to make sure packages from different projects do not interfere with each other.

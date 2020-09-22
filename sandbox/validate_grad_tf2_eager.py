@@ -1,6 +1,9 @@
-"""Small example script used to investigate the difference in performance when enabling
-eager execution. This is the eager enabled script."""
+"""Eager Mode grad debug script
+Small debug script to validate whether the computed Actor and Critic gradients in the
+new eager mode are equal to the computed gradients when using disable_eager_execution.
 
+The Agent is based on this paper: http://arxiv.org/abs/2004.14288
+"""
 import os
 import random
 
@@ -9,12 +12,8 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 # Disable GPU if requested
+# NOTE: Done so i can run both scripts in a debugger side by side
 tf.config.set_visible_devices([], "GPU")
-
-# Initiate session_config variable
-session_conf = None
-
-# TODO: Apply new improved Gaussian actor and Lyapunov critic to other scripts
 
 # USED FOR DEBUGGING
 tf.config.experimental_run_functions_eagerly(True)
@@ -32,9 +31,7 @@ GAMMA = 0.9  # Discount factor
 ALPHA = 0.99  # The initial value for the entropy lagrance multiplier
 LAMBDA = 0.99  # Initial value for the lyapunov constraint lagrance multiplier
 NETWORK_STRUCTURE = {
-    # "critic": [128, 128],
     "critic": [6, 6],
-    # "actor": [64, 64],
     "actor": [6, 6],
 }  # The network structure of the agent.
 POLYAK = 0.995  # Decay rate used in the polyak averaging
@@ -42,37 +39,27 @@ LR_A = 1e-4  # The actor learning rate
 LR_L = 3e-4  # The lyapunov critic
 LR_LAG = 1e-4  # The lagrance multiplier learning rate
 
+# Gradient settings
+GRAD_SCALE_FACTOR = 1  # Scale the grads by a factor to make differences more visible
+
 ####################################################
 # Seed random number generators ####################
 ####################################################
 RANDOM_SEED = 0  # The random seed
-# RANDOM_SEED = None  # The random seed
 
 # Set random seed to get comparable results for each run
 # NOTE: https://stackoverflow.com/questions/32419510/how-to-get-reproducible-results-in-keras
 if RANDOM_SEED is not None:
-
-    # Configure a new global `tensorflow` session
-    # session_conf = tf.compat.v1.ConfigProto(
-    #     intra_op_parallelism_threads=1, inter_op_parallelism_threads=1
-    # )
-    # sess = tf.compat.v1.Session(
-    #     graph=tf.compat.v1.get_default_graph(), config=session_conf
-    # )
-    # tf.compat.v1.keras.backend.set_session(sess)
 
     # Set random seeds
     os.environ["PYTHONHASHSEED"] = str(RANDOM_SEED)
     os.environ["TF_CUDNN_DETERMINISTIC"] = "1"  # new flag present in tf 2.0+
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
-    # tf.compat.v1.set_random_seed(RANDOM_SEED)
     tf.random.set_seed(RANDOM_SEED)
-    # tf.compat.v1.reset_default_graph()
     TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_1")
-    TFP_SEED_STREAM2 = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_2")
 
-# USED FOR DEBUGGING
+# Used to be able to debug graph functions
 tf.config.experimental_run_functions_eagerly(True)
 
 
@@ -166,7 +153,7 @@ class SquashedGaussianActor(tf.keras.Model):
         log_std_min=-20,
         log_std_max=2.0,
         seeds=None,
-        **kwargs
+        **kwargs,
     ):
         """Squashed Gaussian actor network.
 
@@ -204,7 +191,7 @@ class SquashedGaussianActor(tf.keras.Model):
         self.net = tf.keras.Sequential(
             [
                 tf.keras.layers.InputLayer(
-                    dtype=tf.float32, input_shape=(self.s_dim), name="input"
+                    dtype=tf.float32, input_shape=(self.s_dim), name=name + "/input"
                 )
             ]
         )
@@ -213,7 +200,7 @@ class SquashedGaussianActor(tf.keras.Model):
                 tf.keras.layers.Dense(
                     hidden_size_i,
                     activation="relu",
-                    name="l{}".format(i + 1),
+                    name=name + "/l{}".format(i + 1),
                     kernel_initializer=self._initializer,
                 )
             )
@@ -227,7 +214,7 @@ class SquashedGaussianActor(tf.keras.Model):
                 tf.keras.layers.Dense(
                     act_dim,
                     activation=None,
-                    name="mu",
+                    name=name + "/mu",
                     kernel_initializer=self._initializer,
                 ),
             ]
@@ -240,7 +227,7 @@ class SquashedGaussianActor(tf.keras.Model):
                 tf.keras.layers.Dense(
                     act_dim,
                     activation=None,
-                    name="log_sigma",
+                    name=name + "/log_sigma",
                     kernel_initializer=self._initializer,
                 ),
             ]
@@ -283,6 +270,8 @@ class SquashedGaussianActor(tf.keras.Model):
             distribution=base_distribution, bijector=reparm_trick_bijector
         )
         clipped_mu = squash_bijector.forward(mu)
+
+        # Return network outputs and noise sample
         return clipped_a, clipped_mu, distribution.log_prob(clipped_a), epsilon
 
 
@@ -296,7 +285,7 @@ class LyapunovCritic(tf.keras.Model):
         seed=None,
         log_std_min=-20,
         log_std_max=2.0,
-        **kwargs
+        **kwargs,
     ):
         """Lyapunov Critic network.
 
@@ -317,7 +306,7 @@ class LyapunovCritic(tf.keras.Model):
         """
         super().__init__(name=name, **kwargs)
 
-        # Get class parameters
+        # Apply class attributes and create the weights initializer
         self.s_dim = obs_dim
         self.a_dim = act_dim
         self._seed = seed
@@ -327,25 +316,29 @@ class LyapunovCritic(tf.keras.Model):
 
         # Create input layer weights and biases
         self.w1_s = tf.Variable(
-            self._initializer(shape=(self.s_dim, hidden_sizes[0])), name="w1_s",
+            self._initializer(shape=(self.s_dim, hidden_sizes[0])), name=name + "/w1_s",
         )
         self.w1_a = tf.Variable(
-            self._initializer(shape=(self.s_dim, hidden_sizes[0])), name="w1_a",
+            self._initializer(shape=(self.s_dim, hidden_sizes[0])), name=name + "/w1_a",
         )
         self.b1 = tf.Variable(
-            tf.zeros_initializer()(shape=(1, hidden_sizes[0])), name="b1",
+            tf.zeros_initializer()(shape=(1, hidden_sizes[0])), name=name + "/b1",
         )
 
         # Create fully connected layers
         self.net = tf.keras.Sequential(
-            [tf.keras.layers.InputLayer(input_shape=(hidden_sizes[0]), name="input")]
+            [
+                tf.keras.layers.InputLayer(
+                    input_shape=(hidden_sizes[0]), name=name + "/input"
+                )
+            ]
         )
         for i, hidden_size_i in enumerate(hidden_sizes[1:]):
             self.net.add(
                 tf.keras.layers.Dense(
                     hidden_size_i,
                     activation="relu",
-                    name="l{}".format(i + 1),
+                    name=name + "/l{}".format(i + 2),
                     kernel_initializer=self._initializer,
                 )
             )
@@ -412,8 +405,8 @@ class LAC(object):
         self.LR_L = tf.Variable(LR_L, name="LR_L")
 
         # Create lagrance multiplier placeholders
-        self.log_labda = tf.Variable(tf.math.log(LAMBDA), name="lambda")
-        self.log_alpha = tf.Variable(tf.math.log(ALPHA), name="alpha")
+        self.log_labda = tf.Variable(tf.math.log(LAMBDA), name="log_lambda")
+        self.log_alpha = tf.Variable(tf.math.log(ALPHA), name="log_alpha")
 
         ###########################################
         # Create Networks #########################
@@ -435,7 +428,6 @@ class LAC(object):
         ###########################################
         # Create optimizers #######################
         ###########################################
-
         self.alpha_train = tf.keras.optimizers.Adam(learning_rate=self.LR_A)
         self.lambda_train = tf.keras.optimizers.Adam(learning_rate=self.LR_lag)
         self.a_train = tf.keras.optimizers.Adam(learning_rate=self.LR_A)
@@ -455,7 +447,7 @@ class LAC(object):
             tuple: Tuple with network output tensors.
         """
 
-        # Return GA
+        # Return Gaussian actor
         return SquashedGaussianActor(
             obs_dim=self.s_dim,
             act_dim=self.a_dim,
@@ -479,7 +471,7 @@ class LAC(object):
             tuple: Tuple with network output tensors.
         """
 
-        # Return LC
+        # Return Lyapunov Critic
         return LyapunovCritic(
             obs_dim=self.s_dim,
             act_dim=self.a_dim,
@@ -540,9 +532,6 @@ class LAC(object):
         # Apply gradients
         alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
         self.alpha_train.apply_gradients(zip(alpha_grads, [self.log_alpha]))
-
-        # # Calculate Lyapunov constraint function
-        # self.l_delta = tf.reduce_mean(l_ - l + ALPHA_3 * br)
 
         # Actor loss and optimizer graph
         with tf.GradientTape() as tape:
@@ -681,11 +670,17 @@ if __name__ == "__main__":
         "s_": s_target_tmp,
     }
 
-    # Perform forward pass through networks (As implemented in learn)
+    ################################################
+    # Validate actor grads #########################
+    ################################################
+
+    # Perform forward pass through networks to retrieve required loss parameters
     l = policy.lc([batch["s"], batch["a"]])
     lya_l_ = policy.lc([batch["s_"], policy.lya_ga_(batch["s_"])[0]])
 
-    # Compute log_pis and l_delta
+    # Compute Lyapunov difference
+    # NOTE: This is similar to the Q backup (Q_- Q + alpha * R) but now while the agent
+    # tries to satisfy the the lyapunov stability constraint.
     l_delta = tf.reduce_mean(lya_l_ - l + ALPHA_3 * batch["r"])
 
     # Actor loss and optimizer graph
@@ -695,7 +690,7 @@ if __name__ == "__main__":
         _, _, log_pis, _ = policy.ga(batch["s"])
 
         # Compute a_loss (Increase to make effects more prevalent)
-        a_loss = 500 * (
+        a_loss = GRAD_SCALE_FACTOR * (
             tf.stop_gradient(policy.labda) * l_delta
             + tf.stop_gradient(policy.alpha) * tf.reduce_mean(log_pis)
         )
@@ -703,11 +698,61 @@ if __name__ == "__main__":
     # Compute gradients
     a_grads = tape.gradient(a_loss, policy.ga.trainable_variables)
 
-    # Apply grads
-    policy.a_train.apply_gradients(zip(a_grads, policy.ga.trainable_variables))
+    # Print gradients
+    print("\n==GAUSSIAN ACTOR GRADIENTS==")
+    print("grad/l1/weights:")
+    print(a_grads[0].numpy())
+    print("\ngrad/l1/bias:")
+    print(a_grads[1].numpy())
+    print("\ngrad/l2/weights:")
+    print(a_grads[2].numpy())
+    print("\ngrad/l2/bias:")
+    print(a_grads[3].numpy())
+    print("\ngrad/mu/weights:")
+    print(a_grads[4].numpy())
+    print("\ngrad/mu/bias:")
+    print(a_grads[5].numpy())
+    print("\ngrad/log_sigma/weights:")
+    print(a_grads[6].numpy())
+    print("\ngrad/log_sigma/bias:")
+    print(a_grads[7].numpy())
 
-    # In tf2 eager we don't need to retrieve the weights and biases again
-    print("Check updated weights and biases.")
+    ################################################
+    # Validate critic grads ########################
+    ################################################
 
-    # Pause here to debug
-    print("DEBUG")
+    # Perform forward pass through networks to retrieve required loss parameters
+    a_, _, _, _ = policy.ga_(batch["s_"])
+    l_ = policy.lc_([batch["s_"], a_])
+    l_target = batch["r"] + GAMMA * (1 - batch["terminal"]) * tf.stop_gradient(l_)
+
+    # Lyapunov candidate constraint function graph
+    with tf.GradientTape() as tape:
+
+        # Calculate current lyapunov value
+        l = policy.lc([batch["s"], batch["a"]])
+
+        # Compute lyapunov Critic error
+        # NOTE: Scale by 500 to make effects more prevalent.
+        l_error = GRAD_SCALE_FACTOR * tf.compat.v1.losses.mean_squared_error(
+            labels=l_target, predictions=l
+        )
+
+    # Compute gradients
+    l_grads = tape.gradient(l_error, policy.lc.trainable_variables)
+
+    # Print gradients
+    print("\n==LYAPUNOV CRITIC GRADIENTS==")
+    print("grad/l1/w1_s:")
+    print(l_grads[2].numpy())
+    print("\ngrad/l1/w1_a:")
+    print(l_grads[3].numpy())
+    print("\ngrad/l1/b1:")
+    print(l_grads[4].numpy())
+    print("\ngrad/l2/weights:")
+    print(l_grads[0].numpy())
+    print("\ngrad/l2/bias:")
+    print(l_grads[1].numpy())
+
+    # End of the script
+    print("End")
