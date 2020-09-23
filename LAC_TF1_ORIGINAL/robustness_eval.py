@@ -506,7 +506,7 @@ def dynamic(variant):
         if eval_params['plot_average']:
             t = range(max_len)
             ax.plot(t, average_path, color='red')
-            ax.fill_between(t, average_path-std_path, average_path+std_path, color='red', alpha=.1)
+            # ax.fill_between(t, average_path-std_path, average_path+std_path, color='red', alpha=.1)
             plt.show()
         else:
             for path in paths['s']:
@@ -853,4 +853,3 @@ if __name__ == '__main__':
         else:
             instant_impulse(VARIANT)
         tf.reset_default_graph()
-

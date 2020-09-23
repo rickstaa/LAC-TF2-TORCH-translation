@@ -159,21 +159,21 @@ class Ex3_EKF(gym.Env):
         #     dict(reference=y_1, state_of_interest=np.array([hat_y_1, hat_y_2])),
         # )
 
-        # return (
-        #     np.array([hat_x_1, hat_x_2]),
-        #     cost,
-        #     done,
-        #     dict(
-        #         reference=y_1,
-        #         state_of_interest=np.array([hat_x_1 - x_1, hat_x_2 - x_2]),
-        #     ),
-        # )
         return (
             np.array([hat_x_1, hat_x_2]),
             cost,
             done,
-            dict(reference=y_1, state_of_interest=hat_x_1 - x_1),
+            dict(
+                reference=y_1,
+                state_of_interest=np.array([hat_x_1 - x_1, hat_x_2 - x_2]),
+            ),
         )
+        # return (
+        #     np.array([hat_x_1, hat_x_2]),
+        #     cost,
+        #     done,
+        #     dict(reference=y_1, state_of_interest=hat_x_1 - x_1),
+        # )
 
     def reset(self):
         x_1 = np.random.uniform(-np.pi / 2, np.pi / 2)

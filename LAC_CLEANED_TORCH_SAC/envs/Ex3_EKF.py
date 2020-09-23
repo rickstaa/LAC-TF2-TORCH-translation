@@ -1,9 +1,8 @@
-import math
+import random
 import gym
-from gym import spaces, logger
+from gym import spaces
 from gym.utils import seeding
 import numpy as np
-import csv
 import matplotlib.pyplot as plt
 
 # This example is the RL based stationary Kalman filter
@@ -67,8 +66,18 @@ class Ex3_EKF(gym.Env):
         self.steps_beyond_done = None
 
     def seed(self, seed=None):
-        self.np_random, seed = seeding.np_random(seed)
-        return [seed]
+
+        # Set gym seed
+        self.np_random, gym_seed = seeding.np_random(seed)
+
+        # Set numpy seed
+        np.random.seed(seed)
+        random.seed(seed)
+        self.action_space.seed(seed)
+        self.observation_space.seed(seed)
+
+        # Return current seed
+        return [gym_seed]
 
     def step(self, action):
         u1, u2 = action
@@ -80,7 +89,12 @@ class Ex3_EKF(gym.Env):
         # hat_y_1 = np.sin(hat_x_1)
         #
         # hat_x_1 = hat_x_1 + self.dt * hat_x_2 + self.dt * u1*(y_1-hat_y_1)
-        # hat_x_2 = hat_x_2 - self.g*np.sin(hat_x_1)*self.dt + self.dt * u2*(y_1-hat_y_1) + input
+        # hat_x_2 = (
+        #     hat_x_2
+        #     - self.g * np.sin(hat_x_1) * self.dt
+        #     + self.dt * u2 * (y_1 - hat_y_1)
+        #     + input
+        # )
 
         # Master
 
@@ -113,12 +127,16 @@ class Ex3_EKF(gym.Env):
             hat_x_2 = hat_x_2 - self.g * np.sin(hat_x_1) * self.dt + input
 
         # hat_x_1 = hat_x_1 + self.dt * hat_x_2 + self.dt * u1 * (y_1 - hat_y_1)
-        # hat_x_2 = hat_x_2 - self.g * np.sin(hat_x_1) * self.dt + self.dt * u2 * (y_1 - hat_y_1) + input
-
-        cost_u = (
-            np.square(u1 * (y_1 - hat_y_1)) * self.dt
-            + np.square(u2 * (y_1 - hat_y_1)) * self.dt
-        )
+        # hat_x_2 = (
+        #     hat_x_2
+        #     - self.g * np.sin(hat_x_1) * self.dt
+        #     + self.dt * u2 * (y_1 - hat_y_1)
+        #     + input
+        # )
+        # cost_u = (
+        #     np.square(u1 * (y_1 - hat_y_1)) * self.dt
+        #     + np.square(u2 * (y_1 - hat_y_1)) * self.dt
+        # )
         # cost_y = np.abs(hat_y_1 - y_1) * self.dt
         # cost = cost_y
         cost = np.square(hat_x_1 - x_1) + np.square(hat_x_2 - x_2)
@@ -138,24 +156,24 @@ class Ex3_EKF(gym.Env):
         #     np.array([hat_x_1, hat_x_2, y_1, y_2]),
         #     cost,
         #     done,
-        #     dict(reference=[y_1, y_2], state_of_interest=np.array([hat_y_1, hat_y_2])),
+        #     dict(reference=y_1, state_of_interest=np.array([hat_y_1, hat_y_2])),
         # )
 
-        return (
-            np.array([hat_x_1, hat_x_2]),
-            cost,
-            done,
-            dict(
-                reference=y_1,
-                state_of_interest=np.array([hat_x_1 - x_1, hat_x_2 - x_2]),
-            ),
-        )
         # return (
         #     np.array([hat_x_1, hat_x_2]),
         #     cost,
         #     done,
-        #     dict(reference=y_1, state_of_interest=np.array([hat_x_1 - x_1])),
+        #     dict(
+        #         reference=y_1,
+        #         state_of_interest=np.array([hat_x_1 - x_1, hat_x_2 - x_2]),
+        #     ),
         # )
+        return (
+            np.array([hat_x_1, hat_x_2]),
+            cost,
+            done,
+            dict(reference=y_1, state_of_interest=hat_x_1 - x_1),
+        )
 
     def reset(self):
         x_1 = np.random.uniform(-np.pi / 2, np.pi / 2)
@@ -164,8 +182,8 @@ class Ex3_EKF(gym.Env):
         hat_x_2 = x_2 + np.random.uniform(-np.pi / 4, np.pi / 4)
         self.state = np.array([hat_x_1, hat_x_2, x_1, x_2])
         self.output = np.sin(x_1) + np.random.normal(self.mean2, np.sqrt(self.cov2))
-        y_1 = self.output
-        y_2 = np.sin(x_2) + np.random.normal(self.mean2, np.sqrt(self.cov2))
+        # y_1 = self.output
+        # y_2 = np.sin(x_2) + np.random.normal(self.mean2, np.sqrt(self.cov2))
         return np.array([hat_x_1, hat_x_2])
 
     def render(self, mode="human"):

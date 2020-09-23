@@ -11,21 +11,23 @@ alpha = 0.99
 alpha3 = 0.2
 actor = [64, 64]
 critic = [128, 128]
-episodes = int(1e5)
+# episodes = int(1e5) # Oscillator
+# episodes = int(4e6)  # EX_3
+episodes = int(1e5)  # EX_3
 approx_value = True
 use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
-    "eval_list": ["LAC20200921_1727"],
-    # 'env_name': 'Ex3_EKF',
-    "env_name": "oscillator",
+    "eval_list": ["LAC20200922_1459"],
+    "env_name": "Ex3_EKF",
+    # "env_name": "oscillator",
     "algorithm_name": "LAC",
     "additional_description": timestr,
     # 'evaluate': False,
     "train": True,
     # 'train': False,
-    "num_of_trials": 1,  # number of random seeds
+    "num_of_trials": 4,  # number of random seeds
     "num_of_evaluation_paths": 10,  # number of rollouts for evaluation
     "num_of_training_paths": 10,  # number of training rollouts stored for analysis
     "start_of_trial": 0,
@@ -141,7 +143,7 @@ EVAL_PARAMS = {
     },
     "dynamic": {
         "additional_description": "original",
-        "num_of_paths": 10,  # number of path for evaluation
+        "num_of_paths": 50,  # number of path for evaluation
         "plot_average": True,
         # "plot_average": False,
         "directly_show": True,

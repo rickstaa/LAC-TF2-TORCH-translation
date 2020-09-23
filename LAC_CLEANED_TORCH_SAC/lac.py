@@ -281,7 +281,6 @@ class LAC(object):
         Returns:
             tuple: Tuple with network output tensors.
         """
-        # TODO: Multiple neuralal ne
         # Return GA
         return SquashedGaussianMLPActor(
             obs_dim=self.s_dim,

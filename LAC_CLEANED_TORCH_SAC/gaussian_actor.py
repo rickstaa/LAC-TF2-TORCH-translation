@@ -96,11 +96,6 @@ class SquashedGaussianMLPActor(nn.Module):
         log_std = torch.clamp(log_std, self._log_std_min, self._log_std_max)
         std = torch.exp(log_std)
 
-        ###
-        # TODO: 
-        ###
-
-
         # Check summing axis
         sum_axis = 0 if obs.shape.__len__() == 1 else 1
 

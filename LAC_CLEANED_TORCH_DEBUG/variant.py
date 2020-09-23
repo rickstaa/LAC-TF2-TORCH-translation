@@ -40,11 +40,10 @@ TRAIN_PARAMS = {
 
 # Main evaluation parameters
 EVAL_PARAMS = {
-    "eval_list": ["LAC20200922_1608"],  # oscillator env
-    # "eval_list": ["LAC20200910_2211"],  # Ex3 env
+    "eval_list": ["LAC20200910_2211"],
     "additional_description": timestr,
     "trials_for_eval": [str(i) for i in range(0, 3)],
-    "num_of_paths": 50,  # number of path for evaluation
+    "num_of_paths": 20,  # number of path for evaluation
     "plot_average": True,
     "directly_show": True,
 }

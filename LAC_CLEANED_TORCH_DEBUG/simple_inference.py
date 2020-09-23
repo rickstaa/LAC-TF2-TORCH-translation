@@ -11,12 +11,12 @@ from lac import LAC
 from envs.oscillator import oscillator
 from envs.Ex3_EKF import Ex3_EKF
 
-ENV_NAME = "Ex3_EKF-v0"
-# ENV_NAME = "Oscillator-v0"
+# ENV_NAME = "Ex3_EKF-v0"
+ENV_NAME = "Oscillator-v0"
 # ENV_NAME = "Hopper-v2"
 # MAX_EP_LEN = 200
-MODEL_PATH = "/home/ricks/Development/tf_rewrite/Filter/log/Ex3_EKF/LAC20200922_1456/1/policy"  # Ex3 env
-# MODEL_PATH = "/home/ricks/Development/tf_rewrite/Filter/log/oscillator/LAC20200921_1752/0/policy"  # Oscillator env
+# MODEL_PATH = "/home/ricks/Development/tf_rewrite/Filter/log/Ex3_EKF/LAC20200921_1507/0/policy"  # Ex3 env
+MODEL_PATH = "/home/ricks/Development/tf_rewrite/Filter/log/oscillator/LAC20200921_1752/0/policy"  # Oscillator env
 EP = 1000
 
 
@@ -96,23 +96,20 @@ else:
     # Run inference
     T = 10
     path = []
-    path_2 = []
     t1 = []
     s = env.reset()
     for i in range(int(T / env.dt)):
         a = policy.choose_action(s, True)
         action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
-        s, r, done, info = env.step(action)
-        path_2.append(info["state_of_interest"])
+        s, r, info, done = env.step(action)
         path.append(s)
         t1.append(i * env.dt)
 
     fig = plt.figure(figsize=(9, 6))
     ax = fig.add_subplot(111)
 
-    ax.plot(t1, path_2, color="green", label="soi")
-    # ax.plot(t1, np.array(path)[:, 0], color="yellow", label="x1")
-    # ax.plot(t1, np.array(path)[:, 1], color="green", label="x
+    ax.plot(t1, np.array(path)[:, 0], color="yellow", label="x1")
+    ax.plot(t1, np.array(path)[:, 1], color="green", label="x2")
 
     handles, labels = ax.get_legend_handles_labels()
     #
