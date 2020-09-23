@@ -20,8 +20,8 @@ timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
     "eval_list": ["LAC20200922_1459"],
-    "env_name": "Ex3_EKF",
-    # "env_name": "oscillator",
+    # "env_name": "Ex3_EKF",
+    "env_name": "oscillator",
     "algorithm_name": "LAC",
     "additional_description": timestr,
     # 'evaluate': False,
@@ -147,6 +147,8 @@ EVAL_PARAMS = {
         "plot_average": True,
         # "plot_average": False,
         "directly_show": True,
+        "plot_obs": True,  # Whether you also want to plot the observations
+        "obs": [1],  # Which observations you want to plot (empty means all obs).
     },
 }
 VARIANT["env_params"] = ENV_PARAMS[VARIANT["env_name"]]

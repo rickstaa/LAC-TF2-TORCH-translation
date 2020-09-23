@@ -6,8 +6,8 @@ import os
 import time
 
 # Environment parameters
-# ENV_NAME = "oscillator"  # The gym environment you want to train in
-ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
+ENV_NAME = "oscillator"  # The gym environment you want to train in
+# ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
 ENV_SEED = None  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
 
@@ -47,6 +47,8 @@ EVAL_PARAMS = {
     "num_of_paths": 50,  # number of path for evaluation
     "plot_average": True,
     "directly_show": True,
+    "plot_obs": True,  # Whether you also want to plot the observations
+    "obs": [1],  # Which observations you want to plot (empty means all obs).
 }
 
 # Learning algorithm parameters

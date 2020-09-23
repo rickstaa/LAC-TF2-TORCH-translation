@@ -41,11 +41,12 @@ if __name__ == "__main__":
         help="The name of the env you want to evaluate.",
     )
     parser.add_argument(
-        "--plot-s",
+        "--plot-o",
         type=bool,
         default=True,
         help="Whether you also want to plot the observations.",
     )
+    # TODO: Add option to state which observations
     args = parser.parse_args()
 
     # Create model path
@@ -78,7 +79,7 @@ if __name__ == "__main__":
         else:
             print(
                 "Shutting down robustness eval since it is not yet implemented to "
-                f"work with the `{args.env_name}`` environment"
+                f"work with the `{args.env_name}` environment"
             )
             sys.exit(0)
 
@@ -307,7 +308,7 @@ if __name__ == "__main__":
         print("\nPlotting mean path and standard deviation.")
         # TODO: Add state and multiple references possibility
         for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
-            fig = plt.figure(figsize=(9, 6), num="LAC_TF1_ORIGINAL_1")
+            fig = plt.figure(figsize=(9, 6), num=f"LAC_TF1_ORIGINAL_{i+1}")
             ax = fig.add_subplot(111)
             t = range(max(eval_paths["episode_length"]))
             if i <= (len(soi_mean_path) - 1):
@@ -342,8 +343,8 @@ if __name__ == "__main__":
             ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
 
         # Also plot mean and std of the observations
-        if args.plot_s:
-            fig = plt.figure(figsize=(9, 6), num="LAC_TF1_ORIGINAL_2")
+        if args.plot_o:
+            fig = plt.figure(figsize=(9, 6), num=f"LAC_TF1_ORIGINAL_{i+2}")
             colors = "bgrcmk"
             cycol = cycle(colors)
             obs_trimmed = [
@@ -373,19 +374,20 @@ if __name__ == "__main__":
                 print(
                     f"Your observation array is to long only the first {len(colors)} "
                     "states will be ploted"
-                )
+                )  # TODO: FIX MESSAGE
             # Plot state paths
             for i in range(0, obs_mean_path.shape[0]):
-                color = next(cycol)
-                ax2.plot(t, obs_mean_path[i], color=color, label=("s_" + str(i)))
-                ax2.fill_between(
-                    t,
-                    obs_mean_path[i] - obs_std_path[i],
-                    obs_mean_path[i] + obs_std_path[i],
-                    color=color,
-                    alpha=0.3,
-                    label=("s_" + str(i)),
-                )
+                if (i + 1) in EVAL_PARAMS["obs"]:
+                    color = next(cycol)
+                    ax2.plot(t, obs_mean_path[i], color=color, label=("s_" + str(i)))
+                    ax2.fill_between(
+                        t,
+                        obs_mean_path[i] - obs_std_path[i],
+                        obs_mean_path[i] + obs_std_path[i],
+                        color=color,
+                        alpha=0.3,
+                        label=("s_" + str(i + 1)),
+                    )
             ax2.set_title("Observations")
             handles2, labels2 = ax2.get_legend_handles_labels()
             ax2.legend(handles2, labels2, loc=2, fancybox=False, shadow=False)
