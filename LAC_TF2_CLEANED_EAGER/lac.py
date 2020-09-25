@@ -10,6 +10,7 @@ import random
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from tensorflow.keras.initializers import GlorotUniform
 
 from gaussian_actor import SquashedGaussianActor
 from lyapunov_critic import LyapunovCritic
@@ -54,6 +55,9 @@ print("Tensorflow eager mode enabled: " + str(tf.executing_eagerly()))
 # Disable GPU if requested
 if not USE_GPU:
     tf.config.set_visible_devices([], "GPU")
+    print("Tensorflow is using CPU")
+else:
+    print("Tensorflow is using GPU")
 
 # Disable tf.function graph execution if debug
 if DEBUG_PARAMS["debug"] and not (
@@ -146,10 +150,10 @@ class LAC(tf.Module):
         self.lc_ = self._build_l(seed=self.lc_target_seed)
         self.target_init()
 
-        # Create summary writer
-        if DEBUG_PARAMS["use_tb"]:
-            self.step = 0
-            self.tb_writer = tf.summary.create_file_writer(log_dir)
+        # # Create summary writer
+        # if DEBUG_PARAMS["use_tb"]:
+        #     self.step = 0
+        #     self.tb_writer = tf.summary.create_file_writer(log_dir)
 
         ###########################################
         # Create optimizers #######################
@@ -163,32 +167,32 @@ class LAC(tf.Module):
         # Create model save dict
         self._save_dict = {"gaussian_actor": self.ga, "lyapunov_critic": self.lc}
 
-        ###########################################
-        # Trace networks (DEBUGGING) ##############
-        ###########################################
-        if DEBUG_PARAMS["use_tb"]:
-            if DEBUG_PARAMS["debug"]:
-                if DEBUG_PARAMS["trace_net"]:
+        # ###########################################
+        # # Trace networks (DEBUGGING) ##############
+        # ###########################################
+        # if DEBUG_PARAMS["use_tb"]:
+        #     if DEBUG_PARAMS["debug"]:
+        #         if DEBUG_PARAMS["trace_net"]:
 
-                    # Create trace function
-                    @tf.function
-                    def actor_critic_trace(obs):
-                        a, _, _ = self.ga(obs)
-                        l = self.lc_([obs, a])
-                        return l
+        #             # Create trace function
+        #             @tf.function
+        #             def actor_critic_trace(obs):
+        #                 a, _, _ = self.ga(obs)
+        #                 l = self.lc_([obs, a])
+        #                 return l
 
-                    # Create dummy input
-                    obs = tf.random.uniform((ALG_PARAMS["batch_size"], self.s_dim))
+        #             # Create dummy input
+        #             obs = tf.random.uniform((ALG_PARAMS["batch_size"], self.s_dim))
 
-                    # Trace networks and log to tensorboard (used for debugging)
-                    tf.summary.trace_on(graph=True, profiler=True)
-                    l = actor_critic_trace(obs)
+        #             # Trace networks and log to tensorboard (used for debugging)
+        #             tf.summary.trace_on(graph=True, profiler=True)
+        #             l = actor_critic_trace(obs)
 
-                    # Write trace to tensorboard
-                    with self.tb_writer.as_default():
-                        tf.summary.trace_export(
-                            name="actor_critic_trace", step=0, profiler_outdir=log_dir
-                        )
+        #             # Write trace to tensorboard
+        #             with self.tb_writer.as_default():
+        #                 tf.summary.trace_export(
+        #                     name="actor_critic_trace", step=0, profiler_outdir=log_dir
+        #                 )
 
     @tf.function
     def choose_action(self, s, evaluation=False):
@@ -473,47 +477,47 @@ def train(log_dir):
     last_training_paths = deque(maxlen=TRAIN_PARAMS["num_of_training_paths"])
     training_started = False
 
-    # Log initial values to tensorboard
-    if DEBUG_PARAMS["use_tb"]:
+    # # Log initial values to tensorboard
+    # if DEBUG_PARAMS["use_tb"]:
 
-        # Trace learn method (Used for debugging)
-        if DEBUG_PARAMS["debug"]:
-            if DEBUG_PARAMS["trace_net"]:
+    #     # Trace learn method (Used for debugging)
+    #     if DEBUG_PARAMS["debug"]:
+    #         if DEBUG_PARAMS["trace_net"]:
 
-                # Create dummy input
-                batch = {
-                    "s": tf.random.uniform((ALG_PARAMS["batch_size"], policy.s_dim)),
-                    "a": tf.random.uniform((ALG_PARAMS["batch_size"], policy.a_dim)),
-                    "r": tf.random.uniform((ALG_PARAMS["batch_size"], 1)),
-                    "terminal": tf.zeros((ALG_PARAMS["batch_size"], 1)),
-                    "s_": tf.random.uniform((ALG_PARAMS["batch_size"], policy.s_dim)),
-                }
+    #             # Create dummy input
+    #             batch = {
+    #                 "s": tf.random.uniform((ALG_PARAMS["batch_size"], policy.s_dim)),
+    #                 "a": tf.random.uniform((ALG_PARAMS["batch_size"], policy.a_dim)),
+    #                 "r": tf.random.uniform((ALG_PARAMS["batch_size"], 1)),
+    #                 "terminal": tf.zeros((ALG_PARAMS["batch_size"], 1)),
+    #                 "s_": tf.random.uniform((ALG_PARAMS["batch_size"], policy.s_dim)),
+    #             }
 
-                # Trace learn method and log to tensorboard
-                tf.summary.trace_on(graph=True, profiler=True)
-                policy.learn(lr_a_now, lr_l_now, lr_a, batch)
-                with policy.tb_writer.as_default():
-                    tf.summary.trace_export(
-                        name="learn", step=0, profiler_outdir=log_dir
-                    )
+    #             # Trace learn method and log to tensorboard
+    #             tf.summary.trace_on(graph=True, profiler=True)
+    #             policy.learn(lr_a_now, lr_l_now, lr_a, batch)
+    #             with policy.tb_writer.as_default():
+    #                 tf.summary.trace_export(
+    #                     name="learn", step=0, profiler_outdir=log_dir
+    #                 )
 
-            # Shut down as we are in debug mode
-            if DEBUG_PARAMS["trace_net"] or DEBUG_PARAMS["trace_learn"]:
-                print(
-                    "Shutting down training as a trace was requested in debug mode. "
-                    "This was done since during the trace a backward pass was performed "
-                    "on dummy data. Please disable the trace to continue training "
-                    "while being in debug mode."
-                )
-                sys.exit(0)
+    #         # Shut down as we are in debug mode
+    #         if DEBUG_PARAMS["trace_net"] or DEBUG_PARAMS["trace_learn"]:
+    #             print(
+    #                 "Shutting down training as a trace was requested in debug mode. "
+    #                 "This was done since during the trace a backward pass was performed "
+    #                 "on dummy data. Please disable the trace to continue training "
+    #                 "while being in debug mode."
+    #             )
+    #             sys.exit(0)
 
-        # Log initial values
-        with policy.tb_writer.as_default():
-            tf.summary.scalar("lr_a", lr_a_now, step=0)
-            tf.summary.scalar("lr_l", lr_l_now, step=0)
-            tf.summary.scalar("lr_lag", lr_a, step=0)
-            tf.summary.scalar("alpha", policy.alpha, step=0)
-            tf.summary.scalar("lambda", policy.labda, step=0)
+    #     # Log initial values
+    #     with policy.tb_writer.as_default():
+    #         tf.summary.scalar("lr_a", lr_a_now, step=0)
+    #         tf.summary.scalar("lr_l", lr_l_now, step=0)
+    #         tf.summary.scalar("lr_lag", lr_a, step=0)
+    #         tf.summary.scalar("alpha", policy.alpha, step=0)
+    #         tf.summary.scalar("lambda", policy.labda, step=0)
 
     # Setup logger and log hyperparameters
     logger.configure(dir=log_dir, format_strs=["csv"])
@@ -566,11 +570,11 @@ def train(log_dir):
                 done = True
             terminal = 1.0 if done else 0.0
 
-            # Increment tensorboard step counter
-            # NOTE: This was done differently from the global_step counter since
-            # otherwise there were inconsistencies in the tb log.
-            if DEBUG_PARAMS["use_tb"]:
-                policy.step += 1
+            # # Increment tensorboard step counter
+            # # NOTE: This was done differently from the global_step counter since
+            # # otherwise there were inconsistencies in the tb log.
+            # if DEBUG_PARAMS["use_tb"]:
+            #     policy.step += 1
 
             # Store experience in replay buffer
             pool.store(s, a, r, terminal, s_)
@@ -647,182 +651,182 @@ def train(log_dir):
                 if training_started:
                     last_training_paths.appendleft(current_path)
 
-                    # Get current model performance for tb
-                    if DEBUG_PARAMS["use_tb"]:
-                        training_diagnostics = evaluate_training_rollouts(
-                            last_training_paths
-                        )
+                    # # Get current model performance for tb
+                    # if DEBUG_PARAMS["use_tb"]:
+                    #     training_diagnostics = evaluate_training_rollouts(
+                    #         last_training_paths
+                    #     )
 
-                # Log tb variables
-                if DEBUG_PARAMS["use_tb"]:
-                    if i % DEBUG_PARAMS["tb_freq"] == 0:
+                # # Log tb variables
+                # if DEBUG_PARAMS["use_tb"]:
+                #     if i % DEBUG_PARAMS["tb_freq"] == 0:
 
-                        # Log learning rate to tb
-                        with policy.tb_writer.as_default():
-                            tf.summary.scalar("lr_a", lr_a_now, step=policy.step)
-                            tf.summary.scalar("lr_l", lr_l_now, step=policy.step)
-                            tf.summary.scalar("lr_lag", lr_a, step=policy.step)
-                            tf.summary.scalar("alpha", policy.alpha, step=policy.step)
-                            tf.summary.scalar("lambda", policy.labda, step=policy.step)
+                #         # Log learning rate to tb
+                #         with policy.tb_writer.as_default():
+                #             tf.summary.scalar("lr_a", lr_a_now, step=policy.step)
+                #             tf.summary.scalar("lr_l", lr_l_now, step=policy.step)
+                #             tf.summary.scalar("lr_lag", lr_a, step=policy.step)
+                #             tf.summary.scalar("alpha", policy.alpha, step=policy.step)
+                #             tf.summary.scalar("lambda", policy.labda, step=policy.step)
 
-                        # Update and log other training vars to tensorboard
-                        if training_started:
-                            with policy.tb_writer.as_default():
-                                tf.summary.scalar(
-                                    "ep_ret",
-                                    training_diagnostics["return"],
-                                    step=policy.step,
-                                )
-                                tf.summary.scalar(
-                                    "ep_length",
-                                    training_diagnostics["length"],
-                                    step=policy.step,
-                                )
-                                tf.summary.scalar(
-                                    "a_loss",
-                                    training_diagnostics["a_loss"],
-                                    step=policy.step,
-                                )
-                                tf.summary.scalar(
-                                    "lyapunov_error",
-                                    training_diagnostics["lyapunov_error"],
-                                    step=policy.step,
-                                )
-                                tf.summary.scalar(
-                                    "entropy",
-                                    training_diagnostics["entropy"],
-                                    step=policy.step,
-                                )
+                #         # Update and log other training vars to tensorboard
+                #         if training_started:
+                #             with policy.tb_writer.as_default():
+                #                 tf.summary.scalar(
+                #                     "ep_ret",
+                #                     training_diagnostics["return"],
+                #                     step=policy.step,
+                #                 )
+                #                 tf.summary.scalar(
+                #                     "ep_length",
+                #                     training_diagnostics["length"],
+                #                     step=policy.step,
+                #                 )
+                #                 tf.summary.scalar(
+                #                     "a_loss",
+                #                     training_diagnostics["a_loss"],
+                #                     step=policy.step,
+                #                 )
+                #                 tf.summary.scalar(
+                #                     "lyapunov_error",
+                #                     training_diagnostics["lyapunov_error"],
+                #                     step=policy.step,
+                #                 )
+                #                 tf.summary.scalar(
+                #                     "entropy",
+                #                     training_diagnostics["entropy"],
+                #                     step=policy.step,
+                #                 )
 
-                            # Log network weights
-                            if DEBUG_PARAMS["write_w_b"]:
-                                with policy.tb_writer.as_default():
+                #             # Log network weights
+                #             if DEBUG_PARAMS["write_w_b"]:
+                #                 with policy.tb_writer.as_default():
 
-                                    # GaussianActor weights/biases
-                                    tf.summary.histogram(
-                                        "Ga/l1/weights",
-                                        policy.ga.net_0.weights[0],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga/l1/bias",
-                                        policy.ga.net_0.weights[1],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga/l2/weights",
-                                        policy.ga.net_1.weights[0],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga/l2/bias",
-                                        policy.ga.net_1.weights[1],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga/mu/weights",
-                                        policy.ga.mu.weights[0],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga/mu/bias",
-                                        policy.ga.mu.weights[1],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga/log_sigma/weights",
-                                        policy.ga.log_sigma.weights[0],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga/log_sigma/bias",
-                                        policy.ga.log_sigma.weights[1],
-                                        step=policy.step,
-                                    )
+                #                     # GaussianActor weights/biases
+                #                     tf.summary.histogram(
+                #                         "Ga/l1/weights",
+                #                         policy.ga.net_0.weights[0],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga/l1/bias",
+                #                         policy.ga.net_0.weights[1],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga/l2/weights",
+                #                         policy.ga.net_1.weights[0],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga/l2/bias",
+                #                         policy.ga.net_1.weights[1],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga/mu/weights",
+                #                         policy.ga.mu.weights[0],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga/mu/bias",
+                #                         policy.ga.mu.weights[1],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga/log_sigma/weights",
+                #                         policy.ga.log_sigma.weights[0],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga/log_sigma/bias",
+                #                         policy.ga.log_sigma.weights[1],
+                #                         step=policy.step,
+                #                     )
 
-                                    # Target GaussianActor weights/biases
-                                    tf.summary.histogram(
-                                        "Ga_/l1/weights",
-                                        policy.ga_.net_0.weights[0],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga_/l1/bias",
-                                        policy.ga_.net_0.weights[1],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga_/l2/weights",
-                                        policy.ga_.net_1.weights[0],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga_/l2/bias",
-                                        policy.ga_.net_1.weights[1],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga_/mu/weights",
-                                        policy.ga_.mu.weights[0],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga_/mu/bias",
-                                        policy.ga_.mu.weights[1],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga_/log_sigma/weights",
-                                        policy.ga_.log_sigma.weights[0],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Ga_/log_sigma/bias",
-                                        policy.ga_.log_sigma.weights[1],
-                                        step=policy.step,
-                                    )
+                #                     # Target GaussianActor weights/biases
+                #                     tf.summary.histogram(
+                #                         "Ga_/l1/weights",
+                #                         policy.ga_.net_0.weights[0],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga_/l1/bias",
+                #                         policy.ga_.net_0.weights[1],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga_/l2/weights",
+                #                         policy.ga_.net_1.weights[0],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga_/l2/bias",
+                #                         policy.ga_.net_1.weights[1],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga_/mu/weights",
+                #                         policy.ga_.mu.weights[0],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga_/mu/bias",
+                #                         policy.ga_.mu.weights[1],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga_/log_sigma/weights",
+                #                         policy.ga_.log_sigma.weights[0],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Ga_/log_sigma/bias",
+                #                         policy.ga_.log_sigma.weights[1],
+                #                         step=policy.step,
+                #                     )
 
-                                    # Lyapunov critic weights/biases
-                                    tf.summary.histogram(
-                                        "Lc/w1_s", policy.lc.w1_s, step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Lc/w1_a", policy.lc.w1_a, step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Lc/b1", policy.lc.b1, step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Lc/net/l2/weights",
-                                        policy.lc.net.layers[0].weights[0],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Lc/net/l2/bias",
-                                        policy.lc.net.layers[0].weights[1],
-                                        step=policy.step,
-                                    )
+                #                     # Lyapunov critic weights/biases
+                #                     tf.summary.histogram(
+                #                         "Lc/w1_s", policy.lc.w1_s, step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Lc/w1_a", policy.lc.w1_a, step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Lc/b1", policy.lc.b1, step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Lc/net/l2/weights",
+                #                         policy.lc.net.layers[0].weights[0],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Lc/net/l2/bias",
+                #                         policy.lc.net.layers[0].weights[1],
+                #                         step=policy.step,
+                #                     )
 
-                                    # Target Lyapunov critic weights/biases
-                                    tf.summary.histogram(
-                                        "Lc_/w1_s", policy.lc_.w1_s, step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Lc_/w1_a", policy.lc_.w1_a, step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Lc_/b1", policy.lc_.b1, step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Lc_/net/l2/weights",
-                                        policy.lc_.net.layers[0].weights[0],
-                                        step=policy.step,
-                                    )
-                                    tf.summary.histogram(
-                                        "Lc_/net/l2/bias",
-                                        policy.lc_.net.layers[0].weights[1],
-                                        step=policy.step,
-                                    )
+                #                     # Target Lyapunov critic weights/biases
+                #                     tf.summary.histogram(
+                #                         "Lc_/w1_s", policy.lc_.w1_s, step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Lc_/w1_a", policy.lc_.w1_a, step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Lc_/b1", policy.lc_.b1, step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Lc_/net/l2/weights",
+                #                         policy.lc_.net.layers[0].weights[0],
+                #                         step=policy.step,
+                #                     )
+                #                     tf.summary.histogram(
+                #                         "Lc_/net/l2/bias",
+                #                         policy.lc_.net.layers[0].weights[1],
+                #                         step=policy.step,
+                #                     )
 
                 # Decay learning rates
                 frac = 1.0 - (global_step - 1.0) / ENV_PARAMS["max_global_steps"]
@@ -831,6 +835,8 @@ def train(log_dir):
                 break
 
     # Save model and print Running time
+    print("Running time: ", time.time() - t1)
+    print("Saving Model")
     policy.save_result(log_dir)
     print("Running time: ", time.time() - t1)
     return

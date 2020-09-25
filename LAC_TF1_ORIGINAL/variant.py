@@ -4,16 +4,19 @@ import numpy as np
 import ENV.env
 import time
 
+USE_GPU = True
+
 ENV_SEED = 0
-SEED = 0
-alpha = 1.0
+RANDOM_SEED = 0
+# alpha = 1.0
 alpha = 0.99
 alpha3 = 0.2
 actor = [64, 64]
 critic = [128, 128]
 # episodes = int(1e5) # Oscillator
 # episodes = int(4e6)  # EX_3
-episodes = int(1e5)  # EX_3
+episodes = int(1e4)  # DEBUG
+# episodes = int(1e5)  # EX_3
 approx_value = True
 use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")

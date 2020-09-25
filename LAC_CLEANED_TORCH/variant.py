@@ -8,7 +8,7 @@ import time
 # Environment parameters
 ENV_NAME = "oscillator"  # The gym environment you want to train in
 # ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
-ENV_SEED = None  # The environment seed
+ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
 
 # Setup log path and time string
@@ -28,6 +28,9 @@ DEBUG_PARAMS = {
 
 # Main training loop parameters
 TRAIN_PARAMS = {
+    "episodes": int(
+        1e4
+    ),  # DEBUG The number of episodes you want to perform # Oscillator
     "episodes": int(1e5),  # The number of episodes you want to perform # Oscillator
     # "episodes": int(6e4),  # The number of episodes you want to perform # Ex4 env
     # "episodes": int(2e4),  # The number of episodes you want to perform

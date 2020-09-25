@@ -9,6 +9,9 @@ import random
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from tensorflow.python import debug as tf_debug
+
+from tensorflow.python.keras.initializers import GlorotUniform
 
 from squash_bijector import SquashBijector
 from utils import evaluate_training_rollouts, get_env_from_name, training_evaluation
@@ -33,10 +36,10 @@ from variant import (
 if RANDOM_SEED is not None:
     os.environ["PYTHONHASHSEED"] = str(RANDOM_SEED)
     os.environ["TF_CUDNN_DETERMINISTIC"] = "1"  # new flag present in tf 2.0+
-    np.random.seed(RANDOM_SEED)
-    tf.reset_default_graph()
-    tf.random.set_random_seed(RANDOM_SEED)
     random.seed(RANDOM_SEED)
+    np.random.seed(RANDOM_SEED)
+    tf.random.set_random_seed(RANDOM_SEED)
+    TFP_SEED_STREAM = tfp.python.distributions.SeedStream(RANDOM_SEED, salt="tfp_1")
 
 
 ###############################################
@@ -61,6 +64,23 @@ class LAC(object):
 
         # Set algorithm parameters as class objects
         self.network_structure = ALG_PARAMS["network_structure"]
+        self.polyak = 1 - ALG_PARAMS["tau"]
+
+        # Create network seeds
+        self.ga_seeds = [
+            RANDOM_SEED,
+            TFP_SEED_STREAM(),
+        ]  # [weight init seed, sample seed]
+        self.ga_target_seeds = [
+            RANDOM_SEED + 1,
+            TFP_SEED_STREAM(),
+        ]  # [weight init seed, sample seed]
+        # self.lya_ga_target_seeds = [
+        #     RANDOM_SEED,
+        #     TFP_SEED_STREAM(),
+        # ]  # [weight init seed, sample seed]
+        self.lc_seed = RANDOM_SEED + 2  # Weight init seed
+        self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
 
         # Determine target entropy
         if ALG_PARAMS["target_entropy"] is None:
@@ -102,8 +122,10 @@ class LAC(object):
             ###########################################
 
             # Create Gaussian Actor (GA) and Lyapunov critic (LC) Networks
-            self.a, self.deterministic_a, self.a_dist = self._build_a(self.S)
-            self.l = self._build_l(self.S, self.a_input)
+            self.a, self.deterministic_a, self.a_dist = self._build_a(
+                self.S, seeds=self.ga_seeds
+            )
+            self.l = self._build_l(self.S, self.a_input, seed=self.lc_seed)
             self.log_pis = log_pis = self.a_dist.log_prob(
                 self.a
             )  # Gaussian actor action log_probability
@@ -117,7 +139,7 @@ class LAC(object):
             )
 
             # Create EMA target network update policy (Soft replacement)
-            ema = tf.train.ExponentialMovingAverage(decay=(1 - ALG_PARAMS["tau"]))
+            ema = tf.train.ExponentialMovingAverage(decay=self.polyak)
 
             def ema_getter(getter, name, *args, **kwargs):
                 return ema.average(getter(name, *args, **kwargs))
@@ -131,17 +153,26 @@ class LAC(object):
             # Don't get optimized but get updated according to the EMA of the main
             # networks
             a_, _, a_dist_ = self._build_a(
-                self.S_, reuse=True, custom_getter=ema_getter
+                self.S_,
+                reuse=True,
+                custom_getter=ema_getter,
+                seeds=self.ga_target_seeds,
             )
-            l_ = self._build_l(self.S_, a_, reuse=True, custom_getter=ema_getter)
+            l_ = self._build_l(
+                self.S_,
+                a_,
+                reuse=True,
+                custom_getter=ema_getter,
+                seed=self.lc_target_seed,
+            )
 
             # Create Networks for the (fixed) lyapunov temperature boundary
-            # DEBUG: This Network has the same parameters as the original gaussian actor but
-            # now it receives the next state. This was needed as the target network
+            # DEBUG: This Network has the same parameters as the original gaussian actor
+            # but now it receives the next state. This was needed as the target network
             # uses exponential moving average.
             # NOTE: Used as a minimum lambda constraint boundary
-            lya_a_, _, _ = self._build_a(self.S_, reuse=True)
-            self.l_ = self._build_l(self.S_, lya_a_, reuse=True)
+            lya_a_, _, _ = self._build_a(self.S_, reuse=True, seeds=self.ga_seeds)
+            self.l_ = self._build_l(self.S_, lya_a_, reuse=True, seed=self.lc_seed)
 
             ###########################################
             # Create Loss functions and optimizers ####
@@ -199,6 +230,7 @@ class LAC(object):
                 self.entropy,
                 self.a_loss,
                 l_target,
+                alpha_loss,
                 labda_loss,
                 self.l_delta,
                 log_labda,
@@ -276,6 +308,7 @@ class LAC(object):
             entropy,
             a_loss,
             l_target,
+            alpha_loss,
             labda_loss,
             l_delta,
             log_labda,
@@ -287,7 +320,14 @@ class LAC(object):
         # Return optimization results
         return labda, alpha, l_error, entropy, a_loss
 
-    def _build_a(self, s, name="gaussian_actor", reuse=None, custom_getter=None):
+    def _build_a(
+        self,
+        s,
+        name="gaussian_actor",
+        reuse=None,
+        custom_getter=None,
+        seeds=[None, None],
+    ):
         """Setup SquashedGaussianActor Graph.
 
         Args:
@@ -301,15 +341,21 @@ class LAC(object):
             custom_getter (object, optional): Overloads variable creation process.
                 Defaults to None.
 
+            seeds (list, optional): The random seeds used for the weight initialization
+                and the sampling ([weights_seed, sampling_seed]). Defaults to
+                [None, None]
         Returns:
             tuple: Tuple with network output tensors.
         """
 
-        # Set trainability
+        # Settf.compat.v1.disable_eager_execution() trainability
         trainable = True if reuse is None else False
 
         # Create graph
         with tf.variable_scope(name, reuse=reuse, custom_getter=custom_getter):
+
+            # Create weight initializer
+            initializer = GlorotUniform(seed=seeds[0])
 
             # Retrieve hidden layer sizes
             n1 = self.network_structure["actor"][0]
@@ -317,13 +363,28 @@ class LAC(object):
 
             # Create actor hidden/ output layers
             net_0 = tf.layers.dense(
-                s, n1, activation=tf.nn.relu, name="l1", trainable=trainable
+                s,
+                n1,
+                activation=tf.nn.relu,
+                name="l1",
+                trainable=trainable,
+                kernel_initializer=initializer,
             )  # 原始是30
             net_1 = tf.layers.dense(
-                net_0, n2, activation=tf.nn.relu, name="l2", trainable=trainable
+                net_0,
+                n2,
+                activation=tf.nn.relu,
+                name="l2",
+                trainable=trainable,
+                kernel_initializer=initializer,
             )  # 原始是30
             mu = tf.layers.dense(
-                net_1, self.a_dim, activation=None, name="mu", trainable=trainable
+                net_1,
+                self.a_dim,
+                activation=None,
+                name="mu",
+                trainable=trainable,
+                kernel_initializer=initializer,
             )
             log_sigma = tf.layers.dense(
                 net_1,
@@ -331,6 +392,7 @@ class LAC(object):
                 activation=None,
                 name="log_sigma",
                 trainable=trainable,
+                kernel_initializer=initializer,
             )
             log_sigma = tf.clip_by_value(log_sigma, *LOG_SIGMA_MIN_MAX)
 
@@ -346,7 +408,8 @@ class LAC(object):
             base_distribution = tfp.distributions.MultivariateNormalDiag(
                 loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
             )
-            epsilon = base_distribution.sample(batch_size)
+            # tf.compat.v1.random.set_random_seed(10)
+            epsilon = base_distribution.sample(batch_size, seed=seeds[1])
             raw_action = affine_bijector.forward(epsilon)
             clipped_a = squash_bijector.forward(raw_action)
 
@@ -362,7 +425,9 @@ class LAC(object):
 
         return clipped_a, clipped_mu, distribution
 
-    def _build_l(self, s, a, name="lyapunov_critic", reuse=None, custom_getter=None):
+    def _build_l(
+        self, s, a, name="lyapunov_critic", reuse=None, custom_getter=None, seed=None
+    ):
         """Setup lyapunov critic graph.
 
         Args:
@@ -376,6 +441,8 @@ class LAC(object):
             custom_getter (object, optional): Overloads variable creation process.
                 Defaults to None.
 
+            seed (int, optional): The seed used for the weight initialization. Defaults
+                to None.
         Returns:
             tuple: Tuple with network output tensors.
         """
@@ -389,11 +456,20 @@ class LAC(object):
             # Retrieve hidden layer size
             n1 = self.network_structure["critic"][0]
 
+            # Create weight initializer
+            initializer = GlorotUniform(seed=seed)
+
             # Create actor hidden/ output layers
             layers = []
-            w1_s = tf.get_variable("w1_s", [self.s_dim, n1], trainable=trainable)
-            w1_a = tf.get_variable("w1_a", [self.a_dim, n1], trainable=trainable)
-            b1 = tf.get_variable("b1", [1, n1], trainable=trainable)
+            w1_s = tf.get_variable(
+                "w1_s", [self.s_dim, n1], trainable=trainable, initializer=initializer
+            )
+            w1_a = tf.get_variable(
+                "w1_a", [self.a_dim, n1], trainable=trainable, initializer=initializer
+            )
+            b1 = tf.get_variable(
+                "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer
+            )
             net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
             layers.append(net_0)
             for i in range(1, len(self.network_structure["critic"])):
@@ -405,6 +481,7 @@ class LAC(object):
                         activation=tf.nn.relu,
                         name="l" + str(i + 1),
                         trainable=trainable,
+                        kernel_initializer=initializer,
                     )
                 )
 
@@ -430,7 +507,7 @@ class LAC(object):
             path (str): The path where you want to save the policy.
 
         Returns:
-            bool: Boolean specifying whether the policy was loaded succesfully.
+            bool: Boolean specifying whether the policy was loaded successfully.
         """
         model_file = tf.train.latest_checkpoint(path + "/")
         if model_file is None:
@@ -520,10 +597,11 @@ def train(log_dir):
 
             # Retrieve (scaled) action based on the current policy
             a = policy.choose_action(s)
+            # a = np.squeeze(np.random.uniform(low=-1.0, high=1.0, size=(1, 2)))  # DEBUG
             action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
 
             # Perform action in env
-            s_, r, done, _ = env.step(action)
+            s_, r, done, info = env.step(action)
 
             # Increment global step count
             if training_started:
@@ -604,14 +682,20 @@ def train(log_dir):
 
             # Decay learning rate
             if done:
+
+                # Store paths
                 if training_started:
                     last_training_paths.appendleft(current_path)
+
+                # Decay learning rates
                 frac = 1.0 - (global_step - 1.0) / ENV_PARAMS["max_global_steps"]
                 lr_a_now = lr_a * frac  # learning rate for actor, lambda, alpha
                 lr_l_now = lr_l * frac  # learning rate for lyapunov critic
                 break
 
     # Save model and print Running time
+    print("Running time: ", time.time() - t1)
+    print("Saving Model")
     policy.save_result(log_dir)
     print("Running time: ", time.time() - t1)
     return

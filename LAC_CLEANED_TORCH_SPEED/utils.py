@@ -2,6 +2,8 @@ from collections import OrderedDict
 
 import numpy as np
 import copy
+import torch
+import torch.nn as nn
 
 from variant import (
     TRAIN_PARAMS,
@@ -44,18 +46,30 @@ def evaluate_training_rollouts(paths):
     if len(data) < 1:
         return None
     try:
+        # diagnostics = OrderedDict(
+        #     (
+        #         ("return", np.mean([np.sum(path["rewards"]) for path in data])),
+        #         ("length", np.mean([len(p["rewards"]) for p in data])),
+        #     ) # DEBUG
         diagnostics = OrderedDict(
             (
-                ("return", np.mean([np.sum(path["rewards"]) for path in data])),
-                ("length", np.mean([len(p["rewards"]) for p in data])),
+                (
+                    "return",
+                    torch.mean(
+                        torch.Tensor([torch.sum(path["rewards"]) for path in data])
+                    ),
+                ),
+                ("length", torch.mean(torch.Tensor([len(p["rewards"]) for p in data]))),
             )
         )
     except KeyError:
         return
     [path.pop("rewards") for path in data]
     for key in data[0].keys():
-        result = [np.mean(path[key]) for path in data]
-        diagnostics.update({key: np.mean(result)})
+        # result = [np.mean(path[key]) for path in data]  # DEBUG
+        result = torch.Tensor([torch.mean(path[key]) for path in data])
+        # diagnostics.update({key: np.mean(result)}) # DEBUG
+        diagnostics.update({key: torch.mean(result)})
 
     return diagnostics
 
@@ -76,10 +90,14 @@ def training_evaluation(env, policy):
     a_lowerbound = env.action_space.low
 
     # Training setting
-    total_cost = []
-    episode_length = []
+    # total_cost = []
+    # episode_length = []
+    # die_count = 0
+    # seed_average_cost = [] #DEBUG
+    total_cost = torch.tensor([], dtype=torch.float32)
+    episode_length = torch.tensor([], dtype=torch.float32)
     die_count = 0
-    seed_average_cost = []
+    seed_average_cost = torch.tensor([], dtype=torch.float32)
 
     # Perform roolouts to evaluate performance
     for i in range(TRAIN_PARAMS["num_of_evaluation_paths"]):
@@ -96,16 +114,21 @@ def training_evaluation(env, policy):
                 done = True
             s = s_
             if done:
-                seed_average_cost.append(cost)
-                episode_length.append(j)
+                # seed_average_cost.append(cost)
+                # episode_length.append(j) # DEBUG
+                seed_average_cost = torch.cat((seed_average_cost, torch.tensor([cost])))
+                episode_length = torch.cat((episode_length, torch.tensor([j])))
                 if j < ENV_PARAMS["max_ep_steps"] - 1:
                     die_count += 1
                 break
 
     # Save evaluation results
-    total_cost.append(np.mean(seed_average_cost))
-    total_cost_mean = np.average(total_cost)
-    average_length = np.average(episode_length)
+    # total_cost.append(np.mean(seed_average_cost))
+    # total_cost_mean = np.average(total_cost)
+    # average_length = np.average(episode_length) # DEBUG
+    total_cost = torch.cat([total_cost, torch.mean(seed_average_cost).unsqueeze(dim=0)])
+    total_cost_mean = torch.mean(total_cost)
+    average_length = torch.mean(episode_length)
 
     # Return evaluation results
     diagnostic = {
@@ -113,3 +136,25 @@ def training_evaluation(env, policy):
         "average_length": average_length,
     }
     return diagnostic
+
+
+def mlp(sizes, activation, output_activation=nn.Identity):
+    """Create a multi-layered perceptron using pytorch.
+
+    Args:
+        sizes (list): The size of each of the layers.
+
+        activation (torch.nn.modules.activation): The activation function used for the
+            hidden layers.
+
+        output_activation (torch.nn.modules.activation, optional): The activation
+            function used for the output layers. Defaults to torch.nn.Identity.
+
+    Returns:
+        torch.nn.modules.container.Sequential: The multi-layered perceptron.
+    """
+    layers = []
+    for j in range(len(sizes) - 1):
+        act = activation if j < len(sizes) - 2 else output_activation
+        layers += [nn.Linear(sizes[j], sizes[j + 1]), act()]
+    return nn.Sequential(*layers)

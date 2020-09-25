@@ -1,10 +1,10 @@
-# Cleaned up version of the LAC script (tf==1.15)
+# Cleaned up version of the LAC script (tf>2.0 - eager mode)
 
-This folder contains the cleaned up version of the LAC script. It uses `tf==1.15`.
+This folder contains the cleaned up version of the LAC script. It uses `pytorch>=1.6.0`.
 
 ## Performance
 
-It has the same performance as the old LAC script.
+Here in eager mode the re-parameterization trick is not working as the gradient of the log_pi layer can not be computed.
 
 ## Use instructions
 
@@ -15,13 +15,13 @@ From the general python package sanity perspective, it is a good idea to use con
 To create a conda env with python3, one runs
 
 ```bash
-conda create -n lac_clean_tf115 python=3.6
+conda create -n lac_clean_torch python=3.8
 ```
 
 To activate the env:
 
 ```bash
-conda activate lac_clean_tf115
+conda activate lac_clean_torch
 ```
 
 ### Installation Environment

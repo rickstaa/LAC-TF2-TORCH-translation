@@ -1,10 +1,9 @@
-# TODO
+# Main TODOS
 
 - [ ] Add SAC
 - [ ] Variant
 - [ ] Add it to MLC
 - [ ] Add Ensemble
-  - Important that it is dynamicly create agents!!
+  - Important that it is dynamically create agents!!
 
-
-- Robustness eval why equal ->
+# Small TODOS

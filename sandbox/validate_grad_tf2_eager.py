@@ -322,7 +322,7 @@ class LyapunovCritic(tf.keras.Model):
             self._initializer(shape=(self.s_dim, hidden_sizes[0])), name=name + "/w1_a",
         )
         self.b1 = tf.Variable(
-            tf.zeros_initializer()(shape=(1, hidden_sizes[0])), name=name + "/b1",
+            tf.zeros_initializer(shape=(1, hidden_sizes[0])), name=name + "/b1",
         )
 
         # Create fully connected layers

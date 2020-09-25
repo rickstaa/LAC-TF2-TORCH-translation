@@ -5,7 +5,8 @@ import sys
 import argparse
 
 import numpy as np
-import tensorflow as tf
+
+# import tensorflow as tf
 import matplotlib.pyplot as plt
 
 from utils import get_env_from_name
@@ -271,4 +272,4 @@ if __name__ == "__main__":
         )
         print("evaluating " + name)
         dynamic(LOG_PATH, ENV_NAME, ENV_PARAMS, ALG_PARAMS, EVAL_PARAMS)
-        tf.compat.v1.reset_default_graph()
+        # tf.compat.v1.reset_default_graph()

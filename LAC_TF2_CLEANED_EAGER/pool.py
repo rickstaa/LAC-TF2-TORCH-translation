@@ -1,6 +1,5 @@
 from collections import deque
 import numpy as np
-import tensorflow as tf
 
 
 class Pool(object):
@@ -108,16 +107,8 @@ class Pool(object):
             batch = {}
             for key in self.memory.keys():
                 if "s" in key:
-                    sample = tf.convert_to_tensor(
-                        self.memory[key][indices], dtype=tf.float32
-                    )
+                    sample = self.memory[key][indices].astype(np.float32)
                     batch.update({key: sample})
                 else:
-                    batch.update(
-                        {
-                            key: tf.convert_to_tensor(
-                                self.memory[key][indices], dtype=tf.float32
-                            )
-                        }
-                    )
+                    batch.update({key: self.memory[key][indices].astype(np.float32)})
             return batch

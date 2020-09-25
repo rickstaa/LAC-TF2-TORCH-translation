@@ -6,8 +6,9 @@ import os
 import time
 
 # Environment parameters
-ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
-ENV_SEED = None  # The environment seed
+# ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
+ENV_NAME = "oscillator"  # The gym environment you want to train in
+ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
 
 # Setup log path and time string
@@ -19,12 +20,19 @@ timestr = time.strftime("%Y%m%d_%H%M")
 
 # Main training loop parameters
 TRAIN_PARAMS = {
-    "episodes": int(5e4),  # The number of episodes you want to perform
-    # "episodes": int(2e4),  # The number of episodes you want to perform
+    "episodes": int(
+        1e4
+    ),  # DEBUG The number of episodes you want to perform # Oscillator environment
+    # "episodes": int(
+    #     1e5
+    # ),  # The number of episodes you want to perform # Oscillator environment
+    # "episodes": int(
+    #     6e4
+    # ),  # The number of episodes you want to perform # EX3 environment
     "num_of_training_paths": 10,  # Number of training rollouts stored for analysis
     "evaluation_frequency": 2048,  # After how many steps the performance is evaluated
     "num_of_evaluation_paths": 10,  # number of rollouts for evaluation
-    "num_of_trials": 1,  # number of randomly seeded trained agents
+    "num_of_trials": 4,  # number of randomly seeded trained agents
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
 }
 
@@ -33,7 +41,7 @@ EVAL_PARAMS = {
     "eval_list": ["LAC20200906_2152"],
     "additional_description": timestr,
     "trials_for_eval": [str(i) for i in range(0, 3)],
-    "num_of_paths": 10,  # number of path for evaluation
+    "num_of_paths": 50,  # number of path for evaluation
     "plot_average": True,
     "directly_show": True,
 }
@@ -43,8 +51,8 @@ ALG_PARAMS = {
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
-    "labda": 1.0,  # Initial value for the lyapunov constraint lagrance multiplier
-    "alpha": 1.0,  # The initial value for the entropy lagrance multiplier
+    "labda": 0.99,  # Initial value for the lyapunov constraint lagrance multiplier
+    "alpha": 0.99,  # The initial value for the entropy lagrance multiplier
     "alpha3": 0.2,  # The value of the stability condition multiplier
     "tau": 5e-3,  # Decay rate used in the polyak averaging
     "lr_a": 1e-4,  # The actor learning rate

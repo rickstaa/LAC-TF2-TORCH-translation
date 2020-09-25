@@ -11,11 +11,12 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 from tensorflow.python import debug as tf_debug
 
+from tensorflow.keras.initializers import GlorotUniform
+
 from squash_bijector import SquashBijector
 from utils import evaluate_training_rollouts, get_env_from_name, training_evaluation
 import logger
 from pool import Pool
-
 
 ###############################################
 # Script settings #############################
@@ -48,6 +49,9 @@ tf.compat.v1.disable_eager_execution()
 # Disable GPU if requested
 if not USE_GPU:
     tf.config.set_visible_devices([], "GPU")
+    print("Tensorflow is using CPU")
+else:
+    print("Tensorflow is using GPU")
 
 
 ###############################################
@@ -262,85 +266,85 @@ class LAC(object):
             if ALG_PARAMS["adaptive_alpha"]:
                 self.opt.append(self.alpha_train)
 
-        # Create summary writer
-        if DEBUG_PARAMS["use_tb"]:
-            self.step = tf.Variable(0, dtype=tf.int64)
-            self.sess.run(self.step.initializer)
-            self.tb_writer = tf.compat.v1.summary.FileWriter(log_dir, self.sess.graph)
+        # # Create summary writer
+        # if DEBUG_PARAMS["use_tb"]:
+        #     self.step = tf.Variable(0, dtype=tf.int64)
+        #     self.sess.run(self.step.initializer)
+        #     self.tb_writer = tf.compat.v1.summary.FileWriter(log_dir, self.sess.graph)
 
-        # Retrieve weights names
-        if DEBUG_PARAMS["write_w_b"]:
-            self._ga_vars = tf.compat.v1.get_collection(
-                tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/gaussian_actor",
-            )
-            self._ga_target_vars = tf.compat.v1.get_collection(
-                tf.compat.v1.GraphKeys.GLOBAL_VARIABLES,
-                scope="Actor/Actor/gaussian_actor",
-            )
-            self._lc_vars = tf.compat.v1.get_collection(
-                tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/lyapunov_critic",
-            )
-            self._lc_target_vars = tf.compat.v1.get_collection(
-                tf.compat.v1.GraphKeys.GLOBAL_VARIABLES,
-                scope="Actor/Actor/lyapunov_critic",
-            )
-            self._ga_vars_names = [
-                (item.name)
-                .replace("Actor/gaussian_actor", "Ga")
-                .replace("/kernel", "/weights")
-                .replace("/bias", "/bias")
-                .replace(":0", "")
-                for item in self._ga_vars
-            ]
-            self._ga_target_vars_names = [
-                (item.name)
-                .replace("Actor/Actor/gaussian_actor", "Ga_")
-                .replace("/kernel", "/weights",)
-                .replace("/bias", "/bias")
-                .replace("/ExponentialMovingAverage", "")
-                .replace(":0", "")
-                for item in self._ga_target_vars
-                if "/Adam" not in item.name
-            ]
-            self._lc_vars_names = [
-                (item.name)
-                .replace("Actor/lyapunov_critic", "Lc")
-                .replace("/kernel", "/weights")
-                .replace("/bias", "/bias")
-                .replace(":0", "")
-                for item in self._lc_vars
-            ]
-            self._lc_target_vars_names = [
-                (item.name)
-                .replace("Actor/Actor/lyapunov_critic", "Lc_")
-                .replace("/kernel", "/weights")
-                .replace("/bias", "/bias")
-                .replace("/ExponentialMovingAverage", "")
-                .replace(":0", "")
-                for item in self._lc_target_vars
-                if "/Adam" not in item.name
-            ]
+        # # Retrieve weights names
+        # if DEBUG_PARAMS["write_w_b"]:
+        #     self._ga_vars = tf.compat.v1.get_collection(
+        #         tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/gaussian_actor",
+        #     )
+        #     self._ga_target_vars = tf.compat.v1.get_collection(
+        #         tf.compat.v1.GraphKeys.GLOBAL_VARIABLES,
+        #         scope="Actor/Actor/gaussian_actor",
+        #     )
+        #     self._lc_vars = tf.compat.v1.get_collection(
+        #         tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="Actor/lyapunov_critic",
+        #     )
+        #     self._lc_target_vars = tf.compat.v1.get_collection(
+        #         tf.compat.v1.GraphKeys.GLOBAL_VARIABLES,
+        #         scope="Actor/Actor/lyapunov_critic",
+        #     )
+        #     self._ga_vars_names = [
+        #         (item.name)
+        #         .replace("Actor/gaussian_actor", "Ga")
+        #         .replace("/kernel", "/weights")
+        #         .replace("/bias", "/bias")
+        #         .replace(":0", "")
+        #         for item in self._ga_vars
+        #     ]
+        #     self._ga_target_vars_names = [
+        #         (item.name)
+        #         .replace("Actor/Actor/gaussian_actor", "Ga_")
+        #         .replace("/kernel", "/weights",)
+        #         .replace("/bias", "/bias")
+        #         .replace("/ExponentialMovingAverage", "")
+        #         .replace(":0", "")
+        #         for item in self._ga_target_vars
+        #         if "/Adam" not in item.name
+        #     ]
+        #     self._lc_vars_names = [
+        #         (item.name)
+        #         .replace("Actor/lyapunov_critic", "Lc")
+        #         .replace("/kernel", "/weights")
+        #         .replace("/bias", "/bias")
+        #         .replace(":0", "")
+        #         for item in self._lc_vars
+        #     ]
+        #     self._lc_target_vars_names = [
+        #         (item.name)
+        #         .replace("Actor/Actor/lyapunov_critic", "Lc_")
+        #         .replace("/kernel", "/weights")
+        #         .replace("/bias", "/bias")
+        #         .replace("/ExponentialMovingAverage", "")
+        #         .replace(":0", "")
+        #         for item in self._lc_target_vars
+        #         if "/Adam" not in item.name
+        #     ]
 
-            # Create weights/baises summary
-            ga_sum = []
-            for name, val in zip(self._ga_vars_names, self._ga_vars):  # GA
-                ga_sum.append(tf.compat.v1.summary.histogram(name, val))
-            ga_target_sum = []
-            for name, val in zip(
-                self._ga_target_vars_names, self._ga_target_vars
-            ):  # GA
-                ga_target_sum.append(tf.compat.v1.summary.histogram(name, val))
-            lc_sum = []
-            for name, val in zip(self._lc_vars_names, self._lc_vars):  # GA
-                lc_sum.append(tf.compat.v1.summary.histogram(name, val))
-            lc_target_sum = []
-            for name, val in zip(
-                self._lc_target_vars_names, self._lc_target_vars
-            ):  # GA
-                lc_target_sum.append(tf.compat.v1.summary.histogram(name, val))
-            self.w_b_sum = tf.compat.v1.summary.merge(
-                [ga_sum, ga_target_sum, lc_sum, lc_target_sum]
-            )
+        #     # Create weights/baises summary
+        #     ga_sum = []
+        #     for name, val in zip(self._ga_vars_names, self._ga_vars):  # GA
+        #         ga_sum.append(tf.compat.v1.summary.histogram(name, val))
+        #     ga_target_sum = []
+        #     for name, val in zip(
+        #         self._ga_target_vars_names, self._ga_target_vars
+        #     ):  # GA
+        #         ga_target_sum.append(tf.compat.v1.summary.histogram(name, val))
+        #     lc_sum = []
+        #     for name, val in zip(self._lc_vars_names, self._lc_vars):  # GA
+        #         lc_sum.append(tf.compat.v1.summary.histogram(name, val))
+        #     lc_target_sum = []
+        #     for name, val in zip(
+        #         self._lc_target_vars_names, self._lc_target_vars
+        #     ):  # GA
+        #         lc_target_sum.append(tf.compat.v1.summary.histogram(name, val))
+        #     self.w_b_sum = tf.compat.v1.summary.merge(
+        #         [ga_sum, ga_target_sum, lc_sum, lc_target_sum]
+        #     )
 
     def choose_action(self, s, evaluation=False):
         """Returns the current action of the policy.
@@ -449,13 +453,13 @@ class LAC(object):
         # Set trainability
         trainable = True if reuse is None else False
 
-        # Create weight initializer
-        initializer = tf.keras.initializers.GlorotUniform(seed=seeds[0])
-
         # Create graph
         with tf.compat.v1.variable_scope(
             name, reuse=reuse, custom_getter=custom_getter
         ):
+
+            # Create weight initializer
+            initializer = GlorotUniform(seed=seeds[0])
 
             # Retrieve hidden layer sizes
             n1 = self.network_structure["actor"][0]
@@ -508,6 +512,7 @@ class LAC(object):
             base_distribution = tfp.distributions.MultivariateNormalDiag(
                 loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
             )
+            # tf.compat.v1.random.set_random_seed(10)
             epsilon = base_distribution.sample(batch_size, seed=seeds[1])
             raw_action = affine_bijector.forward(epsilon)
             clipped_a = squash_bijector.forward(raw_action)
@@ -542,16 +547,12 @@ class LAC(object):
 
             seed (int, optional): The seed used for the weight initialization. Defaults
                 to None.
-
         Returns:
             tuple: Tuple with network output tensors.
         """
 
         # Set trainability
         trainable = True if reuse is None else False
-
-        # Create weight initializer
-        initializer = tf.keras.initializers.GlorotUniform(seed=seed)
 
         # Create graph
         with tf.compat.v1.variable_scope(
@@ -560,6 +561,9 @@ class LAC(object):
 
             # Retrieve hidden layer size
             n1 = self.network_structure["critic"][0]
+
+            # Create weight initializer
+            initializer = GlorotUniform(seed=seed)
 
             # Create actor hidden/ output layers
             layers = []
@@ -570,7 +574,7 @@ class LAC(object):
                 "w1_a", [self.a_dim, n1], trainable=trainable, initializer=initializer
             )
             b1 = tf.compat.v1.get_variable(
-                "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer()
+                "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer
             )
             net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
             layers.append(net_0)
@@ -660,62 +664,62 @@ def train(log_dir):
     # Training setting
     t1 = time.time()
     global_step = 0
-    tb_step = 0
+    # tb_step = 0
     last_training_paths = deque(maxlen=TRAIN_PARAMS["num_of_training_paths"])
     training_started = False
 
-    # Create tensorboard variables
-    tb_lr_a = tf.Variable(lr_a, dtype=tf.float32)
-    tb_lr_l = tf.Variable(lr_l, dtype=tf.float32)
-    tb_lr_lag = tf.Variable(lr_a, dtype=tf.float32)
-    tb_ret = tf.Variable(0, dtype=tf.float32)
-    tb_len = tf.Variable(0, dtype=tf.float32)
-    tb_a_loss = tf.Variable(0, dtype=tf.float32)
-    tb_lyapunov_error = tf.Variable(0, dtype=tf.float32)
-    tb_entropy = tf.Variable(0, dtype=tf.float32)
+    # # Create tensorboard variables
+    # tb_lr_a = tf.Variable(lr_a, dtype=tf.float32)
+    # tb_lr_l = tf.Variable(lr_l, dtype=tf.float32)
+    # tb_lr_lag = tf.Variable(lr_a, dtype=tf.float32)
+    # tb_ret = tf.Variable(0, dtype=tf.float32)
+    # tb_len = tf.Variable(0, dtype=tf.float32)
+    # tb_a_loss = tf.Variable(0, dtype=tf.float32)
+    # tb_lyapunov_error = tf.Variable(0, dtype=tf.float32)
+    # tb_entropy = tf.Variable(0, dtype=tf.float32)
 
-    # Initialize tensorboard variables and create summaries
-    if DEBUG_PARAMS["use_tb"]:
-        policy.sess.run(
-            [
-                tb_lr_a.initializer,
-                tb_lr_l.initializer,
-                tb_lr_lag.initializer,
-                tb_ret.initializer,
-                tb_len.initializer,
-                tb_a_loss.initializer,
-                tb_lyapunov_error.initializer,
-                tb_entropy.initializer,
-            ]
-        )
+    # # Initialize tensorboard variables and create summaries
+    # if DEBUG_PARAMS["use_tb"]:
+    #     policy.sess.run(
+    #         [
+    #             tb_lr_a.initializer,
+    #             tb_lr_l.initializer,
+    #             tb_lr_lag.initializer,
+    #             tb_ret.initializer,
+    #             tb_len.initializer,
+    #             tb_a_loss.initializer,
+    #             tb_lyapunov_error.initializer,
+    #             tb_entropy.initializer,
+    #         ]
+    #     )
 
-        # Add tensorboard summaries
-        main_sum = tf.compat.v1.summary.merge(
-            [
-                tf.compat.v1.summary.scalar("lr_a", tb_lr_a),
-                tf.compat.v1.summary.scalar("lr_l", tb_lr_l),
-                tf.compat.v1.summary.scalar("lr_lag", tb_lr_lag),
-                tf.compat.v1.summary.scalar("alpha", policy.alpha),
-                tf.compat.v1.summary.scalar("lambda", policy.labda),
-            ]
-        )
-        other_sum = tf.compat.v1.summary.merge(
-            [
-                tf.compat.v1.summary.scalar("ep_ret", tb_ret),
-                tf.compat.v1.summary.scalar("ep_length", tb_len),
-                tf.compat.v1.summary.scalar("a_loss", tb_a_loss),
-                tf.compat.v1.summary.scalar("lyapunov_error", tb_lyapunov_error),
-                tf.compat.v1.summary.scalar("entropy", tb_entropy),
-            ]
-        )
-        policy.tb_writer.add_summary(
-            policy.sess.run(main_sum), policy.sess.run(policy.step)
-        )
-        if DEBUG_PARAMS["write_w_b"]:
-            policy.tb_writer.add_summary(
-                policy.sess.run(policy.w_b_sum), policy.sess.run(policy.step),
-            )
-        policy.tb_writer.flush()  # Above summaries are known from the start
+    #     # Add tensorboard summaries
+    #     main_sum = tf.compat.v1.summary.merge(
+    #         [
+    #             tf.compat.v1.summary.scalar("lr_a", tb_lr_a),
+    #             tf.compat.v1.summary.scalar("lr_l", tb_lr_l),
+    #             tf.compat.v1.summary.scalar("lr_lag", tb_lr_lag),
+    #             tf.compat.v1.summary.scalar("alpha", policy.alpha),
+    #             tf.compat.v1.summary.scalar("lambda", policy.labda),
+    #         ]
+    #     )
+    #     other_sum = tf.compat.v1.summary.merge(
+    #         [
+    #             tf.compat.v1.summary.scalar("ep_ret", tb_ret),
+    #             tf.compat.v1.summary.scalar("ep_length", tb_len),
+    #             tf.compat.v1.summary.scalar("a_loss", tb_a_loss),
+    #             tf.compat.v1.summary.scalar("lyapunov_error", tb_lyapunov_error),
+    #             tf.compat.v1.summary.scalar("entropy", tb_entropy),
+    #         ]
+    #     )
+    #     policy.tb_writer.add_summary(
+    #         policy.sess.run(main_sum), policy.sess.run(policy.step)
+    #     )
+    #     if DEBUG_PARAMS["write_w_b"]:
+    #         policy.tb_writer.add_summary(
+    #             policy.sess.run(policy.w_b_sum), policy.sess.run(policy.step),
+    #         )
+    #     policy.tb_writer.flush()  # Above summaries are known from the start
 
     # Setup logger and log hyperparameters
     logger.configure(dir=log_dir, format_strs=["csv"])
@@ -757,7 +761,7 @@ def train(log_dir):
             action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
 
             # Perform action in env
-            s_, r, done, _ = env.step(action)
+            s_, r, done, info = env.step(action)
 
             # Increment global step count
             if training_started:
@@ -771,11 +775,11 @@ def train(log_dir):
             # Store experience in replay buffer
             pool.store(s, a, r, terminal, s_)
 
-            # Increment tensorboard step counter
-            # NOTE: This was done differently from the global_step counter since
-            # otherwise there were inconsistencies in the tb log.
-            if DEBUG_PARAMS["use_tb"]:
-                tb_step += 1
+            # # Increment tensorboard step counter
+            # # NOTE: This was done differently from the global_step counter since
+            # # otherwise there were inconsistencies in the tb log.
+            # if DEBUG_PARAMS["use_tb"]:
+            #     tb_step += 1
 
             # Optimize weights and parameters using STG
             if (
@@ -849,57 +853,57 @@ def train(log_dir):
                 if training_started:
                     last_training_paths.appendleft(current_path)
 
-                    # Get current model performance for tb
-                    if DEBUG_PARAMS["use_tb"]:
-                        training_diagnostics = evaluate_training_rollouts(
-                            last_training_paths
-                        )
+                    # # Get current model performance for tb
+                    # if DEBUG_PARAMS["use_tb"]:
+                    #     training_diagnostics = evaluate_training_rollouts(
+                    #         last_training_paths
+                    #     )
 
                 # Log tb variables
-                if DEBUG_PARAMS["use_tb"]:
-                    if i % DEBUG_PARAMS["tb_freq"] == 0:
+                # if DEBUG_PARAMS["use_tb"]:
+                #     if i % DEBUG_PARAMS["tb_freq"] == 0:
 
-                        # Update and log learning rate tb vars
-                        policy.sess.run(policy.step.assign(tb_step))
-                        policy.sess.run(tb_lr_a.assign(lr_a_now))
-                        policy.sess.run(tb_lr_l.assign(lr_l_now))
-                        policy.sess.run(tb_lr_lag.assign(lr_a))
-                        policy.tb_writer.add_summary(
-                            policy.sess.run(main_sum), policy.sess.run(policy.step)
-                        )
+                #         # Update and log learning rate tb vars
+                #         policy.sess.run(policy.step.assign(tb_step))
+                #         policy.sess.run(tb_lr_a.assign(lr_a_now))
+                #         policy.sess.run(tb_lr_l.assign(lr_l_now))
+                #         policy.sess.run(tb_lr_lag.assign(lr_a))
+                #         policy.tb_writer.add_summary(
+                #             policy.sess.run(main_sum), policy.sess.run(policy.step)
+                #         )
 
-                        # Update and log other training vars to tensorboard
-                        if training_started:
+                #         # Update and log other training vars to tensorboard
+                #         if training_started:
 
-                            # Update and log training vars
-                            policy.sess.run(
-                                tb_ret.assign(training_diagnostics["return"])
-                            )
-                            policy.sess.run(
-                                tb_len.assign(training_diagnostics["length"])
-                            )
-                            policy.sess.run(
-                                tb_a_loss.assign(training_diagnostics["a_loss"])
-                            )
-                            policy.sess.run(
-                                tb_lyapunov_error.assign(
-                                    training_diagnostics["lyapunov_error"]
-                                )
-                            )
-                            policy.sess.run(
-                                tb_entropy.assign(training_diagnostics["entropy"])
-                            )
-                            policy.tb_writer.add_summary(
-                                policy.sess.run(other_sum), policy.sess.run(policy.step)
-                            )
+                #             # Update and log training vars
+                #             policy.sess.run(
+                #                 tb_ret.assign(training_diagnostics["return"])
+                #             )
+                #             policy.sess.run(
+                #                 tb_len.assign(training_diagnostics["length"])
+                #             )
+                #             policy.sess.run(
+                #                 tb_a_loss.assign(training_diagnostics["a_loss"])
+                #             )
+                #             policy.sess.run(
+                #                 tb_lyapunov_error.assign(
+                #                     training_diagnostics["lyapunov_error"]
+                #                 )
+                #             )
+                #             policy.sess.run(
+                #                 tb_entropy.assign(training_diagnostics["entropy"])
+                #             )
+                #             policy.tb_writer.add_summary(
+                #                 policy.sess.run(other_sum), policy.sess.run(policy.step)
+                #             )
 
-                            # Log network weights
-                            if DEBUG_PARAMS["write_w_b"]:
-                                policy.tb_writer.add_summary(
-                                    policy.sess.run(policy.w_b_sum),
-                                    policy.sess.run(policy.step),
-                                )
-                        policy.tb_writer.flush()
+                #             # Log network weights
+                #             if DEBUG_PARAMS["write_w_b"]:
+                #                 policy.tb_writer.add_summary(
+                #                     policy.sess.run(policy.w_b_sum),
+                #                     policy.sess.run(policy.step),
+                #                 )
+                #         policy.tb_writer.flush()
 
                 # Decay learning rates
                 frac = 1.0 - (global_step - 1.0) / ENV_PARAMS["max_global_steps"]
@@ -908,7 +912,8 @@ def train(log_dir):
                 break
 
     # Save model and print Running time
+    print("Running time: ", time.time() - t1)
+    print("Saving Model")
     policy.save_result(log_dir)
-    # policy.tb_writer.close()
     print("Running time: ", time.time() - t1)
     return

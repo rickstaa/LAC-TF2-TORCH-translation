@@ -1,6 +1,7 @@
-# Cleaned up version of the LAC script
+# LAC_TF1_ORIGINAL_CLEANED
 
-This folder contains the cleaned up version of the LAC script. It uses `tf==1.15`.
+The original LAC code as received from @panweihit but now cleaned up. Meaning the
+components we currently don't use were removed. This version works with `tf<=1.15`.
 
 ## Performance
 

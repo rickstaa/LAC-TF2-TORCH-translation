@@ -546,7 +546,7 @@ class LAC(object):
                 "w1_a", [self.a_dim, n1], trainable=trainable, initializer=initializer,
             )
             b1 = tf.compat.v1.get_variable(
-                "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer()
+                "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer
             )
             net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
             layers.append(net_0)

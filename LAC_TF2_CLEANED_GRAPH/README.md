@@ -1,6 +1,10 @@
-# Cleaned up version of the LAC script (tf>2.0)
+# LAC_TF1_ORIGINAL
 
-This folder contains the cleaned up version of the LAC script. It uses `tf>2.0`.
+In this folder the original LAC code has been translated to be compatible with tf2.
+Further tensorflow logging was added. This was done using the steps given in the
+[tensorflow migration guide](https://www.tensorflow.org/guide/migrate). This version
+however does not yet work in eager mode and therefore uses the
+`tf.compat.v1.disable_eager_execution()` flag. This version works with `tf>=2.00`.
 
 ## Performance
 
