@@ -5,8 +5,6 @@ from .squash_bijector import SquashBijector
 from .utils import evaluate_training_rollouts
 import tensorflow_probability as tfp
 
-from tensorflow.python.keras.initializers import GlorotUniform
-
 from collections import OrderedDict, deque
 import os
 from copy import deepcopy
@@ -29,7 +27,6 @@ if RANDOM_SEED is not None:
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
     tf.random.set_random_seed(RANDOM_SEED)
-    TFP_SEED_STREAM = tfp.python.distributions.SeedStream(RANDOM_SEED, salt="tfp_1")
 
 if USE_GPU:
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -42,22 +39,6 @@ class LAC(object):
 
         ###############################  Model parameters  ####################################
         # self.memory_capacity = variant['memory_capacity']
-
-        # Create network seeds
-        self.ga_seeds = [
-            RANDOM_SEED,
-            TFP_SEED_STREAM(),
-        ]  # [weight init seed, sample seed]
-        self.ga_target_seeds = [
-            RANDOM_SEED + 1,
-            TFP_SEED_STREAM(),
-        ]  # [weight init seed, sample seed]
-        # self.lya_ga_target_seeds = [
-        #     RANDOM_SEED,
-        #     TFP_SEED_STREAM(),
-        # ]  # [weight init seed, sample seed]
-        self.lc_seed = RANDOM_SEED + 2  # Weight init seed
-        self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
 
         self.batch_size = variant["batch_size"]
         self.network_structure = variant["network_structure"]
@@ -109,12 +90,10 @@ class LAC(object):
             self.alpha = tf.exp(log_alpha)
 
             self.a, self.deterministic_a, self.a_dist = self._build_a(
-                self.S, seeds=self.ga_seeds
+                self.S
             )  # 这个网络用于及时更新参数
 
-            self.l = self._build_l(
-                self.S, self.a_input, seed=self.lc_seed
-            )  # lyapunov 网络
+            self.l = self._build_l(self.S, self.a_input)  # lyapunov 网络
 
             self.use_lyapunov = variant["use_lyapunov"]
             self.adaptive_alpha = variant["adaptive_alpha"]
@@ -139,14 +118,9 @@ class LAC(object):
 
             # 这个网络不及时更新参数, 用于预测 Critic 的 Q_target 中的 action
             a_, _, a_dist_ = self._build_a(
-                self.S_,
-                reuse=True,
-                custom_getter=ema_getter,
-                seeds=self.ga_target_seeds,
+                self.S_, reuse=True, custom_getter=ema_getter,
             )  # replaced target parameters
-            lya_a_, _, lya_a_dist_ = self._build_a(
-                self.S_, reuse=True, seeds=self.ga_seeds
-            )
+            lya_a_, _, lya_a_dist_ = self._build_a(self.S_, reuse=True)
             # self.cons_a_input_ = tf.placeholder(tf.float32, [None, a_dim, 'cons_a_input_'])
             # self.log_pis = log_pis = self.a_dist.log_prob(self.a)
             self.log_pis = log_pis = self.a_dist.log_prob(self.a)
@@ -154,14 +128,8 @@ class LAC(object):
 
             # 这个网络不及时更新参数, 用于给出 Actor 更新参数时的 Gradient ascent 强度
 
-            l_ = self._build_l(
-                self.S_,
-                a_,
-                reuse=True,
-                custom_getter=ema_getter,
-                seed=self.lc_target_seed,
-            )
-            self.l_ = self._build_l(self.S_, lya_a_, reuse=True, seed=self.lc_seed)
+            l_ = self._build_l(self.S_, a_, reuse=True, custom_getter=ema_getter,)
+            self.l_ = self._build_l(self.S_, lya_a_, reuse=True)
 
             # lyapunov constraint
             self.l_derta = tf.reduce_mean(self.l_ - self.l + (alpha3) * self.R)
@@ -323,15 +291,10 @@ class LAC(object):
             self.l, {self.S: s[np.newaxis, :], self.a_input: a[np.newaxis, :]}
         )[0]
 
-    def _build_a(
-        self, s, name="actor", reuse=None, custom_getter=None, seeds=[None, None]
-    ):
+    def _build_a(self, s, name="actor", reuse=None, custom_getter=None):
 
         # Set trainability
         trainable = True if reuse is None else False
-
-        # Create weight initializer
-        initializer = GlorotUniform(seed=seeds[0])
 
         # Create graph
         with tf.variable_scope(name, reuse=reuse, custom_getter=custom_getter):
@@ -343,43 +306,22 @@ class LAC(object):
                 loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
             )
             tf.compat.v1.random.set_random_seed(10)
-            epsilon = base_distribution.sample(batch_size, seed=seeds[1])
+            epsilon = base_distribution.sample(batch_size)
 
             ## Construct the feedforward action
             n1 = self.network_structure["actor"][0]
             n2 = self.network_structure["actor"][1]
 
             net_0 = tf.layers.dense(
-                s,
-                n1,
-                activation=tf.nn.relu,
-                name="l1",
-                trainable=trainable,
-                kernel_initializer=initializer,
+                s, n1, activation=tf.nn.relu, name="l1", trainable=trainable,
             )  # 原始是30
             net_1 = tf.layers.dense(
-                net_0,
-                n2,
-                activation=tf.nn.relu,
-                name="l4",
-                trainable=trainable,
-                kernel_initializer=initializer,
+                net_0, n2, activation=tf.nn.relu, name="l4", trainable=trainable,
             )  # 原始是30
             mu = tf.layers.dense(
-                net_1,
-                self.a_dim,
-                activation=None,
-                name="a",
-                trainable=trainable,
-                kernel_initializer=initializer,
+                net_1, self.a_dim, activation=None, name="a", trainable=trainable,
             )
-            log_sigma = tf.layers.dense(
-                net_1,
-                self.a_dim,
-                None,
-                trainable=trainable,
-                kernel_initializer=initializer,
-            )
+            log_sigma = tf.layers.dense(net_1, self.a_dim, None, trainable=trainable,)
 
             # log_sigma = tf.layers.dense(s, self.a_dim, None, trainable=trainable)
             log_sigma = tf.clip_by_value(log_sigma, *SCALE_DIAG_MIN_MAX)
@@ -401,25 +343,16 @@ class LAC(object):
 
         return clipped_a, clipped_mu, distribution
 
-    def _build_l(self, s, a, reuse=None, custom_getter=None, seed=None):
+    def _build_l(self, s, a, reuse=None, custom_getter=None):
         trainable = True if reuse is None else False
 
         with tf.variable_scope("Lyapunov", reuse=reuse, custom_getter=custom_getter):
             n1 = self.network_structure["critic"][0]
 
-            # Create weight initializer
-            initializer = GlorotUniform(seed=seed)
-
             layers = []
-            w1_s = tf.get_variable(
-                "w1_s", [self.s_dim, n1], trainable=trainable, initializer=initializer
-            )
-            w1_a = tf.get_variable(
-                "w1_a", [self.a_dim, n1], trainable=trainable, initializer=initializer
-            )
-            b1 = tf.get_variable(
-                "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer
-            )
+            w1_s = tf.get_variable("w1_s", [self.s_dim, n1], trainable=trainable)
+            w1_a = tf.get_variable("w1_a", [self.a_dim, n1], trainable=trainable)
+            b1 = tf.get_variable("b1", [1, n1], trainable=trainable,)
             net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
             layers.append(net_0)
             for i in range(1, len(self.network_structure["critic"])):
@@ -431,7 +364,6 @@ class LAC(object):
                         activation=tf.nn.relu,
                         name="l" + str(i + 1),
                         trainable=trainable,
-                        kernel_initializer=initializer,
                     )
                 )
 
@@ -544,14 +476,31 @@ def train(variant):
             "entropy": [],
         }
 
-        if global_step > max_global_steps:
-            break
+        # # Stop training if max number of steps has been reached
+        # # FIXME: OLD_VERSION This makes no sense since the global steps will never be
+        # # the set global steps in this case.
+        # if global_step > max_global_steps:
+        #     print(f"Training stopped after {global_step} steps.")
+        #     break
 
         s = env.reset()
         if "Fetch" in env_name or "Hand" in env_name:
             s = np.concatenate([s[key] for key in s.keys()])
 
         for j in range(max_ep_steps):
+
+            # Break out of loop if global steps have been reached
+            # FIXME: NEW Here makes sense
+            if global_step > max_global_steps:
+
+                # Print step count, save model and stop the program
+                print(f"Training stopped after {global_step} steps.")
+                print("Running time: ", time.time() - t1)
+                print("Saving Model")
+                policy.save_result(log_path)
+                print("Running time: ", time.time() - t1)
+                return
+
             if Render:
                 env.render()
 
@@ -653,10 +602,4 @@ def train(variant):
                 lr_a_now = lr_a * frac  # learning rate for actor
                 lr_c_now = lr_c * frac  # learning rate for critic
                 lr_l_now = lr_l * frac  # learning rate for critic
-
-                break
-    print("Running time: ", time.time() - t1)
-    print("Saving Model")
-    policy.save_result(log_path)
-    print("Running time: ", time.time() - t1)
-    return
+                break  # FIXME: Redundant

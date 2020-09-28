@@ -4,10 +4,11 @@ import numpy as np
 import ENV.env
 import time
 
-USE_GPU = True
+USE_GPU = False
 
 ENV_SEED = 0
 RANDOM_SEED = 0
+
 # alpha = 1.0
 alpha = 0.99
 alpha3 = 0.2
@@ -15,7 +16,7 @@ actor = [64, 64]
 critic = [128, 128]
 # episodes = int(1e5) # Oscillator
 # episodes = int(4e6)  # EX_3
-episodes = int(1e4)  # DEBUG
+episodes = int(1.1e4)  # DEBUG
 # episodes = int(1e5)  # EX_3
 approx_value = True
 use_lyapunov = True
@@ -30,8 +31,9 @@ VARIANT = {
     # 'evaluate': False,
     "train": True,
     # 'train': False,
-    "num_of_trials": 4,  # number of random seeds
-    "num_of_evaluation_paths": 10,  # number of rollouts for evaluation
+    "num_of_trials": 1,  # number of random seeds
+    # "num_of_evaluation_paths": 10,  # number of rollouts for evaluation  # DEBUG
+    "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
     "num_of_training_paths": 10,  # number of training rollouts stored for analysis
     "start_of_trial": 0,
     "evaluation_form": "dynamic",

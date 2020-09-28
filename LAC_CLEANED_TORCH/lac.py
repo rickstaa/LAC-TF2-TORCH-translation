@@ -281,7 +281,6 @@ class LAC(object):
         Returns:
             tuple: Tuple with network output tensors.
         """
-        # TODO: Multiple neuralal ne
         # Return GA
         return SquashedGaussianMLPActor(
             obs_dim=self.s_dim,
@@ -461,15 +460,30 @@ def train(log_dir):
             "entropy": [],
         }
 
-        # Stop training if max number of steps has been reached
-        if global_step > ENV_PARAMS["max_global_steps"]:
-            break
+        # # Stop training if max number of steps has been reached
+        # # FIXME: OLD_VERSION This makes no sense since the global steps will never be
+        # # the set global steps in this case.
+        # if global_step > ENV_PARAMS["max_global_steps"]:
+        #     print(f"Training stopped after {global_step} steps.")
+        #     break
 
         # Reset environment
         s = env.reset()
 
         # Training Episode loop
         for j in range(ENV_PARAMS["max_ep_steps"]):
+
+            # Break out of loop if global steps have been reached
+            # FIXME: NEW Here makes sense
+            if global_step > ENV_PARAMS["max_global_steps"]:
+
+                # Print step count, save model and stop the program
+                print(f"Training stopped after {global_step} steps.")
+                print("Running time: ", time.time() - t1)
+                print("Saving Model")
+                policy.save_result(log_dir)
+                print("Running time: ", time.time() - t1)
+                return
 
             # Render environment if requested
             if ENV_PARAMS["eval_render"]:
@@ -756,9 +770,4 @@ def train(log_dir):
                 frac = 1.0 - (global_step - 1.0) / ENV_PARAMS["max_global_steps"]
                 lr_a_now = lr_a * frac  # learning rate for actor, lambda, alpha
                 lr_l_now = lr_l * frac  # learning rate for lyapunov critic
-                break
-
-    # Save model and print Running time
-    policy.save_result(log_dir)
-    print("Running time: ", time.time() - t1)
-    return
+                break  # FIXME: Redundant

@@ -12,8 +12,8 @@ import numpy as np
 import csv
 import matplotlib.pyplot as plt
 
-class oscillator(gym.Env):
 
+class oscillator(gym.Env):
     def __init__(self):
         self.K = 1  # + np.random.uniform(0, 10, 1)
         self.c1 = 1.6
@@ -27,14 +27,18 @@ class oscillator(gym.Env):
         self.b1 = 1
         self.b2 = 1
         self.b3 = 1
-        self.dt = 1.
+        self.dt = 1.0
         self.t = 0
-        self.sigma = 0.
+        self.sigma = 0.0
         # Angle limit set to 2 * theta_threshold_radians so failing observation is still within bounds
         high = np.array([100, 100, 100, 100, 100, 100, 100, 100])
 
         # self.action_space = spaces.Box(low=np.array([-10., -10.,-10.]), high=np.array([10., 10., 10.]), dtype=np.float32)
-        self.action_space = spaces.Box(low=np.array([-5., -5., -5.]), high=np.array([5., 5., 5.]), dtype=np.float32)
+        self.action_space = spaces.Box(
+            low=np.array([-5.0, -5.0, -5.0]),
+            high=np.array([5.0, 5.0, 5.0]),
+            dtype=np.float32,
+        )
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
 
         self.seed()
@@ -47,15 +51,13 @@ class oscillator(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-
-
     def step(self, action):
         # action = np.clip(action, np.array([-1., -1., -1.]), np.array([1., 1., 1.]))
         u1, u2, u3 = action
 
         m1, m2, m3, p1, p2, p3 = self.state
         m1_dot = self.c1 / (self.K + np.square(p3)) - self.c2 * m1 + self.b1 * u1
-        p1_dot = self.c3 * m1 - self.c4*p1
+        p1_dot = self.c3 * m1 - self.c4 * p1
 
         m2_dot = self.c1 / (self.K + np.square(p1)) - self.c2 * m2 + self.b2 * u2
         p2_dot = self.c3 * m2 - self.c4 * p2
@@ -63,27 +65,62 @@ class oscillator(gym.Env):
         m3_dot = self.c1 / (self.K + np.square(p2)) - self.c2 * m3 + self.b3 * u3
         p3_dot = self.c3 * m3 - self.c4 * p3
 
-        m1 = np.max([m1 + m1_dot * self.dt + np.random.uniform(-self.sigma,self.sigma,1),np.zeros([1])])
-        m2 = np.max([m2 + m2_dot * self.dt + np.random.uniform(-self.sigma,self.sigma,1),np.zeros([1])])
-        m3 = np.max([m3 + m3_dot * self.dt + np.random.uniform(-self.sigma,self.sigma,1),np.zeros([1])])
+        m1 = np.max(
+            [
+                m1 + m1_dot * self.dt + np.random.uniform(-self.sigma, self.sigma, 1),
+                np.zeros([1]),
+            ]
+        )
+        m2 = np.max(
+            [
+                m2 + m2_dot * self.dt + np.random.uniform(-self.sigma, self.sigma, 1),
+                np.zeros([1]),
+            ]
+        )
+        m3 = np.max(
+            [
+                m3 + m3_dot * self.dt + np.random.uniform(-self.sigma, self.sigma, 1),
+                np.zeros([1]),
+            ]
+        )
 
-        p1 = np.max([p1 + p1_dot * self.dt + np.random.uniform(-self.sigma,self.sigma,1),np.zeros([1])])
-        p2 = np.max([p2 + p2_dot * self.dt + np.random.uniform(-self.sigma,self.sigma,1),np.zeros([1])])
-        p3 = np.max([p3 + p3_dot * self.dt + np.random.uniform(-self.sigma,self.sigma,1),np.zeros([1])])
+        p1 = np.max(
+            [
+                p1 + p1_dot * self.dt + np.random.uniform(-self.sigma, self.sigma, 1),
+                np.zeros([1]),
+            ]
+        )
+        p2 = np.max(
+            [
+                p2 + p2_dot * self.dt + np.random.uniform(-self.sigma, self.sigma, 1),
+                np.zeros([1]),
+            ]
+        )
+        p3 = np.max(
+            [
+                p3 + p3_dot * self.dt + np.random.uniform(-self.sigma, self.sigma, 1),
+                np.zeros([1]),
+            ]
+        )
 
         self.state = np.array([m1, m2, m3, p1, p2, p3])
         self.t = self.t + 1
         r1 = self.reference(self.t)
 
-        cost = np.square(p1-r1)
+        cost = np.square(p1 - r1)
         # cost = (abs(p1-r1))**0.2
         # print(cost)
-        if cost>100:
+        if cost > 100:
             done = True
         else:
             done = False
 
-        return np.array([m1, m2, m3, p1, p2, p3, r1, p1-r1]), cost, done, dict(reference=r1, state_of_interest=p1-r1)
+        return (
+            np.array([m1, m2, m3, p1, p2, p3, r1, p1 - r1]),
+            cost,
+            done,
+            dict(reference=r1, state_of_interest=p1 - r1),
+        )
 
     def reset(self):
         self.state = self.np_random.uniform(low=0, high=1, size=(6,))
@@ -93,7 +130,7 @@ class oscillator(gym.Env):
         m1, m2, m3, p1, p2, p3 = self.state
         r1 = self.reference(self.t)
         # self.state[0] = self.np_random.uniform(low=5, high=6)
-        return np.array([m1, m2, m3, p1, p2, p3, r1, p1-r1])
+        return np.array([m1, m2, m3, p1, p2, p3, r1, p1 - r1])
 
     def reference(self, t):
         # r1 = 8+7*np.sin((2*np.pi)*t/200)
@@ -107,19 +144,19 @@ class oscillator(gym.Env):
     #     r2 = 8 + 7 * np.sin((2 * np.pi) * (t + 200 / 3) / 200)
     #     return r1, r2
 
-    def render(self, mode='human'):
+    def render(self, mode="human"):
 
         return
 
 
-if __name__=='__main__':
+if __name__ == "__main__":
     env = oscillator()
     T = 600
     path = []
     t1 = []
     s = env.reset()
-    for i in range(int(T/env.dt)):
-        s, r, done, info = env.step(np.array([0,0,0]))
+    for i in range(int(T / env.dt)):
+        s, r, done, info = env.step(np.array([0, 0, 0]))
         path.append(s)
         t1.append(i * env.dt)
 
@@ -153,11 +190,11 @@ if __name__=='__main__':
     fig = plt.figure(figsize=(9, 6))
     ax = fig.add_subplot(111)
     # ax.plot(t1, path, color='blue', label='0.1')
-    ax.plot(t1, np.array(path)[:,3],color='blue', label='protein1')
+    ax.plot(t1, np.array(path)[:, 3], color="blue", label="protein1")
     # ax.plot(t1, np.array(path)[:, 4], color='blue', label='protein2')
     # ax.plot(t1, np.array(path)[:, 5], color='blue', label='protein3')
     # # ax.plot(t1, np.array(path)[:, 3:5], color='red', label='protein')
-    ax.plot(t1, np.array(path)[:, 6], color='yellow', label='error')
+    ax.plot(t1, np.array(path)[:, 6], color="yellow", label="error")
     # plt.plot(n, su, n, sl)
     #
     # plt.show()
@@ -170,8 +207,4 @@ if __name__=='__main__':
     #
     ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
     plt.show()
-    print('done')
-
-
-
-
+    print("done")

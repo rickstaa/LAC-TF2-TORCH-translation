@@ -9,7 +9,8 @@ import random
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from tensorflow.python import debug as tf_debug
+
+# from tensorflow.python import debug as tf_debug
 
 from tensorflow.keras.initializers import GlorotUniform
 
@@ -31,7 +32,7 @@ from variant import (
     ENV_PARAMS,
     LOG_SIGMA_MIN_MAX,
     SCALE_lambda_MIN_MAX,
-    DEBUG_PARAMS,
+    # DEBUG_PARAMS,
 )
 
 # Set random seed to get comparable results for each run
@@ -40,7 +41,8 @@ if RANDOM_SEED is not None:
     os.environ["TF_CUDNN_DETERMINISTIC"] = "1"  # new flag present in tf 2.0+
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
-    tf.random.set_seed(RANDOM_SEED)
+    tf.compat.v1.random.set_random_seed(RANDOM_SEED)
+    # tf.random.set_seed(RANDOM_SEED)  # Debug
     TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_1")
 
 # Disable eager
@@ -62,7 +64,8 @@ class LAC(object):
 
     """
 
-    def __init__(self, a_dim, s_dim, log_dir="."):
+    def __init__(self, a_dim, s_dim):
+        # def __init__(self, a_dim, s_dim, log_dir="."):
         """Initiate object state.
 
         Args:
@@ -505,6 +508,7 @@ class LAC(object):
 
             # Create bijectors (Used in the reparameterization trick)
             squash_bijector = SquashBijector()
+            # affine_bijector = tfp.bijectors.Affine(shift=mu, scale_diag=sigma)
             affine_bijector = tfp.bijectors.Shift(mu)(tfp.bijectors.Scale(sigma))
 
             # Sample from the normal distribution and calculate the action
@@ -512,7 +516,6 @@ class LAC(object):
             base_distribution = tfp.distributions.MultivariateNormalDiag(
                 loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
             )
-            # tf.compat.v1.random.set_random_seed(10)
             epsilon = base_distribution.sample(batch_size, seed=seeds[1])
             raw_action = affine_bijector.forward(epsilon)
             clipped_a = squash_bijector.forward(raw_action)
@@ -650,7 +653,8 @@ def train(log_dir):
     a_lowerbound = env.action_space.low
 
     # Create the Lyapunov Actor Critic agent
-    policy = LAC(a_dim, s_dim, log_dir=log_dir)
+    policy = LAC(a_dim, s_dim)
+    # policy = LAC(a_dim, s_dim, log_dir=log_dir)
 
     # Create replay memory buffer
     pool = Pool(
@@ -741,15 +745,30 @@ def train(log_dir):
             "entropy": [],
         }
 
-        # Stop training if max number of steps has been reached
-        if global_step > ENV_PARAMS["max_global_steps"]:
-            break
+        # # Stop training if max number of steps has been reached
+        # # FIXME: OLD_VERSION This makes no sense since the global steps will never be
+        # # the set global steps in this case.
+        # if global_step > ENV_PARAMS["max_global_steps"]:
+        #     print(f"Training stopped after {global_step} steps.")
+        #     break
 
         # Reset environment
         s = env.reset()
 
         # Training Episode loop
         for j in range(ENV_PARAMS["max_ep_steps"]):
+
+            # Break out of loop if global steps have been reached
+            # FIXME: NEW Here makes sense
+            if global_step > ENV_PARAMS["max_global_steps"]:
+
+                # Print step count, save model and stop the program
+                print(f"Training stopped after {global_step} steps.")
+                print("Running time: ", time.time() - t1)
+                print("Saving Model")
+                policy.save_result(log_dir)
+                print("Running time: ", time.time() - t1)
+                return
 
             # Render environment if requested
             if ENV_PARAMS["eval_render"]:
@@ -909,11 +928,4 @@ def train(log_dir):
                 frac = 1.0 - (global_step - 1.0) / ENV_PARAMS["max_global_steps"]
                 lr_a_now = lr_a * frac  # learning rate for actor, lambda, alpha
                 lr_l_now = lr_l * frac  # learning rate for lyapunov critic
-                break
-
-    # Save model and print Running time
-    print("Running time: ", time.time() - t1)
-    print("Saving Model")
-    policy.save_result(log_dir)
-    print("Running time: ", time.time() - t1)
-    return
+                break  # FIXME: Redundant

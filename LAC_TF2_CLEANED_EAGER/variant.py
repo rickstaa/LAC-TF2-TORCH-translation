@@ -34,12 +34,12 @@ timestr = time.strftime("%Y%m%d_%H%M")
 
 # Main training loop parameters
 TRAIN_PARAMS = {
-    # "episodes": int(
-    #     1e4
-    # ),  # DEBUG The number of episodes you want to perform # Oscillator environment
     "episodes": int(
-        1e5
+        1.1e4
     ),  # DEBUG The number of episodes you want to perform # Oscillator environment
+    # "episodes": int(
+    #     1e5
+    # ),  # DEBUG The number of episodes you want to perform # Oscillator environment
     # "episodes": int(
     #     1e5
     # ),  # The number of episodes you want to perform # Oscillator environment

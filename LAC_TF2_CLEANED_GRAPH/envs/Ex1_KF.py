@@ -5,6 +5,7 @@ from gym.utils import seeding
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
+
 # This example is the RL based stationary Kalman filter
 # \hat(x)(k+1)=A\hat(x)(k)+u
 # where u=[u1,u2]', u=l(\hat(x)(k),y(k)) come from the policy network l(.,.)
@@ -20,8 +21,9 @@ import matplotlib.pyplot as plt
 # x(0)~N([0;10],[2,0;0,3])
 # w(k)~N(0,1)
 # v(k)~N(0,2)
-class Ex1_KF(gym.Env):
 
+
+class Ex1_KF(gym.Env):
     def __init__(self):
         # assume that we know the system matrix A
         self.a11 = 0.8
@@ -43,12 +45,14 @@ class Ex1_KF(gym.Env):
         self.var2 = np.sqrt(2e-2)
 
         self.t = 0
-        self.dt = 1.
+        self.dt = 1.0
         self.sigma = 0
         # displacement limit set to be [-high, high]
-        high = np.array([10000,10000,10000])
+        high = np.array([10000, 10000, 10000])
 
-        self.action_space = spaces.Box(low=np.array([-20.,-20.]), high=np.array([20.,20.]),dtype=np.float32)
+        self.action_space = spaces.Box(
+            low=np.array([-20.0, -20.0]), high=np.array([20.0, 20.0]), dtype=np.float32
+        )
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
 
         self.seed()
@@ -74,41 +78,54 @@ class Ex1_KF(gym.Env):
         hat_x_2 = u2
         hat_y = self.c11 * hat_x_1 + self.c12 * hat_x_2
 
-        x_1 = self.a11 * x_1 + self.a12 * x_2 + self.b1 * np.random.normal(0,self.var1)
-        x_2 = self.a21 * x_1 + self.a22 * x_2 + self.b2 * np.random.normal(0,self.var1)
-        y = self.c11 * x_1 + self.c12 * x_2 + np.random.normal(0,self.var2)
-        self.state = np.array([hat_x_1,hat_x_2,x_1,x_2])
+        x_1 = self.a11 * x_1 + self.a12 * x_2 + self.b1 * np.random.normal(0, self.var1)
+        x_2 = self.a21 * x_1 + self.a22 * x_2 + self.b2 * np.random.normal(0, self.var1)
+        y = self.c11 * x_1 + self.c12 * x_2 + np.random.normal(0, self.var2)
+        self.state = np.array([hat_x_1, hat_x_2, x_1, x_2])
 
         # r1 = self.reference(self.t)
 
         self.t = self.t + 1
 
-        cost = abs(hat_y - y)**0.5
+        cost = abs(hat_y - y) ** 0.5
         # print('cost',cost)
         if cost > 100:
             done = True
         else:
             done = False
-        return np.array([hat_x_1,hat_x_2,y]), cost, done, dict(reference=y, state_of_interest=hat_x_1-x_1)
+        return (
+            np.array([hat_x_1, hat_x_2, y]),
+            cost,
+            done,
+            dict(reference=y, state_of_interest=hat_x_1 - x_1),
+        )
 
     def reset(self):
-        self.state = np.array([0+np.random.normal(0,self.var01),10+np.random.normal(0,self.var02),0,10])
+        self.state = np.array(
+            [
+                0 + np.random.normal(0, self.var01),
+                10 + np.random.normal(0, self.var02),
+                0,
+                10,
+            ]
+        )
         hat_x_1, hat_x_2, x_1, x_2 = self.state
         hat_y = self.c11 * hat_x_1 + self.c12 * hat_x_2
-        y = self.c11 * x_1 + self.c12 * x_2 + np.random.normal(0,self.var2)
-        return np.array([hat_x_1,hat_x_2,y])
+        y = self.c11 * x_1 + self.c12 * x_2 + np.random.normal(0, self.var2)
+        return np.array([hat_x_1, hat_x_2, y])
 
-    def render(self, mode = 'human'):
+    def render(self, mode="human"):
 
         return
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     env = Ex1_KF()
     T = 1000
     path = []
     t1 = []
     s = env.reset()
-    for i in range(int(T/env.dt)):
+    for i in range(int(T / env.dt)):
         s, r, info, done = env.step(np.array([0, 0]))
         path.append(s)
         t1.append(i * env.dt)
@@ -116,9 +133,9 @@ if __name__ == '__main__':
     fig = plt.figure(figsize=(9, 6))
     ax = fig.add_subplot(111)
     # ax.plot(t1, path, color='blue', label='0.1')
-    ax.plot(t1, np.array(path)[:, 0], color='blue', label='Distance estimate')
-    ax.plot(t1, np.array(path)[:, 1], color='green', label='Distance estimate')
-    ax.plot(t1, np.array(path)[:, 2], color='yellow', label='Distance')
+    ax.plot(t1, np.array(path)[:, 0], color="blue", label="Distance estimate")
+    ax.plot(t1, np.array(path)[:, 1], color="green", label="Distance estimate")
+    ax.plot(t1, np.array(path)[:, 2], color="yellow", label="Distance")
     # ax.plot(t1, np.array(path)[:, 1], color='green', label='Speed estimate')
     # ax.plot(t1, np.array(path)[:, 3], color='black', label='Speed')
     # ax.plot(t1, np.array(path)[:, 4], color='red', label='Output estimate error')
@@ -127,10 +144,4 @@ if __name__ == '__main__':
     #
     ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
     plt.show()
-    print('done')
-
-
-
-
-
-
+    print("done")

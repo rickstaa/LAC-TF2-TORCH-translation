@@ -9,9 +9,6 @@ import random
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from tensorflow.python import debug as tf_debug
-
-from tensorflow.python.keras.initializers import GlorotUniform
 
 from squash_bijector import SquashBijector
 from utils import evaluate_training_rollouts, get_env_from_name, training_evaluation
@@ -22,6 +19,7 @@ from pool import Pool
 # Script settings #############################
 ###############################################
 from variant import (
+    USE_GPU,
     ENV_NAME,
     RANDOM_SEED,
     ENV_SEED,
@@ -39,7 +37,9 @@ if RANDOM_SEED is not None:
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
     tf.random.set_random_seed(RANDOM_SEED)
-    TFP_SEED_STREAM = tfp.python.distributions.SeedStream(RANDOM_SEED, salt="tfp_1")
+
+if USE_GPU:
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 ###############################################
@@ -65,22 +65,6 @@ class LAC(object):
         # Set algorithm parameters as class objects
         self.network_structure = ALG_PARAMS["network_structure"]
         self.polyak = 1 - ALG_PARAMS["tau"]
-
-        # Create network seeds
-        self.ga_seeds = [
-            RANDOM_SEED,
-            TFP_SEED_STREAM(),
-        ]  # [weight init seed, sample seed]
-        self.ga_target_seeds = [
-            RANDOM_SEED + 1,
-            TFP_SEED_STREAM(),
-        ]  # [weight init seed, sample seed]
-        # self.lya_ga_target_seeds = [
-        #     RANDOM_SEED,
-        #     TFP_SEED_STREAM(),
-        # ]  # [weight init seed, sample seed]
-        self.lc_seed = RANDOM_SEED + 2  # Weight init seed
-        self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
 
         # Determine target entropy
         if ALG_PARAMS["target_entropy"] is None:
@@ -122,10 +106,8 @@ class LAC(object):
             ###########################################
 
             # Create Gaussian Actor (GA) and Lyapunov critic (LC) Networks
-            self.a, self.deterministic_a, self.a_dist = self._build_a(
-                self.S, seeds=self.ga_seeds
-            )
-            self.l = self._build_l(self.S, self.a_input, seed=self.lc_seed)
+            self.a, self.deterministic_a, self.a_dist = self._build_a(self.S)
+            self.l = self._build_l(self.S, self.a_input)
             self.log_pis = log_pis = self.a_dist.log_prob(
                 self.a
             )  # Gaussian actor action log_probability
@@ -153,26 +135,17 @@ class LAC(object):
             # Don't get optimized but get updated according to the EMA of the main
             # networks
             a_, _, a_dist_ = self._build_a(
-                self.S_,
-                reuse=True,
-                custom_getter=ema_getter,
-                seeds=self.ga_target_seeds,
+                self.S_, reuse=True, custom_getter=ema_getter
             )
-            l_ = self._build_l(
-                self.S_,
-                a_,
-                reuse=True,
-                custom_getter=ema_getter,
-                seed=self.lc_target_seed,
-            )
+            l_ = self._build_l(self.S_, a_, reuse=True, custom_getter=ema_getter)
 
             # Create Networks for the (fixed) lyapunov temperature boundary
             # DEBUG: This Network has the same parameters as the original gaussian actor
             # but now it receives the next state. This was needed as the target network
             # uses exponential moving average.
             # NOTE: Used as a minimum lambda constraint boundary
-            lya_a_, _, _ = self._build_a(self.S_, reuse=True, seeds=self.ga_seeds)
-            self.l_ = self._build_l(self.S_, lya_a_, reuse=True, seed=self.lc_seed)
+            lya_a_, _, _ = self._build_a(self.S_, reuse=True)
+            self.l_ = self._build_l(self.S_, lya_a_, reuse=True)
 
             ###########################################
             # Create Loss functions and optimizers ####
@@ -320,14 +293,7 @@ class LAC(object):
         # Return optimization results
         return labda, alpha, l_error, entropy, a_loss
 
-    def _build_a(
-        self,
-        s,
-        name="gaussian_actor",
-        reuse=None,
-        custom_getter=None,
-        seeds=[None, None],
-    ):
+    def _build_a(self, s, name="gaussian_actor", reuse=None, custom_getter=None):
         """Setup SquashedGaussianActor Graph.
 
         Args:
@@ -341,21 +307,15 @@ class LAC(object):
             custom_getter (object, optional): Overloads variable creation process.
                 Defaults to None.
 
-            seeds (list, optional): The random seeds used for the weight initialization
-                and the sampling ([weights_seed, sampling_seed]). Defaults to
-                [None, None]
         Returns:
             tuple: Tuple with network output tensors.
         """
 
-        # Settf.compat.v1.disable_eager_execution() trainability
+        # Set trainability
         trainable = True if reuse is None else False
 
         # Create graph
         with tf.variable_scope(name, reuse=reuse, custom_getter=custom_getter):
-
-            # Create weight initializer
-            initializer = GlorotUniform(seed=seeds[0])
 
             # Retrieve hidden layer sizes
             n1 = self.network_structure["actor"][0]
@@ -363,28 +323,13 @@ class LAC(object):
 
             # Create actor hidden/ output layers
             net_0 = tf.layers.dense(
-                s,
-                n1,
-                activation=tf.nn.relu,
-                name="l1",
-                trainable=trainable,
-                kernel_initializer=initializer,
+                s, n1, activation=tf.nn.relu, name="l1", trainable=trainable,
             )  # 原始是30
             net_1 = tf.layers.dense(
-                net_0,
-                n2,
-                activation=tf.nn.relu,
-                name="l2",
-                trainable=trainable,
-                kernel_initializer=initializer,
+                net_0, n2, activation=tf.nn.relu, name="l2", trainable=trainable,
             )  # 原始是30
             mu = tf.layers.dense(
-                net_1,
-                self.a_dim,
-                activation=None,
-                name="mu",
-                trainable=trainable,
-                kernel_initializer=initializer,
+                net_1, self.a_dim, activation=None, name="mu", trainable=trainable,
             )
             log_sigma = tf.layers.dense(
                 net_1,
@@ -392,7 +337,6 @@ class LAC(object):
                 activation=None,
                 name="log_sigma",
                 trainable=trainable,
-                kernel_initializer=initializer,
             )
             log_sigma = tf.clip_by_value(log_sigma, *LOG_SIGMA_MIN_MAX)
 
@@ -408,8 +352,8 @@ class LAC(object):
             base_distribution = tfp.distributions.MultivariateNormalDiag(
                 loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
             )
-            # tf.compat.v1.random.set_random_seed(10)
-            epsilon = base_distribution.sample(batch_size, seed=seeds[1])
+
+            epsilon = base_distribution.sample(batch_size)
             raw_action = affine_bijector.forward(epsilon)
             clipped_a = squash_bijector.forward(raw_action)
 
@@ -419,15 +363,13 @@ class LAC(object):
             )
             distribution = tfp.distributions.ConditionalTransformedDistribution(
                 distribution=base_distribution, bijector=reparm_trick_bijector
-            )
+            )  # DEBUG Difference
 
             clipped_mu = squash_bijector.forward(mu)
 
         return clipped_a, clipped_mu, distribution
 
-    def _build_l(
-        self, s, a, name="lyapunov_critic", reuse=None, custom_getter=None, seed=None
-    ):
+    def _build_l(self, s, a, name="lyapunov_critic", reuse=None, custom_getter=None):
         """Setup lyapunov critic graph.
 
         Args:
@@ -441,8 +383,6 @@ class LAC(object):
             custom_getter (object, optional): Overloads variable creation process.
                 Defaults to None.
 
-            seed (int, optional): The seed used for the weight initialization. Defaults
-                to None.
         Returns:
             tuple: Tuple with network output tensors.
         """
@@ -456,20 +396,11 @@ class LAC(object):
             # Retrieve hidden layer size
             n1 = self.network_structure["critic"][0]
 
-            # Create weight initializer
-            initializer = GlorotUniform(seed=seed)
-
             # Create actor hidden/ output layers
             layers = []
-            w1_s = tf.get_variable(
-                "w1_s", [self.s_dim, n1], trainable=trainable, initializer=initializer
-            )
-            w1_a = tf.get_variable(
-                "w1_a", [self.a_dim, n1], trainable=trainable, initializer=initializer
-            )
-            b1 = tf.get_variable(
-                "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer
-            )
+            w1_s = tf.get_variable("w1_s", [self.s_dim, n1], trainable=trainable)
+            w1_a = tf.get_variable("w1_a", [self.a_dim, n1], trainable=trainable)
+            b1 = tf.get_variable("b1", [1, n1], trainable=trainable)
             net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
             layers.append(net_0)
             for i in range(1, len(self.network_structure["critic"])):
@@ -481,7 +412,6 @@ class LAC(object):
                         activation=tf.nn.relu,
                         name="l" + str(i + 1),
                         trainable=trainable,
-                        kernel_initializer=initializer,
                     )
                 )
 
@@ -581,15 +511,30 @@ def train(log_dir):
             "entropy": [],
         }
 
-        # Stop training if max number of steps has been reached
-        if global_step > ENV_PARAMS["max_global_steps"]:
-            break
+        # # Stop training if max number of steps has been reached
+        # # FIXME: OLD_VERSION This makes no sense since the global steps will never be
+        # # the set global steps in this case.
+        # if global_step > ENV_PARAMS["max_global_steps"]:
+        #     print(f"Training stopped after {global_step} steps.")
+        #     break
 
         # Reset environment
         s = env.reset()
 
         # Training Episode loop
         for j in range(ENV_PARAMS["max_ep_steps"]):
+
+            # Break out of loop if global steps have been reached
+            # FIXME: NEW Here makes sense
+            if global_step > ENV_PARAMS["max_global_steps"]:
+
+                # Print step count, save model and stop the program
+                print(f"Training stopped after {global_step} steps.")
+                print("Running time: ", time.time() - t1)
+                print("Saving Model")
+                policy.save_result(log_dir)
+                print("Running time: ", time.time() - t1)
+                return
 
             # Render environment if requested
             if ENV_PARAMS["eval_render"]:
@@ -691,11 +636,4 @@ def train(log_dir):
                 frac = 1.0 - (global_step - 1.0) / ENV_PARAMS["max_global_steps"]
                 lr_a_now = lr_a * frac  # learning rate for actor, lambda, alpha
                 lr_l_now = lr_l * frac  # learning rate for lyapunov critic
-                break
-
-    # Save model and print Running time
-    print("Running time: ", time.time() - t1)
-    print("Saving Model")
-    policy.save_result(log_dir)
-    print("Running time: ", time.time() - t1)
-    return
+                break  # FIXME: Redundant

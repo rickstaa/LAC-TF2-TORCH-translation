@@ -29,15 +29,15 @@ DEBUG_PARAMS = {
 # Main training loop parameters
 TRAIN_PARAMS = {
     "episodes": int(
-        1e4
+        1.1e4
     ),  # DEBUG The number of episodes you want to perform # Oscillator
-    "episodes": int(1e5),  # The number of episodes you want to perform # Oscillator
+    # "episodes": int(1e5),  # The number of episodes you want to perform # Oscillator
     # "episodes": int(6e4),  # The number of episodes you want to perform # Ex4 env
     # "episodes": int(2e4),  # The number of episodes you want to perform
     "num_of_training_paths": 10,  # Number of training rollouts stored for analysis
     "evaluation_frequency": 2048,  # After how many steps the performance is evaluated
     "num_of_evaluation_paths": 10,  # number of rollouts for evaluation
-    "num_of_trials": 4,  # number of randomly seeded trained agents # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
+    "num_of_trials": 1,  # number of randomly seeded trained agents # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
 }
 

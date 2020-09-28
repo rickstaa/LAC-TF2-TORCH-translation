@@ -1,7 +1,10 @@
 # Files to ignore
 *.code-workspace
+*.zip
+*.cprof
 
 # Folders to ignore
+profiling/
 log/
 __pycache__/
 .vscode/

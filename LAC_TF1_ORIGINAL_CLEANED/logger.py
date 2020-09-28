@@ -534,6 +534,7 @@ def read_tb(path):
     tag2pairs = defaultdict(list)
     maxstep = 0
     for fname in fnames:
+        # for summary in tf.train.summary_iterator(fname):  # FIXME: Don't forget this change
         for summary in tf.train.summary_iterator(fname):
             if summary.step > 0:
                 for v in summary.summary.value:
