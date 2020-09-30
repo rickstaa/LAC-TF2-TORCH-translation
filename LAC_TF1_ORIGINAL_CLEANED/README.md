@@ -3,10 +3,6 @@
 The original LAC code as received from @panweihit but now cleaned up. Meaning the
 components we currently don't use were removed. This version works with `tf<=1.15`.
 
-## Performance
-
-It has the same performance as the old LAC script.
-
 ## Use instructions
 
 ### Conda environment

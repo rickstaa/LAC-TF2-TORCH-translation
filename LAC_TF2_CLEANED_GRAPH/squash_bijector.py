@@ -24,3 +24,4 @@ class SquashBijector(tfp.bijectors.Bijector):
 
     def _forward_log_det_jacobian(self, x):
         return 2.0 * (np.log(2.0) - x - tf.nn.softplus(-2.0 * x))
+        # return 2.0 * (tf.math.log(2.0) - x - tf.nn.softplus(-2.0 * x)) # DEBUG

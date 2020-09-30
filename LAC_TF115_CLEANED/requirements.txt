@@ -6,3 +6,4 @@ matplotlib
 gym==0.12.0
 cloudpickle==1.1.1
 numpy
+packaging

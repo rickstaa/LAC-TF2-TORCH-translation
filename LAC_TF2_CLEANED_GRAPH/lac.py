@@ -10,8 +10,6 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-# from tensorflow.python import debug as tf_debug
-
 from tensorflow.keras.initializers import GlorotUniform
 
 from squash_bijector import SquashBijector
@@ -42,18 +40,17 @@ if RANDOM_SEED is not None:
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
     tf.compat.v1.random.set_random_seed(RANDOM_SEED)
-    # tf.random.set_seed(RANDOM_SEED)  # Debug
     TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_1")
 
-# Disable eager
-tf.compat.v1.disable_eager_execution()
-
 # Disable GPU if requested
-if not USE_GPU:
+if not USE_GPU:  # NOTE: This works in both TF115 and tf2
     tf.config.set_visible_devices([], "GPU")
     print("Tensorflow is using CPU")
 else:
     print("Tensorflow is using GPU")
+
+# Disable eager
+tf.compat.v1.disable_eager_execution()
 
 
 ###############################################
@@ -105,7 +102,6 @@ class LAC(object):
 
         # Create tensorflow session
         self.sess = tf.compat.v1.Session()
-        # self.sess = tf_debug.TensorBoardDebugWrapperSession(self.sess, "localhost:6006")
 
         # Create networks, optimizers and variables inside the Actor scope
         with tf.compat.v1.variable_scope("Actor"):

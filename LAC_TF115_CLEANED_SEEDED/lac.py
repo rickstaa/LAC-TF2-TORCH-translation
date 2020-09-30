@@ -5,6 +5,7 @@ import time
 from collections import deque
 import os
 import random
+from packaging import version
 
 import numpy as np
 import tensorflow as tf
@@ -43,15 +44,13 @@ if RANDOM_SEED is not None:
     tf.compat.v1.random.set_random_seed(RANDOM_SEED)
     TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_1")
 
-# # Disable GPU if requested
-# if not USE_GPU:
-#     tf.config.set_visible_devices([], "GPU")
-#     print("Tensorflow is using CPU")
-# else:
-#     print("Tensorflow is using GPU") # NOT AVAILABLE IN TF1.15
+# Disable GPU if requested
 if not USE_GPU:  # NOTE: This works in both TF115 and tf2
     # tf.config.set_visible_devices([], "GPU")
-    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    if version.parse(tf.__version__) > version.parse("1.15.4"):
+        tf.config.set_visible_devices([], "GPU")
+    else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
     print("Tensorflow is using CPU")
 else:
     print("Tensorflow is using GPU")

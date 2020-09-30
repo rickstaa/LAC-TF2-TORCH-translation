@@ -10,6 +10,7 @@ import random
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+
 from tensorflow.keras.initializers import GlorotUniform
 
 from gaussian_actor import SquashedGaussianActor
@@ -32,7 +33,7 @@ from variant import (
     ENV_PARAMS,
     LOG_SIGMA_MIN_MAX,
     SCALE_lambda_MIN_MAX,
-    DEBUG_PARAMS,
+    # DEBUG_PARAMS,
 )
 
 # Set random seed to get comparable results for each run
@@ -59,16 +60,16 @@ if not USE_GPU:
 else:
     print("Tensorflow is using GPU")
 
-# Disable tf.function graph execution if debug
-if DEBUG_PARAMS["debug"] and not (
-    DEBUG_PARAMS["trace_net"] or DEBUG_PARAMS["trace_learn"]
-):
-    print(
-        "WARNING: tf.functions are executed in eager mode because DEBUG=True. "
-        "This significantly slow down the training. Please disable DEBUG during "
-        "deployment."
-    )
-    tf.config.experimental_run_functions_eagerly(True)
+# # Disable tf.function graph execution if debug
+# if DEBUG_PARAMS["debug"] and not (
+#     DEBUG_PARAMS["trace_net"] or DEBUG_PARAMS["trace_learn"]
+# ):
+#     print(
+#         "WARNING: tf.functions are executed in eager mode because DEBUG=True. "
+#         "This significantly slow down the training. Please disable DEBUG during "
+#         "deployment."
+#     )
+#     tf.config.experimental_run_functions_eagerly(True)
 
 # Check for numeric errors
 # tf.debugging.enable_check_numerics()

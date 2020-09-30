@@ -24,12 +24,12 @@ timestr = time.strftime("%Y%m%d_%H%M")
 
 # Main training loop parameters
 TRAIN_PARAMS = {
-    "episodes": int(
-        1.1e4
-    ),  # DEBUG The number of episodes you want to perform # Oscillator environment
     # "episodes": int(
-    #     1e5
-    # ),  # The number of episodes you want to perform # Oscillator environment
+    #     1.1e4
+    # ),  # DEBUG The number of episodes you want to perform # Oscillator environment
+    "episodes": int(
+        1e5
+    ),  # The number of episodes you want to perform # Oscillator environment
     # "episodes": int(
     #     6e4
     # ),  # The number of episodes you want to perform # EX3 environment
@@ -37,7 +37,7 @@ TRAIN_PARAMS = {
     "evaluation_frequency": 2048,  # After how many steps the performance is evaluated
     # "num_of_evaluation_paths": 10,  # number of rollouts for evaluation  # DEBUG
     "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
-    # "num_of_trials": 4,  # number of randomly seeded trained agents
+    # "num_of_trials": 5,  # number of randomly seeded trained agents
     "num_of_trials": 1,  # number of randomly seeded trained agents
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
 }

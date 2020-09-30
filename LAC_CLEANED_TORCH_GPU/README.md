@@ -2,10 +2,6 @@
 
 This folder contains the cleaned up version of the LAC script. It uses `pytorch>=1.6.0`.
 
-## Performance
-
-Here in eager mode the re-parameterization trick is not working as the gradient of the log_pi layer can not be computed.
-
 ## Use instructions
 
 ### Conda environment

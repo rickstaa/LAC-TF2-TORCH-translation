@@ -2,10 +2,6 @@
 
 This folder contains the cleaned up version of the LAC script. It uses `tf==1.15`.
 
-## Performance
-
-It has the same performance as the old LAC script.
-
 ## Use instructions
 
 ### Conda environment
