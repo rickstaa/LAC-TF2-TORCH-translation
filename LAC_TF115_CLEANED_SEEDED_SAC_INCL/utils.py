@@ -9,7 +9,7 @@ from variant import (
 )
 
 
-def get_env_from_name(name, ENV_SEED=None):
+def get_env_from_name(name, ENV_SEED=None):  # FIXME: Naming
     """Initializes the gym environment with the given name
 
     Args:
