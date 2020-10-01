@@ -44,6 +44,8 @@ if RANDOM_SEED is not None:
     tf.random.set_random_seed(RANDOM_SEED)
     TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_1")
 
+# Display training info
+print("==Train settings==")
 # Disable GPU if requested
 if not USE_GPU:  # NOTE: This works in both TF115 and tf2
     # tf.config.set_visible_devices([], "GPU")
@@ -51,15 +53,15 @@ if not USE_GPU:  # NOTE: This works in both TF115 and tf2
         tf.config.set_visible_devices([], "GPU")
     else:
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-    print("Tensorflow is using CPU")
+    print("Tensorflow is using CPU.")
 else:
-    print("Tensorflow is using GPU")
+    print("Tensorflow is using GPU.")
 
 # Print LAC/SAC message
 if ALG_PARAMS["use_lyapunov"]:
-    print("You are training using LAC")
+    print("You are training the LAC algorithm.")
 else:
-    print("You are training using SAC")
+    print("You are training the SAC algorithm.")
 
 # Disable eager
 tf.compat.v1.disable_eager_execution()
@@ -735,6 +737,7 @@ def train(log_dir):
     """
 
     # Create environment
+    print(f"Your training in the {ENV_NAME} environment.\n")
     env = get_env_from_name(ENV_NAME, ENV_SEED)
 
     # Set initial learning rates
