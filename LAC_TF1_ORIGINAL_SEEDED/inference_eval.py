@@ -11,7 +11,14 @@ import argparse
 from LAC.LAC_V1 import LAC
 from envs.oscillator import oscillator
 from envs.Ex3_EKF import Ex3_EKF
-from variant import EVAL_PARAMS, ENV_PARAMS, VARIANT, ALG_PARAMS
+from variant import (
+    EVAL_PARAMS,
+    ENV_PARAMS,
+    VARIANT,
+    ALG_PARAMS,
+    ENV_SEED,
+    get_env_from_name,
+)
 
 # Modify VARIANT for LAC
 VARIANT["alg_params"] = ALG_PARAMS["LAC"]
@@ -72,16 +79,7 @@ if __name__ == "__main__":
         ###########################################
 
         # Create environment
-        if args.env_name.lower() == "ex3_ekf":
-            env = Ex3_EKF()
-        elif args.env_name.lower() == "oscillator":
-            env = oscillator()
-        else:
-            print(
-                "Shutting down robustness eval since it is not yet implemented to "
-                f"work with the `{args.env_name}` environment"
-            )
-            sys.exit(0)
+        env = get_env_from_name(args.env_name, ENV_SEED)
 
         # Check if model exists
         if not os.path.exists(MODEL_PATH):

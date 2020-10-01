@@ -11,7 +11,8 @@ import argparse
 from lac import LAC
 from envs.oscillator import oscillator
 from envs.Ex3_EKF import Ex3_EKF
-from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME
+from utils import get_env_from_name
+from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED
 
 ###################################################
 # Main inference eval script ######################
@@ -66,16 +67,7 @@ if __name__ == "__main__":
         ###########################################
 
         # Create environment
-        if args.env_name.lower() == "ex3_ekf":
-            env = Ex3_EKF()
-        elif args.env_name.lower() == "oscillator":
-            env = oscillator()
-        else:
-            print(
-                "Shutting down robustness eval since it is not yet implemented to "
-                f"work with the `{args.env_name}` environment"
-            )
-            sys.exit(0)
+        env = get_env_from_name(args.env_name, ENV_SEED)
 
         # Check if model exists
         if not os.path.exists(MODEL_PATH):
