@@ -118,7 +118,7 @@ class LAC(object):
 
             # 这个网络不及时更新参数, 用于预测 Critic 的 Q_target 中的 action
             a_, _, a_dist_ = self._build_a(
-                self.S_, reuse=True, custom_getter=ema_getter,
+                self.S_, reuse=True, custom_getter=ema_getter
             )  # replaced target parameters
             lya_a_, _, lya_a_dist_ = self._build_a(self.S_, reuse=True)
             # self.cons_a_input_ = tf.placeholder(tf.float32, [None, a_dim, 'cons_a_input_'])
@@ -128,7 +128,7 @@ class LAC(object):
 
             # 这个网络不及时更新参数, 用于给出 Actor 更新参数时的 Gradient ascent 强度
 
-            l_ = self._build_l(self.S_, a_, reuse=True, custom_getter=ema_getter,)
+            l_ = self._build_l(self.S_, a_, reuse=True, custom_getter=ema_getter)
             self.l_ = self._build_l(self.S_, lya_a_, reuse=True)
 
             # lyapunov constraint
@@ -305,7 +305,7 @@ class LAC(object):
             base_distribution = tfp.distributions.MultivariateNormalDiag(
                 loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
             )
-            tf.compat.v1.random.set_random_seed(10)
+            # tf.compat.v1.random.set_random_seed(10)
             epsilon = base_distribution.sample(batch_size)
 
             ## Construct the feedforward action
@@ -313,15 +313,15 @@ class LAC(object):
             n2 = self.network_structure["actor"][1]
 
             net_0 = tf.layers.dense(
-                s, n1, activation=tf.nn.relu, name="l1", trainable=trainable,
+                s, n1, activation=tf.nn.relu, name="l1", trainable=trainable
             )  # 原始是30
             net_1 = tf.layers.dense(
-                net_0, n2, activation=tf.nn.relu, name="l4", trainable=trainable,
+                net_0, n2, activation=tf.nn.relu, name="l4", trainable=trainable
             )  # 原始是30
             mu = tf.layers.dense(
-                net_1, self.a_dim, activation=None, name="a", trainable=trainable,
+                net_1, self.a_dim, activation=None, name="a", trainable=trainable
             )
-            log_sigma = tf.layers.dense(net_1, self.a_dim, None, trainable=trainable,)
+            log_sigma = tf.layers.dense(net_1, self.a_dim, None, trainable=trainable)
 
             # log_sigma = tf.layers.dense(s, self.a_dim, None, trainable=trainable)
             log_sigma = tf.clip_by_value(log_sigma, *SCALE_DIAG_MIN_MAX)
@@ -352,7 +352,7 @@ class LAC(object):
             layers = []
             w1_s = tf.get_variable("w1_s", [self.s_dim, n1], trainable=trainable)
             w1_a = tf.get_variable("w1_a", [self.a_dim, n1], trainable=trainable)
-            b1 = tf.get_variable("b1", [1, n1], trainable=trainable,)
+            b1 = tf.get_variable("b1", [1, n1], trainable=trainable)
             net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
             layers.append(net_0)
             for i in range(1, len(self.network_structure["critic"])):
@@ -388,7 +388,7 @@ class LAC(object):
 
 def train(variant):
     env_name = variant["env_name"]
-    env = get_env_from_name(env_name)
+    env = get_env_from_name(env_name, ENV_SEED=ENV_SEED)
 
     env_params = variant["env_params"]
 

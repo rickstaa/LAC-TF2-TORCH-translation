@@ -188,11 +188,7 @@ class LAC(object):
                 seed=self.lc_target_seed,
             )
 
-            # Create Networks for the (fixed) lyapunov temperature boundary
-            # DEBUG: This Network has the same parameters as the original gaussian actor
-            # but now it receives the next state. This was needed as the target network
-            # uses exponential moving average.
-            # NOTE: Used as a minimum lambda constraint boundary
+            # Graph for value of current best action out of the Actor
             lya_a_, _, _ = self._build_a(self.S_, reuse=True, seeds=self.ga_seeds)
             self.l_ = self._build_l(self.S_, lya_a_, reuse=True, seed=self.lc_seed)
 

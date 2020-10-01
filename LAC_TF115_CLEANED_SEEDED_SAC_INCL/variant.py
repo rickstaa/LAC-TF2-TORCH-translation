@@ -11,7 +11,8 @@ USE_GPU = False
 
 # Environment parameters
 # ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
-ENV_NAME = "oscillator"  # The gym environment you want to train in
+ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
+# ENV_NAME = "oscillator"  # The gym environment you want to train in
 ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
 
@@ -44,16 +45,19 @@ TRAIN_PARAMS = {
 
 # Main evaluation parameters
 EVAL_PARAMS = {
-    "eval_list": ["LAC20200906_2152"],
+    "eval_list": ["LAC20200930_1737"],
     "additional_description": timestr,
     "trials_for_eval": [str(i) for i in range(0, 3)],
     "num_of_paths": 50,  # number of path for evaluation
     "plot_average": True,
     "directly_show": True,
+    "plot_obs": True,  # Whether you also want to plot the observations
+    "obs": [1],  # Which observations you want to plot (empty means all obs).
 }
 
 # Learning algorithm parameters
 ALG_PARAMS = {
+    # "use_lyapunov": True,  # If false the SAC algorithm will be used
     "use_lyapunov": False,  # If false the SAC algorithm will be used
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
@@ -86,6 +90,12 @@ ENVS_PARAMS = {
         "eval_render": False,
     },
     "Ex3_EKF": {
+        "max_ep_steps": 500,
+        "max_global_steps": TRAIN_PARAMS["episodes"],
+        "max_episodes": int(1e6),
+        "eval_render": False,
+    },
+    "Ex3_EKF_gyro": {
         "max_ep_steps": 500,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),

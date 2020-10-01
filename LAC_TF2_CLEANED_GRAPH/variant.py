@@ -18,6 +18,7 @@ DEBUG_PARAMS = {
 
 # Environment parameters
 # ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
+# ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
 ENV_NAME = "oscillator"  # The gym environment you want to train in
 ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
@@ -90,6 +91,12 @@ ENVS_PARAMS = {
         "eval_render": False,
     },
     "Ex3_EKF": {
+        "max_ep_steps": 500,
+        "max_global_steps": TRAIN_PARAMS["episodes"],
+        "max_episodes": int(1e6),
+        "eval_render": False,
+    },
+    "Ex3_EKF_gyro": {
         "max_ep_steps": 500,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),

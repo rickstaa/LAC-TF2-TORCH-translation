@@ -41,7 +41,7 @@ if RANDOM_SEED is not None:
     os.environ["TF_CUDNN_DETERMINISTIC"] = "1"  # new flag present in tf 2.0+
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
-    tf.compat.v1.random.set_random_seed(RANDOM_SEED)
+    tf.random.set_random_seed(RANDOM_SEED)
     TFP_SEED_STREAM = tfp.util.SeedStream(RANDOM_SEED, salt="tfp_1")
 
 # Disable GPU if requested
@@ -54,6 +54,12 @@ if not USE_GPU:  # NOTE: This works in both TF115 and tf2
     print("Tensorflow is using CPU")
 else:
     print("Tensorflow is using GPU")
+
+# Print LAC/SAC message
+if ALG_PARAMS["use_lyapunov"]:
+    print("You are training using LAC")
+else:
+    print("You are training using SAC")
 
 # Disable eager
 tf.compat.v1.disable_eager_execution()
@@ -282,6 +288,7 @@ class LAC(object):
                 l_target = self.R + ALG_PARAMS["gamma"] * (
                     1 - self.terminal
                 ) * tf.stop_gradient(l_)
+
                 self.l_error = tf.compat.v1.losses.mean_squared_error(
                     labels=l_target, predictions=self.l
                 )

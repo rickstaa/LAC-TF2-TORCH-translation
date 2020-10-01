@@ -370,7 +370,7 @@ if __name__ == "__main__":
             )
             ax2 = fig.add_subplot(111)
             t = range(max(eval_paths["episode_length"]))
-            if obs_mean_path.shape[0] > len(colors):
+            if obs_mean_path.shape[0] > len(colors) and not EVAL_PARAMS["obs"]:
                 print(
                     f"Your observation array is to long only the first {len(colors)} "
                     "states will be ploted"

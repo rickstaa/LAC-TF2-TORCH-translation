@@ -100,7 +100,7 @@ if __name__ == "__main__":
             rollout_name
             for rollout_name in rollout_list
             if os.path.exists(
-                os.path.abspath(MODEL_PATH + "/" + rollout_name + "/policy/model.pth")
+                os.path.abspath(MODEL_PATH + "/" + rollout_name + "/policy/checkpoint")
             )
         ]
         rollout_list.sort()  # Sort rollouts_list
@@ -302,7 +302,9 @@ if __name__ == "__main__":
         print("\nPlotting mean path and standard deviation.")
         # TODO: Add state and multiple references possibility
         for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
-            fig = plt.figure(figsize=(9, 6), num=f"LAC_CLEANED_TORCH_{i+1}")
+            fig = plt.figure(
+                figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i+1}"
+            )
             ax = fig.add_subplot(111)
             t = range(max(eval_paths["episode_length"]))
             if i <= (len(soi_mean_path) - 1):
@@ -338,7 +340,9 @@ if __name__ == "__main__":
 
         # Also plot mean and std of the observations
         if args.plot_o:
-            fig = plt.figure(figsize=(9, 6), num=f"LAC_CLEANED_TORCH_{i+2}")
+            fig = plt.figure(
+                figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i+2}"
+            )
             colors = "bgrcmk"
             cycol = cycle(colors)
             obs_trimmed = [

@@ -24,6 +24,7 @@ timestr = time.strftime("%Y%m%d_%H%M")
 VARIANT = {
     "eval_list": ["LAC20200922_1459"],
     # "env_name": "Ex3_EKF",
+    # "env_name": "Ex3_EKF_gyro",
     "env_name": "oscillator",
     "algorithm_name": "LAC",
     "additional_description": timestr,
@@ -59,6 +60,14 @@ ENV_PARAMS = {
         "network_structure": {"critic": critic, "actor": actor,},
     },
     "Ex3_EKF": {
+        "max_ep_steps": 500,
+        "max_global_steps": episodes,
+        "max_episodes": int(1e6),
+        "disturbance dim": 2,
+        "eval_render": False,
+        "network_structure": {"critic": critic, "actor": actor,},
+    },
+    "Ex3_EKF_gyro": {
         "max_ep_steps": 500,
         "max_global_steps": episodes,
         "max_episodes": int(1e6),
@@ -170,6 +179,11 @@ def get_env_from_name(name):
         env = env.unwrapped
     elif name == "Ex3_EKF":
         from envs.Ex3_EKF import Ex3_EKF as env
+
+        env = env()
+        env = env.unwrapped
+    elif name == "Ex3_EKF_gyro":
+        from envs.Ex3_EKF_gyro import Ex3_EKF as env
 
         env = env()
         env = env.unwrapped
