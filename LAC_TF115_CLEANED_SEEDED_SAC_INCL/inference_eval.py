@@ -61,7 +61,7 @@ if __name__ == "__main__":
     for name in eval_agents:
         dirname = os.path.dirname(__file__)
         MODEL_PATH = os.path.abspath(
-            os.path.join(dirname, "../log/" + args.env_name + "/" + name)
+            os.path.join(dirname, "./log/" + args.env_name + "/" + name)
         )  # TODO: Make log paths env name lowercase
         print("evaluating " + name)
         print(f"Using model folder: {MODEL_PATH}")
@@ -154,7 +154,7 @@ if __name__ == "__main__":
                 }
 
                 # env.reset() # MAke sure this is not seeded when reset
-                s = env.reset()
+                s = env.reset(eval=True)
 
                 # Perfrom trail
                 for j in range(ENVS_PARAMS[args.env_name]["max_ep_steps"]):
@@ -263,8 +263,7 @@ if __name__ == "__main__":
             # Retrieve requested sates list
             req_ref = EVAL_PARAMS["ref"]
 
-            # Calculate mean path of reference and state_of_interrest
-            # TODO: Doesn't work with unequal length paths - Needed?
+            # Calculate mean path of reference and state_of_interest
             soi_trimmed = [
                 path
                 for path in eval_paths["state_of_interest"]
@@ -328,28 +327,43 @@ if __name__ == "__main__":
                     )
 
         # Plot mean path of reference and state_of_interrest
+        if EVAL_PARAMS["merged"]:
+            fig = plt.figure(
+                figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i + 1}"
+            )
+            ax = fig.add_subplot(111)
+            colors = "bgrcmk"
+            cycol = cycle(colors)
         print("\nPlotting mean path and standard deviation.")
         if args.plot_r:
             for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
                 if (i + 1) in req_ref or not req_ref:
-                    fig = plt.figure(
-                        figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i+1}"
-                    )
-                    ax = fig.add_subplot(111)
+                    if not EVAL_PARAMS["merged"]:
+                        fig = plt.figure(
+                            figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i+1}"
+                        )
+                        ax = fig.add_subplot(111)
+                        color1 = "red"
+                        color2 = "blue"
+                    else:
+                        color1 = next(cycol)
+                        color2 = color1
                     t = range(max(eval_paths["episode_length"]))
                     if i <= (len(soi_mean_path) - 1):
                         ax.plot(
                             t,
                             soi_mean_path[i],
-                            color="red",
+                            color=color1,
+                            linestyle='dashed',
                             label=f"state_of_interest_{i+1}_mean",
                         )
-                        ax.set_title(f"States of interest and reference {i+1}")
+                        if not EVAL_PARAMS["merged"]:
+                            ax.set_title(f"States of interest and reference {i+1}")
                         ax.fill_between(
                             t,
                             soi_mean_path[i] - soi_std_path[i],
                             soi_mean_path[i] + soi_std_path[i],
-                            color="red",
+                            color=color1,
                             alpha=0.3,
                             label=f"state_of_interest_{i+1}_std",
                         )
@@ -357,17 +371,22 @@ if __name__ == "__main__":
                         ax.plot(
                             t,
                             ref_mean_path[i],
-                            color="blue",
-                            label=f"reference_{i+1}_mean",
-                        )
-                        ax.fill_between(
-                            t,
-                            ref_mean_path[i] - ref_std_path[i],
-                            ref_mean_path[i] + ref_std_path[i],
-                            color="blue",
-                            alpha=0.3,
-                            label=f"reference_{i+1}_std",
-                        )
+                            color=color2,
+                            label=f"reference_{i+1}",
+                        )  # Fixme remove
+                        # ax.fill_between(
+                        #     t,
+                        #     ref_mean_path[i] - ref_std_path[i],
+                        #     ref_mean_path[i] + ref_std_path[i],
+                        #     color=color2,
+                        #     alpha=0.3,
+                        #     label=f"reference_{i+1}_std",
+                        # )
+                    if not EVAL_PARAMS["merged"]:
+                        handles, labels = ax.get_legend_handles_labels()
+                        ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
+                if EVAL_PARAMS["merged"]:
+                    ax.set_title("State of references")
                     handles, labels = ax.get_legend_handles_labels()
                     ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
 
@@ -429,7 +448,7 @@ if __name__ == "__main__":
             for i in range(0, obs_mean_path.shape[0]):
                 if (i + 1) in req_obs or not req_obs:
                     color = next(cycol)
-                    ax2.plot(t, obs_mean_path[i], color=color, label=("s_" + str(i)))
+                    ax2.plot(t, obs_mean_path[i], color=color, linestyle='dashed', label=("s_" + str(i)))
                     ax2.fill_between(
                         t,
                         obs_mean_path[i] - obs_std_path[i],

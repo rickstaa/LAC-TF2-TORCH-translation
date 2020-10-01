@@ -93,24 +93,35 @@ class LAC(object):
         self.use_lyapunov = ALG_PARAMS["use_lyapunov"]
 
         # Create network seeds
-        self.ga_seeds = [
-            RANDOM_SEED,
-            TFP_SEED_STREAM(),
-        ]  # [weight init seed, sample seed]
-        self.ga_target_seeds = [
-            RANDOM_SEED + 1,
-            TFP_SEED_STREAM(),
-        ]  # [weight init seed, sample seed]
-        # self.lya_ga_target_seeds = [
-        #     RANDOM_SEED,
-        #     TFP_SEED_STREAM(),
-        # ]  # [weight init seed, sample seed]
-        self.lc_seed = RANDOM_SEED + 2  # Weight init seed
-        self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
-        self.qc_seed1 = RANDOM_SEED + 4  # Weight init seed
-        self.qc_seed2 = RANDOM_SEED + 5  # Weight init seed
-        self.qc_target_seed1 = RANDOM_SEED + 6  # Weight init seed
-        self.qc_target_seed2 = RANDOM_SEED + 7  # Weight init seed
+        if RANDOM_SEED is not None:
+            self.ga_seeds = [
+                RANDOM_SEED,
+                TFP_SEED_STREAM(),
+            ]  # [weight init seed, sample seed]
+            self.ga_target_seeds = [
+                RANDOM_SEED + 1,
+                TFP_SEED_STREAM(),
+            ]  # [weight init seed, sample seed]
+            # self.lya_ga_target_seeds = [
+            #     RANDOM_SEED,
+            #     TFP_SEED_STREAM(),
+            # ]  # [weight init seed, sample seed]
+            self.lc_seed = RANDOM_SEED + 2  # Weight init seed
+            self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
+            self.qc_seed1 = RANDOM_SEED + 4  # Weight init seed
+            self.qc_seed2 = RANDOM_SEED + 5  # Weight init seed
+            self.qc_target_seed1 = RANDOM_SEED + 6  # Weight init seed
+            self.qc_target_seed2 = RANDOM_SEED + 7  # Weight init seed
+        else:
+            self.ga_seeds = None
+            self.ga_target_seeds = None
+            self.lc_seed = None
+            self.lc_target_seed = None
+            self.qc_seed1 = None
+            self.qc_seed2 = None
+            self.qc_target_seed1 = None
+            self.qc_target_seed2 = None
+
 
         # Determine target entropy
         if ALG_PARAMS["target_entropy"] is None:
@@ -491,47 +502,78 @@ class LAC(object):
         with tf.compat.v1.variable_scope(
             name, reuse=reuse, custom_getter=custom_getter
         ):
-
-            # Create weight initializer
-            initializer = GlorotUniform(seed=seeds[0])
+            # Check if random seed is set
+            if RANDOM_SEED is not None:
+                # Create weight initializer
+                initializer = GlorotUniform(seed=seeds[0])
 
             # Retrieve hidden layer sizes
             n1 = self.network_structure["actor"][0]
             n2 = self.network_structure["actor"][1]
 
             # Create actor hidden/ output layers
-            net_0 = tf.compat.v1.layers.dense(
-                s,
-                n1,
-                activation=tf.nn.relu,
-                name="l1",
-                trainable=trainable,
-                kernel_initializer=initializer,
-            )  # 原始是30
-            net_1 = tf.compat.v1.layers.dense(
-                net_0,
-                n2,
-                activation=tf.nn.relu,
-                name="l2",
-                trainable=trainable,
-                kernel_initializer=initializer,
-            )  # 原始是30
-            mu = tf.compat.v1.layers.dense(
-                net_1,
-                self.a_dim,
-                activation=None,
-                name="mu",
-                trainable=trainable,
-                kernel_initializer=initializer,
-            )
-            log_sigma = tf.compat.v1.layers.dense(
-                net_1,
-                self.a_dim,
-                activation=None,
-                name="log_sigma",
-                trainable=trainable,
-                kernel_initializer=initializer,
-            )
+            if RANDOM_SEED is not None:
+                net_0 = tf.compat.v1.layers.dense(
+                    s,
+                    n1,
+                    activation=tf.nn.relu,
+                    name="l1",
+                    trainable=trainable,
+                    kernel_initializer=initializer,
+                )  # 原始是30
+                net_1 = tf.compat.v1.layers.dense(
+                    net_0,
+                    n2,
+                    activation=tf.nn.relu,
+                    name="l2",
+                    trainable=trainable,
+                    kernel_initializer=initializer,
+                )  # 原始是30
+                mu = tf.compat.v1.layers.dense(
+                    net_1,
+                    self.a_dim,
+                    activation=None,
+                    name="mu",
+                    trainable=trainable,
+                    kernel_initializer=initializer,
+                )
+                log_sigma = tf.compat.v1.layers.dense(
+                    net_1,
+                    self.a_dim,
+                    activation=None,
+                    name="log_sigma",
+                    trainable=trainable,
+                    kernel_initializer=initializer,
+                )
+            else:
+                net_0 = tf.compat.v1.layers.dense(
+                    s,
+                    n1,
+                    activation=tf.nn.relu,
+                    name="l1",
+                    trainable=trainable,
+                )  # 原始是30
+                net_1 = tf.compat.v1.layers.dense(
+                    net_0,
+                    n2,
+                    activation=tf.nn.relu,
+                    name="l2",
+                    trainable=trainable,
+                )  # 原始是30
+                mu = tf.compat.v1.layers.dense(
+                    net_1,
+                    self.a_dim,
+                    activation=None,
+                    name="mu",
+                    trainable=trainable,
+                )
+                log_sigma = tf.compat.v1.layers.dense(
+                    net_1,
+                    self.a_dim,
+                    activation=None,
+                    name="log_sigma",
+                    trainable=trainable,
+                )
             log_sigma = tf.clip_by_value(log_sigma, *LOG_SIGMA_MIN_MAX)
 
             # Calculate log probability standard deviation
@@ -547,7 +589,10 @@ class LAC(object):
             base_distribution = tfp.distributions.MultivariateNormalDiag(
                 loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
             )
-            epsilon = base_distribution.sample(batch_size, seed=seeds[1])
+            if RANDOM_SEED is not None:
+                epsilon = base_distribution.sample(batch_size, seed=seeds[1])
+            else:
+                epsilon = base_distribution.sample(batch_size)
             raw_action = affine_bijector.forward(epsilon)
             clipped_a = squash_bijector.forward(raw_action)
 
@@ -597,41 +642,72 @@ class LAC(object):
             n1 = self.network_structure["q_critic"][0]
 
             # Create weight initializer
-            initializer = GlorotUniform(seed=seed)
+            if RANDOM_SEED is not None:
+                initializer = GlorotUniform(seed=seed)
 
             # Create actor hidden/ output layers
-            layers = []
-            w1_s = tf.compat.v1.get_variable(
-                "w1_s", [self.s_dim, n1], trainable=trainable, initializer=initializer
-            )
-            w1_a = tf.compat.v1.get_variable(
-                "w1_a", [self.a_dim, n1], trainable=trainable, initializer=initializer
-            )
-            b1 = tf.compat.v1.get_variable(
-                "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer
-            )
-            net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
-            layers.append(net_0)
-            for i in range(1, len(self.network_structure["q_critic"])):
-                n = self.network_structure["q_critic"][i]
-                layers.append(
-                    tf.compat.v1.layers.dense(
-                        layers[i - 1],
-                        n,
-                        activation=tf.nn.relu,
-                        name="l" + str(i + 1),
-                        trainable=trainable,
-                        kernel_initializer=initializer,
-                    )
+            if RANDOM_SEED is not None:
+                layers = []
+                w1_s = tf.compat.v1.get_variable(
+                    "w1_s", [self.s_dim, n1], trainable=trainable, initializer=initializer
                 )
+                w1_a = tf.compat.v1.get_variable(
+                    "w1_a", [self.a_dim, n1], trainable=trainable, initializer=initializer
+                )
+                b1 = tf.compat.v1.get_variable(
+                    "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer
+                )
+                net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
+                layers.append(net_0)
+                for i in range(1, len(self.network_structure["q_critic"])):
+                    n = self.network_structure["q_critic"][i]
+                    layers.append(
+                        tf.compat.v1.layers.dense(
+                            layers[i - 1],
+                            n,
+                            activation=tf.nn.relu,
+                            name="l" + str(i + 1),
+                            trainable=trainable,
+                            kernel_initializer=initializer,
+                        )
+                    )
+            else:
+                layers = []
+                w1_s = tf.compat.v1.get_variable(
+                    "w1_s", [self.s_dim, n1], trainable=trainable,
+                )
+                w1_a = tf.compat.v1.get_variable(
+                    "w1_a", [self.a_dim, n1], trainable=trainable,
+                )
+                b1 = tf.compat.v1.get_variable(
+                    "b1", [1, n1], trainable=trainable,
+                )
+                net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
+                layers.append(net_0)
+                for i in range(1, len(self.network_structure["q_critic"])):
+                    n = self.network_structure["q_critic"][i]
+                    layers.append(
+                        tf.compat.v1.layers.dense(
+                            layers[i - 1],
+                            n,
+                            activation=tf.nn.relu,
+                            name="l" + str(i + 1),
+                            trainable=trainable,
+                        )
+                    )
 
             # Return q-critic graph
             # return tf.expand_dims(
             #     tf.reduce_sum(input_tensor=layers[-1], axis=1), axis=1
             # )  # Q(s,a) # DEBUG
-            return tf.layers.dense(
-                layers[-1], 1, trainable=trainable, kernel_initializer=initializer
-            )  # Q(s,a)
+            if RANDOM_SEED is not None:
+                return tf.layers.dense(
+                    layers[-1], 1, trainable=trainable, kernel_initializer=initializer
+                )  # Q(s,a)
+            else:
+                return tf.layers.dense(
+                    layers[-1], 1, trainable=trainable
+                )  # Q(s,a)
 
     def _build_l(
         self, s, a, name="lyapunov_critic", reuse=None, custom_getter=None, seed=None

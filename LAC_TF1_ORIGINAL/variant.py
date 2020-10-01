@@ -6,17 +6,21 @@ import time
 
 USE_GPU = False
 
+episodes = int(1e5)
+num_of_paths_for_eval = 20
+num_of_policies = 5
+
 ENV_SEED = 0
 RANDOM_SEED = 0
 
 # alpha = 1.0
 alpha = 0.99
 alpha3 = 0.2
-actor = [64, 64]
-critic = [128, 128]
+actor = [128, 64, 32]
+critic = [128, 64, 32]
 # episodes = int(1e5) # Oscillator
 # episodes = int(4e6)  # EX_3
-episodes = int(1.1e4)  # DEBUG
+# episodes = int(1.1e4)  # DEBUG
 # episodes = int(1e5)  # EX_3
 approx_value = True
 use_lyapunov = True
@@ -32,7 +36,7 @@ VARIANT = {
     # 'evaluate': False,
     "train": True,
     # 'train': False,
-    "num_of_trials": 1,  # number of random seeds
+    "num_of_trials": num_of_policies,  # number of random seeds
     # "num_of_evaluation_paths": 10,  # number of rollouts for evaluation  # DEBUG
     "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
     "num_of_training_paths": 10,  # number of training rollouts stored for analysis
@@ -69,7 +73,7 @@ ENV_PARAMS = {
         "network_structure": {"critic": critic, "actor": actor,},
     },
     "Ex3_EKF_gyro": {
-        "max_ep_steps": 500,
+        "max_ep_steps": 800,
         "max_global_steps": episodes,
         "max_episodes": int(1e6),
         "disturbance dim": 2,
@@ -94,15 +98,14 @@ ALG_PARAMS = {
         "memory_capacity": int(1e6),
         "min_memory_size": 1000,
         "batch_size": 256,
-        "labda": 0.99,
+        "labda": 1.0,
         "alpha": alpha,
         "alpha3": alpha3,
         "tau": 5e-3,
         "lr_a": 1e-4,
         "lr_c": 3e-4,
         "lr_l": 3e-4,
-        "gamma": 0.9,
-        # 'gamma': 0.75,
+        "gamma": 0.999,
         "steps_per_cycle": 100,
         "train_per_cycle": 80,
         "use_lyapunov": use_lyapunov,
@@ -157,7 +160,7 @@ EVAL_PARAMS = {
     },
     "dynamic": {
         "additional_description": "original",
-        "num_of_paths": 50,  # number of path for evaluation
+        "num_of_paths": num_of_paths_for_eval,  # number of path for evaluation
         "plot_average": True,
         # "plot_average": False,
         "directly_show": True,
