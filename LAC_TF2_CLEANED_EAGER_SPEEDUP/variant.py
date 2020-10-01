@@ -61,6 +61,10 @@ EVAL_PARAMS = {
     "num_of_paths": 50,  # number of path for evaluation
     "plot_average": True,
     "directly_show": True,
+    "plot_ref": True,  # Whether you also want to plot the states of reference
+    "ref": [],  # Which state of reference you want to plot (empty means all obs).
+    "plot_obs": True,  # Whether you also want to plot the observations
+    "obs": [],  # Which observations you want to plot (empty means all obs).
 }
 
 # Learning algorithm parameters

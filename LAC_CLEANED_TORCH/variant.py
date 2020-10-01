@@ -6,8 +6,8 @@ import os
 import time
 
 # Environment parameters
-ENV_NAME = "oscillator"  # The gym environment you want to train in
 # ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
+ENV_NAME = "oscillator"  # The gym environment you want to train in
 ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
 
@@ -30,13 +30,18 @@ DEBUG_PARAMS = {
 TRAIN_PARAMS = {
     "episodes": int(
         1.1e4
-    ),  # DEBUG The number of episodes you want to perform # Oscillator
-    # "episodes": int(1e5),  # The number of episodes you want to perform # Oscillator
-    # "episodes": int(6e4),  # The number of episodes you want to perform # Ex4 env
-    # "episodes": int(2e4),  # The number of episodes you want to perform
+    ),  # DEBUG The number of episodes you want to perform # Oscillator environment
+    # "episodes": int(
+    #     1e5
+    # ),  # The number of episodes you want to perform # Oscillator environment
+    # "episodes": int(
+    #     6e4
+    # ),  # The number of episodes you want to perform # EX3 environment
     "num_of_training_paths": 10,  # Number of training rollouts stored for analysis
     "evaluation_frequency": 2048,  # After how many steps the performance is evaluated
-    "num_of_evaluation_paths": 10,  # number of rollouts for evaluation
+    # "num_of_evaluation_paths": 10,  # number of rollouts for evaluation  # DEBUG
+    "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
+    # "num_of_trials": 4,  # number of randomly seeded trained agents
     "num_of_trials": 1,  # number of randomly seeded trained agents # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
 }
@@ -44,14 +49,15 @@ TRAIN_PARAMS = {
 # Main evaluation parameters
 EVAL_PARAMS = {
     "eval_list": ["LAC20200922_1608"],  # oscillator env
-    # "eval_list": ["LAC20200910_2211"],  # Ex3 env
     "additional_description": timestr,
     "trials_for_eval": [str(i) for i in range(0, 3)],
     "num_of_paths": 50,  # number of path for evaluation
     "plot_average": True,
     "directly_show": True,
+    "plot_ref": True,  # Whether you also want to plot the states of reference
+    "ref": [],  # Which state of reference you want to plot (empty means all obs).
     "plot_obs": True,  # Whether you also want to plot the observations
-    "obs": [1],  # Which observations you want to plot (empty means all obs).
+    "obs": [],  # Which observations you want to plot (empty means all obs).
 }
 
 # Learning algorithm parameters

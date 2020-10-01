@@ -11,8 +11,8 @@ USE_GPU = False
 
 # Environment parameters
 # ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
-ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
-# ENV_NAME = "oscillator"  # The gym environment you want to train in
+# ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
+ENV_NAME = "oscillator"  # The gym environment you want to train in
 ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
 
@@ -25,12 +25,12 @@ timestr = time.strftime("%Y%m%d_%H%M")
 
 # Main training loop parameters
 TRAIN_PARAMS = {
-    # "episodes": int(
-    #     1.1e4
-    # ),  # DEBUG The number of episodes you want to perform # Oscillator environment
     "episodes": int(
-        1e5
-    ),  # The number of episodes you want to perform # Oscillator environment
+        1.1e4
+    ),  # DEBUG The number of episodes you want to perform # Oscillator environment
+    # "episodes": int(
+    #     1e5
+    # ),  # The number of episodes you want to perform # Oscillator environment
     # "episodes": int(
     #     6e4
     # ),  # The number of episodes you want to perform # EX3 environment
@@ -38,8 +38,8 @@ TRAIN_PARAMS = {
     "evaluation_frequency": 2048,  # After how many steps the performance is evaluated
     # "num_of_evaluation_paths": 10,  # number of rollouts for evaluation  # DEBUG
     "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
-    # "num_of_trials": 5,  # number of randomly seeded trained agents
-    "num_of_trials": 1,  # number of randomly seeded trained agents
+    # "num_of_trials": 4,  # number of randomly seeded trained agents
+    "num_of_trials": 1,  # number of randomly seeded trained agents # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
 }
 
@@ -48,8 +48,7 @@ EVAL_PARAMS = {
     "eval_list": ["LAC20201001_1218"],
     "additional_description": timestr,
     "trials_for_eval": [str(i) for i in range(0, 3)],
-    "num_of_paths": 1,  # number of path for evaluation # DEBUG
-    # "num_of_paths": 50,  # number of path for evaluation
+    "num_of_paths": 50,  # number of path for evaluation
     "plot_average": True,
     "directly_show": True,
     "plot_ref": True,  # Whether you also want to plot the states of reference

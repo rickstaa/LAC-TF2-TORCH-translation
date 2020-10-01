@@ -161,8 +161,10 @@ EVAL_PARAMS = {
         "plot_average": True,
         # "plot_average": False,
         "directly_show": True,
+        "plot_ref": True,  # Whether you also want to plot the states of reference
+        "ref": [],  # Which state of reference you want to plot (empty means all obs).
         "plot_obs": True,  # Whether you also want to plot the observations
-        "obs": [1],  # Which observations you want to plot (empty means all obs).
+        "obs": [],  # Which observations you want to plot (empty means all obs).
     },
 }
 VARIANT["env_params"] = ENV_PARAMS[VARIANT["env_name"]]
