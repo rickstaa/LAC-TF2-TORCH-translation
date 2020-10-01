@@ -45,20 +45,23 @@ TRAIN_PARAMS = {
 
 # Main evaluation parameters
 EVAL_PARAMS = {
-    "eval_list": ["LAC20200930_1737"],
+    "eval_list": ["LAC20201001_1218"],
     "additional_description": timestr,
     "trials_for_eval": [str(i) for i in range(0, 3)],
-    "num_of_paths": 50,  # number of path for evaluation
+    "num_of_paths": 1,  # number of path for evaluation # DEBUG
+    # "num_of_paths": 50,  # number of path for evaluation
     "plot_average": True,
     "directly_show": True,
+    "plot_ref": True,  # Whether you also want to plot the states of reference
+    "ref": [],  # Which state of reference you want to plot (empty means all obs).
     "plot_obs": True,  # Whether you also want to plot the observations
-    "obs": [1],  # Which observations you want to plot (empty means all obs).
+    "obs": [],  # Which observations you want to plot (empty means all obs).
 }
 
 # Learning algorithm parameters
 ALG_PARAMS = {
-    # "use_lyapunov": True,  # If false the SAC algorithm will be used
-    "use_lyapunov": False,  # If false the SAC algorithm will be used
+    "use_lyapunov": True,  # If false the SAC algorithm will be used
+    # "use_lyapunov": False,  # If false the SAC algorithm will be used
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size

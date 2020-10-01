@@ -36,12 +36,17 @@ if __name__ == "__main__":
         help="The name of the env you want to evaluate.",
     )
     parser.add_argument(
+        "--plot-r",
+        type=bool,
+        default=EVAL_PARAMS["plot_ref"],
+        help="Whether want to plot the states of reference.",
+    )
+    parser.add_argument(
         "--plot-o",
         type=bool,
         default=EVAL_PARAMS["plot_obs"],
-        help="Whether you also want to plot the observations.",
+        help="Whether you want to plot the observations.",
     )
-    # TODO: Add option to state which observations
     args = parser.parse_args()
 
     # Create model path
@@ -246,91 +251,133 @@ if __name__ == "__main__":
             print(f"- {key}: {np.mean(val)}")
             print(f"- {key}_std: {np.std(val)}")
 
-        # Calculate mean path of reference and state_of_interrest
-        # TODO: Currently doesn't work with multiple state of interest
-        # TODO: Doesn't work with unequal length paths - Needed?
-        soi_trimmed = [
-            path
-            for path in eval_paths["state_of_interest"]
-            if len(path) == max(eval_paths["episode_length"])
-        ]  # Needed because unequal paths # FIXME: CLEANUP
-        ref_trimmed = [
-            path
-            for path in eval_paths["reference"]
-            if len(path) == max(eval_paths["episode_length"])
-        ]  # Needed because unequal paths # FIXME: CLEANUP
-        soi_mean_path = np.transpose(np.squeeze(np.mean(np.array(soi_trimmed), axis=0)))
-        soi_std_path = np.transpose(np.squeeze(np.std(np.array(soi_trimmed), axis=0)))
-        ref_mean_path = np.transpose(np.squeeze(np.mean(np.array(ref_trimmed), axis=0)))
-        ref_std_path = np.transpose(np.squeeze(np.std(np.array(ref_trimmed), axis=0)))
-
-        # Make sure arrays are right dimension
-        soi_mean_path = (
-            np.expand_dims(soi_mean_path, axis=0)
-            if len(soi_mean_path.shape) == 1
-            else soi_mean_path
-        )
-        soi_std_path = (
-            np.expand_dims(soi_std_path, axis=0)
-            if len(soi_std_path.shape) == 1
-            else soi_std_path
-        )
-        ref_mean_path = (
-            np.expand_dims(ref_mean_path, axis=0)
-            if len(ref_mean_path.shape) == 1
-            else ref_mean_path
-        )
-        ref_std_path = (
-            np.expand_dims(ref_std_path, axis=0)
-            if len(ref_std_path.shape) == 1
-            else ref_std_path
-        )
-
         ###########################################
         # Plot mean paths #########################
         ###########################################
 
         # Plot mean path of reference and state_of_interrest
+        print("\nPlotting mean path and standard deviation...")
+        print("Plotting states of reference...")
+        if args.plot_r:
+
+            # Retrieve requested sates list
+            req_ref = EVAL_PARAMS["ref"]
+
+            # Calculate mean path of reference and state_of_interrest
+            # TODO: Doesn't work with unequal length paths - Needed?
+            soi_trimmed = [
+                path
+                for path in eval_paths["state_of_interest"]
+                if len(path) == max(eval_paths["episode_length"])
+            ]  # Needed because unequal paths # FIXME: CLEANUP
+            ref_trimmed = [
+                path
+                for path in eval_paths["reference"]
+                if len(path) == max(eval_paths["episode_length"])
+            ]  # Needed because unequal paths # FIXME: CLEANUP
+            soi_mean_path = np.transpose(
+                np.squeeze(np.mean(np.array(soi_trimmed), axis=0))
+            )
+            soi_std_path = np.transpose(
+                np.squeeze(np.std(np.array(soi_trimmed), axis=0))
+            )
+            ref_mean_path = np.transpose(
+                np.squeeze(np.mean(np.array(ref_trimmed), axis=0))
+            )
+            ref_std_path = np.transpose(
+                np.squeeze(np.std(np.array(ref_trimmed), axis=0))
+            )
+
+            # Make sure arrays are right dimension
+            soi_mean_path = (
+                np.expand_dims(soi_mean_path, axis=0)
+                if len(soi_mean_path.shape) == 1
+                else soi_mean_path
+            )
+            soi_std_path = (
+                np.expand_dims(soi_std_path, axis=0)
+                if len(soi_std_path.shape) == 1
+                else soi_std_path
+            )
+            ref_mean_path = (
+                np.expand_dims(ref_mean_path, axis=0)
+                if len(ref_mean_path.shape) == 1
+                else ref_mean_path
+            )
+            ref_std_path = (
+                np.expand_dims(ref_std_path, axis=0)
+                if len(ref_std_path.shape) == 1
+                else ref_std_path
+            )
+
+            # Check if requested state_of interest exists
+            ref_str = (
+                req_ref if req_ref else list(range(1, (soi_mean_path.shape[0] + 1)))
+            )
+            print(f"Plotting results for states of reference {ref_str}.")
+            invalid_refs = [
+                ref
+                for ref in req_ref
+                if (ref > (soi_mean_path.shape[0] + 1) or ref < 0)
+            ]
+            if invalid_refs:
+                for ref in invalid_refs:
+                    print(
+                        f":WARNING: Sate of intrest and/or reference {ref} could not "
+                        "be ploted as it does not exist."
+                    )
+
+        # Plot mean path of reference and state_of_interrest
         print("\nPlotting mean path and standard deviation.")
-        # TODO: Add state and multiple references possibility
-        for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
-            fig = plt.figure(figsize=(9, 6), num=f"LAC_CLEANED_TORCH_{i+1}")
-            ax = fig.add_subplot(111)
-            t = range(max(eval_paths["episode_length"]))
-            if i <= (len(soi_mean_path) - 1):
-                ax.plot(
-                    t,
-                    soi_mean_path[i],
-                    color="red",
-                    label=f"state_of_interest_{i+1}_mean",
-                )
-                ax.set_title(f"States of interest and reference {i}")
-                ax.fill_between(
-                    t,
-                    soi_mean_path[i] - soi_std_path[i],
-                    soi_mean_path[i] + soi_std_path[i],
-                    color="red",
-                    alpha=0.3,
-                    label=f"state_of_interest_{i+1}_std",
-                )
-            if i <= (len(ref_mean_path) - 1):
-                ax.plot(
-                    t, ref_mean_path[i], color="blue", label=f"reference_{i+1}_mean"
-                )
-                ax.fill_between(
-                    t,
-                    ref_mean_path[i] - ref_std_path[i],
-                    ref_mean_path[i] + ref_std_path[i],
-                    color="blue",
-                    alpha=0.3,
-                    label=f"reference_{i+1}_std",
-                )
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
+        if args.plot_r:
+            for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
+                if (i + 1) in req_ref or not req_ref:
+                    fig = plt.figure(figsize=(9, 6), num=f"LAC_CLEANED_TORCH_GPU_{i+1}")
+                    ax = fig.add_subplot(111)
+                    t = range(max(eval_paths["episode_length"]))
+                    if i <= (len(soi_mean_path) - 1):
+                        ax.plot(
+                            t,
+                            soi_mean_path[i],
+                            color="red",
+                            label=f"state_of_interest_{i+1}_mean",
+                        )
+                        ax.set_title(f"States of interest and reference {i+1}")
+                        ax.fill_between(
+                            t,
+                            soi_mean_path[i] - soi_std_path[i],
+                            soi_mean_path[i] + soi_std_path[i],
+                            color="red",
+                            alpha=0.3,
+                            label=f"state_of_interest_{i+1}_std",
+                        )
+                    if i <= (len(ref_mean_path) - 1):
+                        ax.plot(
+                            t,
+                            ref_mean_path[i],
+                            color="blue",
+                            label=f"reference_{i+1}_mean",
+                        )
+                        ax.fill_between(
+                            t,
+                            ref_mean_path[i] - ref_std_path[i],
+                            ref_mean_path[i] + ref_std_path[i],
+                            color="blue",
+                            alpha=0.3,
+                            label=f"reference_{i+1}_std",
+                        )
+                    handles, labels = ax.get_legend_handles_labels()
+                    ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
 
         # Also plot mean and std of the observations
+        print("Plotting observations...")
         if args.plot_o:
-            fig = plt.figure(figsize=(9, 6), num=f"LAC_CLEANED_TORCH_{i+2}")
+
+            # Retrieve requested obs list
+            req_obs = EVAL_PARAMS["obs"]
+
+            # Calculate mean observation path and std
+            fig = plt.figure(figsize=(9, 6), num=f"LAC_CLEANED_TORCH_GPU_{i+2}")
             colors = "bgrcmk"
             cycol = cycle(colors)
             obs_trimmed = [
@@ -356,14 +403,27 @@ if __name__ == "__main__":
             )
             ax2 = fig.add_subplot(111)
             t = range(max(eval_paths["episode_length"]))
-            if obs_mean_path.shape[0] > len(colors):
-                print(
-                    f"Your observation array is to long only the first {len(colors)} "
-                    "states will be ploted"
-                )  # TODO: FIX MESSAGE
-            # Plot state paths
+
+            # Check if requested observation exists
+            obs_str = (
+                req_ref if req_ref else list(range(1, (obs_mean_path.shape[0] + 1)))
+            )
+            print(f"Plotting results for obs {obs_str}.")
+            invalid_obs = [
+                obs
+                for obs in req_obs
+                if (obs > (obs_mean_path.shape[0] + 1) or obs < 0)
+            ]
+            if invalid_obs:
+                for obs in invalid_obs:
+                    print(
+                        f":WARNING: Observation {obs} could not be ploted as it does "
+                        "not exist."
+                    )
+
+            # Plot state paths and std
             for i in range(0, obs_mean_path.shape[0]):
-                if (i + 1) in EVAL_PARAMS["obs"]:
+                if (i + 1) in req_obs or not req_obs:
                     color = next(cycol)
                     ax2.plot(t, obs_mean_path[i], color=color, label=("s_" + str(i)))
                     ax2.fill_between(
