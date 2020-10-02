@@ -5,13 +5,14 @@ import ENV.env
 import time
 import os
 
-REL_PATH = False  # Whether to use a relative path for storign and loading models
+REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
-episodes = int(1.1e4)
-# episodes = int(1e5)
+# episodes = int(1.1e4)  # DEBUG
+episodes = int(1e5)
 num_of_paths_for_eval = 20
 num_of_policies = 5
+# num_of_policies = 1 # DEBUG
 
 ENV_SEED = 0
 RANDOM_SEED = 0
@@ -21,10 +22,6 @@ alpha = 0.99
 alpha3 = 0.2
 actor = [128, 64, 32]
 critic = [128, 64, 32]
-# episodes = int(1e5) # Oscillator
-# episodes = int(4e6)  # EX_3
-# episodes = int(1.1e4)  # DEBUG
-# episodes = int(1e5)  # EX_3
 approx_value = True
 use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
@@ -178,6 +175,7 @@ EVAL_PARAMS = {
         # "plot_average": False,
         "directly_show": True,
         "plot_ref": True,  # Whether you also want to plot the states of reference
+        "merged": True,  # Whether you want to display all the states of references in one fig
         "ref": [],  # Which state of reference you want to plot (empty means all obs).
         "plot_obs": True,  # Whether you also want to plot the observations
         "obs": [],  # Which observations you want to plot (empty means all obs).

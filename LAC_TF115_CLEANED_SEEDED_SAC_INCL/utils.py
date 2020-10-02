@@ -23,18 +23,8 @@ def get_env_from_name(name, ENV_SEED=None):  # FIXME: Naming
 
         env = env()
         env = env.unwrapped
-    elif name == "Ex3_EKF":
-        from envs.Ex3_EKF import Ex3_EKF as env
-
-        env = env()
-        env = env.unwrapped
     elif name == "Ex3_EKF_gyro":
-        from envs.Ex3_EKF_gyro import Ex3_EKF as env
-
-        env = env()
-        env = env.unwrapped
-    elif name == "Ex4_EKF":
-        from envs.Ex4_EKF import Ex4_EKF as env
+        from envs.Ex3_EKF_gyro import Ex3_EKF_gyro as env
 
         env = env()
         env = env.unwrapped

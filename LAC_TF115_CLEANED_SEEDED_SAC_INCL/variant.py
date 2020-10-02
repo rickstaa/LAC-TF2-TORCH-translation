@@ -5,16 +5,17 @@ import sys
 import os
 import time
 
-USE_GPU = True
 REL_PATH = True  # Whether to use a relative path for storign and loading models
+USE_GPU = False
 
+episodes = int(1.1e4)  # DEBUG
 # episodes = int(2e5)
-episodes = int(1.1e4)
 num_of_paths_for_eval = 20
-num_of_policies = 10
+# num_of_policies = 10
+num_of_policies = 1  # DEBUG
+eval_list = ["LAC20201002_1200"]
 
 # Environment parameters
-# ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
 ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
 # ENV_NAME = "oscillator"  # The gym environment you want to train in
 ENV_SEED = None  # The environment seed
@@ -32,13 +33,7 @@ timestr = time.strftime("%Y%m%d_%H%M")
 
 # Main training loop parameters
 TRAIN_PARAMS = {
-    # "episodes": int(
-    #     1.1e4
-    # ),  # DEBUG The number of episodes you want to perform # Oscillator environment
-    "episodes": episodes,  # The number of episodes you want to perform # Oscillator environment
-    # "episodes": int(
-    #     6e4
-    # ),  # The number of episodes you want to perform # EX3 environment
+    "episodes": episodes,  # The number of episodes you want to perform
     "num_of_training_paths": 100,  # Number of training rollouts stored for analysis
     "evaluation_frequency": 2048,  # After how many steps the performance is evaluated
     "num_of_evaluation_paths": 10,  # number of rollouts for evaluation  # DEBUG
@@ -50,7 +45,7 @@ TRAIN_PARAMS = {
 
 # Main evaluation parameters
 EVAL_PARAMS = {
-    "eval_list": ["LAC20201001_1218"],
+    "eval_list": eval_list,
     "additional_description": timestr,
     "num_of_paths": num_of_paths_for_eval,  # number of path for evaluation
     "plot_average": True,
@@ -96,20 +91,8 @@ ENVS_PARAMS = {
         "max_episodes": int(1e6),
         "eval_render": False,
     },
-    "Ex3_EKF": {
-        "max_ep_steps": 500,
-        "max_global_steps": episodes,
-        "max_episodes": int(1e6),
-        "eval_render": False,
-    },
     "Ex3_EKF_gyro": {
         "max_ep_steps": 800,
-        "max_global_steps": TRAIN_PARAMS["episodes"],
-        "max_episodes": int(1e6),
-        "eval_render": False,
-    },
-    "Ex4_EKF": {
-        "max_ep_steps": 100,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,

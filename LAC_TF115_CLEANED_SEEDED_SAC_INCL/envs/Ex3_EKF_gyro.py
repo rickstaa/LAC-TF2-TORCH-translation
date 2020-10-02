@@ -237,7 +237,7 @@ def quat2eul(q):
     return np.array([eul_1, eul_2, eul_3])
 
 
-class Ex3_EKF(gym.Env):
+class Ex3_EKF_gyro(gym.Env):
 
     def __init__(self):
 
@@ -260,8 +260,8 @@ class Ex3_EKF(gym.Env):
         self.q_t = self.q_t /np.linalg.norm(self.q_t)
 
         # displacement limit set to be [-high, high]
+        # high = np.array([10000, 10000, 10000, 10000, 10000, 10000])
         high = np.array([10000, 10000, 10000])
-
         self.action_space = spaces.Box(low=np.array(
             [-10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10.])*0.01,
                                        high=np.array(
@@ -281,112 +281,116 @@ class Ex3_EKF(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step_1(self):  # here u1,u2=measurement, which is a result of the action
-        train = False
-        t = self.t
-        omega = omega_t_sim(t) #simulate the trajectory
-
-        # 1. update the true pose
-        q_t = self.q_t
-        q_t = np.dot(quatLeftMulMat(q_t), exp(0.5 * self.dt * omega).T)
-        q_t = q_t / np.linalg.norm(q_t)
-        self.q_t  = q_t
-
-        # 2. simulate the sensor measurements
-        # wm=omega+noise_gyro_bias+noise_i; d(noise_gyro_bias)/dt=noise_gyro_bias_var
-        # noise_i~N(0,cov_w); noise_gyro_bias_var~N(0,cov_noise_gyro_bias)
-        noise_gyro_bias_var = np.random.multivariate_normal([0, 0, 0], self.cov_noise_gyro_bias).flatten()
-        noise_gyro_bias_t = self.noise_gyro_bias + np.array(
-            [[noise_gyro_bias_var[0]], [noise_gyro_bias_var[1]], [noise_gyro_bias_var[2]]])
-        noise_i = np.random.multivariate_normal([0, 0, 0], self.cov_noise_i).flatten()
-        omega_obs = omega + noise_gyro_bias_t + np.array([[noise_i[0]], [noise_i[1]], [noise_i[2]]])
-        # omega_obs = omega
-        self.omega = omega_obs
-
-        # assume the pure acc goes up in proportion to omega
-        acc_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(self.q_t)), quatRightMulMat(self.q_t)), quatPure2Q([0, 0, -1]))
-        acc_i = np.random.multivariate_normal([0., 0., 0.], self.cov_a).flatten() + np.dot([1, 1, 1],
-                                                                                          np.linalg.norm(omega))
-        acc_m = acc_m_q[1:4] + np.array([[acc_i[0]], [acc_i[1]], [acc_i[2]]])
-        acc_m = acc_m / np.linalg.norm(acc_m)
-        self.acc = acc_m
-        # assume the dip angle of mag is diata = 30 degree =0.52 rad = (np.pi*30/180)
-        mag_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(self.q_t)), quatRightMulMat(self.q_t)),
-                         quatPure2Q([np.cos(np.pi * 30 / 180), 0, np.sin(np.pi * 30 / 180)]))
-        mag_i = np.random.multivariate_normal([0, 0, 0], self.cov_mag).flatten()
-        mag_m = mag_m_q[1:4] + np.array([[mag_i[0]], [mag_i[1]], [mag_i[2]]])
-        mag_m = mag_m / np.linalg.norm(mag_m)
-        self.mag = mag_m
-        self.t = self.t + self.dt
-        return q_t
-
-
-    def step_2(self,action,hat_q):
-
-        # 3. update the hat_q and q_pred from the last round
-        q_pred = np.dot(quatLeftMulMat(hat_q), exp(0.5 * self.dt * self.omega))
-        q_pred = q_pred / np.linalg.norm(q_pred)
-
-        # b_t = np.dot(np.dot(quatLeftMulMat((hat_q_pred)), quatRightMulMat(quatConj(hat_q_pred))),
-        #                  quatPure2Q([mag_m[0][0], mag_m[1][0], mag_m[2][0]]))
-
-        # 4. calculate hat_y
-        y = np.vstack((self.acc, self.mag))
-        hat_y_acc_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)), quatPure2Q([0, 0, -1]))
-        mag_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)),
-                         quatPure2Q([np.cos(np.pi * 30 / 180), 0, np.sin(np.pi * 30 / 180)]))
-        hat_y = np.vstack((hat_y_acc_q[1:4], mag_m_q[1:4]))
-
-        # y0-y2  重力加速度在世界坐标下的方向
-        # y3-y5  磁场强度方向在世界坐标系下的方向
-        # q0-q3  四元数，当前传感器相对于世界坐标系的旋转姿态，角度各种耦合
-
-        hat_eta = np.array([0.0,0.0,0.0])
-
-        u_11, u_21, u_31, u_41, u_51, u_61, \
-        u_12, u_22, u_32, u_42, u_52, u_62, \
-        u_13, u_23, u_33, u_43, u_53, u_63 = action
-
-        hat_eta[0] = u_11 * (y[0][0] - hat_y[0]) + u_21 * (y[1][0] - hat_y[1]) + u_31 * (y[2][0] - hat_y[2]) \
-                   + u_41 * (y[3][0] - hat_y[3]) + u_51 * (y[4][0] - hat_y[4]) + u_61 * (y[5][0] - hat_y[5])
-        hat_eta[1] =  u_12 * (y[0][0] - hat_y[0]) + u_22 * (y[1][0] - hat_y[1]) + u_32 * (y[2][0] - hat_y[2]) \
-                   + u_42 * (y[3][0] - hat_y[3]) + u_52 * (y[4][0] - hat_y[4]) + u_62 * (y[5][0] - hat_y[5])
-        hat_eta[2] = u_13 * (y[0][0] - hat_y[0]) + u_23 * (y[1][0] - hat_y[1]) + u_33 * (y[2][0] - hat_y[2]) \
-                   + u_43 * (y[3][0] - hat_y[3]) + u_53 * (y[4][0] - hat_y[4]) + u_63 * (y[5][0] - hat_y[5])
-        hat_delta_q = exp(0.5*np.vstack(hat_eta))
-
-        # 5. relinearize
-        hat_q = np.inner(quatLeftMulMat(hat_delta_q), q_pred)
-        hat_q = hat_q / np.linalg.norm(hat_q)
-
-#        aaa = 2.0* Log(np.inner(quatRightMulMat(quatConj(self.q_pred_init)),self.q_t_init))
-#        bbb = 2 / self.dt * Log(np.inner(quatLeftMulMat(q_t_lastStep),np.hstack(quatConj(np.inner(quatLeftMulMat(q_pred),hat_delta_q))))) - np.hstack(omega)
-#        ccc = y-hat_y
-#        cost = np.linalg.norm(aaa) + np.linalg.norm(bbb) + np.linalg.norm(ccc)
-        aaa = 2.0* Log(np.inner(quatRightMulMat(quatConj(hat_q)), np.array(self.q_t)))
-        # cost = np.linalg.norm(aaa)
-        # gamma = 1.005
-        # cost = np.linalg.norm(aaa) * np.power( gamma,t)
-        # cost = np.linalg.norm(aaa) * np.log(self.t+1)
-        cost = np.linalg.norm(aaa)
-
-
-        # if cost > (3* np.log(self.t+1)):
-        if cost > (100):
-            done = True
-
-        else:
-            done = False
-
-        # print(cost)
-
-        # eul_hat_q = quat2eul(hat_q)
-        # eul_q_t = quat2eul(q_t)
-        return hat_eta, cost, done, dict(reference=y[0],
-                                        state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
-        # return hat_eta, cost, done, dict(reference=y[0],
-        #                                 state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3], q_t[0], q_t[1], q_t[2], q_t[3], hat_eta[0], hat_eta[1],hat_eta[2],cost]))
-
+#     def step_1(self):  # here u1,u2=measurement, which is a result of the action
+#         train = False
+#         t = self.t
+#         omega = omega_t_sim(t) #simulate the trajectory
+#
+#         # 1. update the true pose
+#         q_t = self.q_t
+#         q_t = np.dot(quatLeftMulMat(q_t), exp(0.5 * self.dt * omega).T)
+#         q_t = q_t / np.linalg.norm(q_t)
+#         self.q_t  = q_t
+#
+#         # 2. simulate the sensor measurements
+#         # wm=omega+noise_gyro_bias+noise_i; d(noise_gyro_bias)/dt=noise_gyro_bias_var
+#         # noise_i~N(0,cov_w); noise_gyro_bias_var~N(0,cov_noise_gyro_bias)
+#         noise_gyro_bias_var = np.random.multivariate_normal([0, 0, 0], self.cov_noise_gyro_bias).flatten()
+#         noise_gyro_bias_t = self.noise_gyro_bias + np.array(
+#             [[noise_gyro_bias_var[0]], [noise_gyro_bias_var[1]], [noise_gyro_bias_var[2]]])
+#         noise_i = np.random.multivariate_normal([0, 0, 0], self.cov_noise_i).flatten()
+#         omega_obs = omega + noise_gyro_bias_t + np.array([[noise_i[0]], [noise_i[1]], [noise_i[2]]])
+#         # omega_obs = omega
+#         self.omega = omega_obs
+#
+#         # assume the pure acc goes up in proportion to omega
+#         acc_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(self.q_t)), quatRightMulMat(self.q_t)), quatPure2Q([0, 0, -1]))
+#         acc_i = np.random.multivariate_normal([0., 0., 0.], self.cov_a).flatten() + np.dot([1, 1, 1],
+#                                                                                           np.linalg.norm(omega))
+#         acc_m = acc_m_q[1:4] + np.array([[acc_i[0]], [acc_i[1]], [acc_i[2]]])
+#         acc_m = acc_m / np.linalg.norm(acc_m)
+#         self.acc = acc_m
+#         # assume the dip angle of mag is diata = 30 degree =0.52 rad = (np.pi*30/180)
+#         mag_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(self.q_t)), quatRightMulMat(self.q_t)),
+#                          quatPure2Q([np.cos(np.pi * 30 / 180), 0, np.sin(np.pi * 30 / 180)]))
+#         mag_i = np.random.multivariate_normal([0, 0, 0], self.cov_mag).flatten()
+#         mag_m = mag_m_q[1:4] + np.array([[mag_i[0]], [mag_i[1]], [mag_i[2]]])
+#         mag_m = mag_m / np.linalg.norm(mag_m)
+#         self.mag = mag_m
+#         self.t = self.t + self.dt
+#         return q_t
+#
+#
+#     def step_2(self,action,hat_q):
+#
+#         # 3. update the hat_q and q_pred from the last round
+#         q_pred = np.dot(quatLeftMulMat(hat_q), exp(0.5 * self.dt * self.omega))
+#         q_pred = q_pred / np.linalg.norm(q_pred)
+#
+#         # b_t = np.dot(np.dot(quatLeftMulMat((hat_q_pred)), quatRightMulMat(quatConj(hat_q_pred))),
+#         #                  quatPure2Q([mag_m[0][0], mag_m[1][0], mag_m[2][0]]))
+#
+#         # 4. calculate hat_y
+#         y = np.vstack((self.acc, self.mag))
+#
+#         # Gravity direction changed here
+#         # hat_y_acc_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)), quatPure2Q([0, 0, -1]))
+#         hat_y_acc_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)), quatPure2Q([0, 0, 1]))
+#
+#         mag_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)),
+#                          quatPure2Q([np.cos(np.pi * 30 / 180), 0, np.sin(np.pi * 30 / 180)]))
+#         hat_y = np.vstack((hat_y_acc_q[1:4], mag_m_q[1:4]))
+#
+#         # y0-y2  重力加速度在世界坐标下的方向
+#         # y3-y5  磁场强度方向在世界坐标系下的方向
+#         # q0-q3  四元数，当前传感器相对于世界坐标系的旋转姿态，角度各种耦合
+#
+#         hat_eta = np.array([0.0,0.0,0.0])
+#
+#         u_11, u_21, u_31, u_41, u_51, u_61, \
+#         u_12, u_22, u_32, u_42, u_52, u_62, \
+#         u_13, u_23, u_33, u_43, u_53, u_63 = action
+#
+#         hat_eta[0] = u_11 * (y[0][0] - hat_y[0]) + u_21 * (y[1][0] - hat_y[1]) + u_31 * (y[2][0] - hat_y[2]) \
+#                    + u_41 * (y[3][0] - hat_y[3]) + u_51 * (y[4][0] - hat_y[4]) + u_61 * (y[5][0] - hat_y[5])
+#         hat_eta[1] =  u_12 * (y[0][0] - hat_y[0]) + u_22 * (y[1][0] - hat_y[1]) + u_32 * (y[2][0] - hat_y[2]) \
+#                    + u_42 * (y[3][0] - hat_y[3]) + u_52 * (y[4][0] - hat_y[4]) + u_62 * (y[5][0] - hat_y[5])
+#         hat_eta[2] = u_13 * (y[0][0] - hat_y[0]) + u_23 * (y[1][0] - hat_y[1]) + u_33 * (y[2][0] - hat_y[2]) \
+#                    + u_43 * (y[3][0] - hat_y[3]) + u_53 * (y[4][0] - hat_y[4]) + u_63 * (y[5][0] - hat_y[5])
+#         hat_delta_q = exp(0.5*np.vstack(hat_eta))
+#
+#         # 5. relinearize
+#         hat_q = np.inner(quatLeftMulMat(hat_delta_q), q_pred)
+#         hat_q = hat_q / np.linalg.norm(hat_q)
+#
+# #        aaa = 2.0* Log(np.inner(quatRightMulMat(quatConj(self.q_pred_init)),self.q_t_init))
+# #        bbb = 2 / self.dt * Log(np.inner(quatLeftMulMat(q_t_lastStep),np.hstack(quatConj(np.inner(quatLeftMulMat(q_pred),hat_delta_q))))) - np.hstack(omega)
+# #        ccc = y-hat_y
+# #        cost = np.linalg.norm(aaa) + np.linalg.norm(bbb) + np.linalg.norm(ccc)
+#         aaa = 2.0* Log(np.inner(quatRightMulMat(quatConj(hat_q)), np.array(self.q_t)))
+#         # cost = np.linalg.norm(aaa)
+#         # gamma = 1.005
+#         # cost = np.linalg.norm(aaa) * np.power( gamma,t)
+#         # cost = np.linalg.norm(aaa) * np.log(self.t+1)
+#         cost = np.linalg.norm(aaa)
+#
+#
+#         # if cost > (3* np.log(self.t+1)):
+#         if cost > (100):
+#             done = True
+#
+#         else:
+#             done = False
+#
+#         # print(cost)
+#
+#         # eul_hat_q = quat2eul(hat_q)
+#         # eul_q_t = quat2eul(q_t)
+#         return hat_eta, cost, done, dict(reference=y[0],
+#                                         state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
+#         # return hat_eta, cost, done, dict(reference=y[0],
+#         #                                 state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3], q_t[0], q_t[1], q_t[2], q_t[3], hat_eta[0], hat_eta[1],hat_eta[2],cost]))
+#
 
 
 
@@ -418,7 +422,9 @@ class Ex3_EKF(gym.Env):
         # omega_obs = omega
 
         # assume the pure acc goes up in proportion to omega
-        acc_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(self.q_t)), quatRightMulMat(self.q_t)), quatPure2Q([0, 0, -1]))
+        # change gravity direction
+        # acc_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(self.q_t)), quatRightMulMat(self.q_t)), quatPure2Q([0, 0, -1]))
+        acc_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(self.q_t)), quatRightMulMat(self.q_t)), quatPure2Q([0, 0, 1]))
         acc_i = np.random.multivariate_normal([0., 0., 0.], self.cov_a).flatten()
         acc_m = acc_m_q[1:4] + np.array([[acc_i[0]], [acc_i[1]], [acc_i[2]]])
         # acc_m = acc_m_q[1:4]
@@ -442,7 +448,7 @@ class Ex3_EKF(gym.Env):
 
         # 4. calculate hat_y
         y = np.vstack((acc_m, mag_m))
-        hat_y_acc_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)), quatPure2Q([0, 0, -1]))
+        hat_y_acc_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)), quatPure2Q([0, 0, 1]))
         mag_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)),
                          quatPure2Q([np.cos(np.pi * 30 / 180), 0, np.sin(np.pi * 30 / 180)]))
         hat_y = np.vstack((hat_y_acc_q[1:4], mag_m_q[1:4]))
@@ -479,13 +485,13 @@ class Ex3_EKF(gym.Env):
         # cost = np.linalg.norm(aaa) * np.log(t+1)
 
 
-        if cost > (100):
+        if cost > (150):
             done = True
-
         else:
             done = False
 
         # print(cost)
+
 
         # 6. update new for next round
         self.hat_q = hat_q
@@ -498,10 +504,12 @@ class Ex3_EKF(gym.Env):
             return omega_obs,acc_m,mag_m,q_t,hat_q, cost, done, dict(reference=y[0],
                                         state_of_interest=np.array([hat_q[1], q_t[1],hat_q[2], q_t[2]]))
         else:
-            # return hat_eta, cost, done, dict(reference=y[0],
-            #                             state_of_interest=np.array([hat_q[0], hat_q[1],hat_q[2],hat_q[3], q_t[0], q_t[1], q_t[2], q_t[3]]))
-            return hat_eta, cost, done, dict(reference=np.array([q_t[0], q_t[1], q_t[2], q_t[3]]),
-                                        state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
+            return hat_eta, cost, done, dict(
+                reference=np.array([q_t[0], q_t[1], q_t[2], q_t[3]]),
+                state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
+
+            # return np.hstack([hat_eta,np.hstack(omega_obs)]), cost, done, dict(reference=np.array([q_t[0], q_t[1], q_t[2], q_t[3]]),
+            #                             state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
 
 
     def reset(self, eval=False):
@@ -518,6 +526,7 @@ class Ex3_EKF(gym.Env):
         self.q_pred_init = self.hat_q
 
         hat_eta = np.random.normal([ 0,0,0], [ 0.1,0.1,0.1])*0.0001
+        omega_obs = np.array([[0.],[0.],[0.]])
         self.state = hat_eta
 
         if self.choice == 'saveData':
@@ -526,7 +535,8 @@ class Ex3_EKF(gym.Env):
             mag_m= np.array([[0],[0],[0]])
             return omega_obs,acc_m,mag_m,self.q_t,self.hat_q
         else:
-            return hat_eta  # return hat_state
+            # return np.hstack([hat_eta,np.hstack(omega_obs)])  # return hat_state
+            return hat_eta
 
     def render(self, mode='human'):
 
@@ -540,7 +550,7 @@ class Ex3_EKF(gym.Env):
 
 
 if __name__ == '__main__':
-    env = Ex3_EKF()
+    env = Ex3_EKF_gyro()
     T = 3200
 
     # choice = 'saveData'
