@@ -260,8 +260,8 @@ class Ex3_EKF_gyro(gym.Env):
         self.q_t = self.q_t /np.linalg.norm(self.q_t)
 
         # displacement limit set to be [-high, high]
-        # high = np.array([10000, 10000, 10000, 10000, 10000, 10000])
-        high = np.array([10000, 10000, 10000])
+        high = np.array([10000, 10000, 10000, 10000, 10000, 10000])
+
         self.action_space = spaces.Box(low=np.array(
             [-10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10.])*0.01,
                                        high=np.array(
@@ -448,7 +448,7 @@ class Ex3_EKF_gyro(gym.Env):
 
         # 4. calculate hat_y
         y = np.vstack((acc_m, mag_m))
-        hat_y_acc_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)), quatPure2Q([0, 0, 1]))
+        hat_y_acc_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)), quatPure2Q([0, 0, -1]))
         mag_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)),
                          quatPure2Q([np.cos(np.pi * 30 / 180), 0, np.sin(np.pi * 30 / 180)]))
         hat_y = np.vstack((hat_y_acc_q[1:4], mag_m_q[1:4]))
@@ -504,12 +504,12 @@ class Ex3_EKF_gyro(gym.Env):
             return omega_obs,acc_m,mag_m,q_t,hat_q, cost, done, dict(reference=y[0],
                                         state_of_interest=np.array([hat_q[1], q_t[1],hat_q[2], q_t[2]]))
         else:
-            return hat_eta, cost, done, dict(
-                reference=np.array([q_t[0], q_t[1], q_t[2], q_t[3]]),
-                state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
+            # return hat_eta, cost, done, dict(
+            #     reference=np.array([q_t[0], q_t[1], q_t[2], q_t[3]]),
+            #     state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
 
-            # return np.hstack([hat_eta,np.hstack(omega_obs)]), cost, done, dict(reference=np.array([q_t[0], q_t[1], q_t[2], q_t[3]]),
-            #                             state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
+            return np.hstack([hat_eta,np.hstack(omega_obs)]), cost, done, dict(reference=np.array([q_t[0], q_t[1], q_t[2], q_t[3]]),
+                                        state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
 
 
     def reset(self, eval=False):
@@ -535,8 +535,8 @@ class Ex3_EKF_gyro(gym.Env):
             mag_m= np.array([[0],[0],[0]])
             return omega_obs,acc_m,mag_m,self.q_t,self.hat_q
         else:
-            # return np.hstack([hat_eta,np.hstack(omega_obs)])  # return hat_state
-            return hat_eta
+            return np.hstack([hat_eta,np.hstack(omega_obs)])  # return hat_state
+            # return hat_eta
 
     def render(self, mode='human'):
 
