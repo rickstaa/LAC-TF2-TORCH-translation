@@ -11,7 +11,13 @@ import argparse
 from lac import LAC
 
 from utils import get_env_from_name
-from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
+from variant import (
+    EVAL_PARAMS,
+    ENVS_PARAMS,
+    ENV_NAME,
+    ENV_SEED,
+    REL_PATH,
+)
 
 ###################################################
 # Main inference eval script ######################
@@ -125,49 +131,77 @@ if __name__ == "__main__":
         # Run inference ###########################
         ###########################################
 
-        # Get user input on which rollouts to use
-        policy_str = "policy was" if len(rollout_list) == 1 else "policies were"
-        print(
-            f"{len(rollout_list)} {(policy_str)} found in the model folder "
-            f"{rollout_list}."
-        )
-        while 1:
+        # Retrieve rollouts from variant file
+        rollouts_input = EVAL_PARAMS["which_policy_for_inference"]
 
-            # Ask user for rollouts until input is correct
-            rollouts_input = input(
-                "Which policies (rollouts) do you want to use (Uses all if empty): "
+        # Validate given policies
+        if any([not isinstance(x, (int, float)) for x in rollouts_input]):
+            print(
+                "Please provide a valid list of rollouts in the "
+                "`which_policy_for_inference` variable of the variant file "
+                " (example: [1, 2, 3])."
             )
-            if rollouts_input == "":
-                rollouts_input = [str(item) for item in rollout_list]
-                break
-            rollouts_input = rollouts_input.replace("[", "").replace("]", "").split(",")
+            sys.exit(0)
+        rollouts_input = [
+            int(item) for item in rollouts_input
+        ]  # convert to nr for comparison
+        invalid_input_rollouts = [
+            x for i, x in enumerate(rollouts_input) if not (x in rollout_list)
+        ]
+        if len(invalid_input_rollouts) != 0:
+            rollout_str = "Rollout" if sum(invalid_input_rollouts) <= 1 else "Rollouts"
+            print(
+                f"Please re-check the list you supplied in the "
+                "`which_policy_for_inference` variable of the variant file. "
+                f"{rollout_str} {invalid_input_rollouts} do not exist."
+            )
+            sys.exit(0)
+        rollouts_input = [str(item) for item in rollouts_input]  # convert back to str
 
-            # Check user input
-            invalid_input = [
-                not item.isnumeric() for item in rollouts_input
-            ]  # Check if numbers
-            if any(invalid_input):
-                print("Please provide a valid input (example: [1,2,3]).")
-                continue
-            rollouts_input = [
-                int(item) for item in rollouts_input
-            ]  # convert to nr for comparison
-            invalid_input_rollouts = [
-                x for i, x in enumerate(rollouts_input) if not (x in rollout_list)
-            ]
-            if len(invalid_input_rollouts) != 0:
-                rollout_str = (
-                    "rollout" if sum(invalid_input_rollouts) <= 1 else "rollouts"
-                )
-                print(
-                    f"Please re-check your input {rollout_str} "
-                    f"{invalid_input_rollouts} do not exist."
-                )
-                continue
-            rollouts_input = [
-                str(item) for item in rollouts_input
-            ]  # convert back to str
-            break
+        # TODO: Old input prompt we can remove later
+        # # Get user input on which rollouts to use
+        # policy_str = "policy was" if len(rollout_list) == 1 else "policies were"
+        # print(
+        #     f"{len(rollout_list)} {(policy_str)} found in the model folder "
+        #     f"{rollout_list}."
+        # )
+        # while 1:
+
+        #     # Ask user for rollouts until input is correct
+        #     rollouts_input = input(
+        #         "Which policies (rollouts) do you want to use (Uses all if empty): "
+        #     )
+        #     if rollouts_input == "":
+        #         rollouts_input = [str(item) for item in rollout_list]
+        #         break
+        #     rollouts_input = rollouts_input.replace("[", "").replace("]", "").split(",")
+
+        #     # Check user input
+        #     invalid_input = [
+        #         not item.isnumeric() for item in rollouts_input
+        #     ]  # Check if numbers
+        #     if any(invalid_input):
+        #         print("Please provide a valid input (example: [1,2,3]).")
+        #         continue
+        #     rollouts_input = [
+        #         int(item) for item in rollouts_input
+        #     ]  # convert to nr for comparison
+        #     invalid_input_rollouts = [
+        #         x for i, x in enumerate(rollouts_input) if not (x in rollout_list)
+        #     ]
+        #     if len(invalid_input_rollouts) != 0:
+        #         rollout_str = (
+        #             "rollout" if sum(invalid_input_rollouts) <= 1 else "rollouts"
+        #         )
+        #         print(
+        #             f"Please re-check your input {rollout_str} "
+        #             f"{invalid_input_rollouts} do not exist."
+        #         )
+        #         continue
+        #     rollouts_input = [
+        #         str(item) for item in rollouts_input
+        #     ]  # convert back to str
+        #     break
 
         # Print used roll outs
         print(f"Using rollouts: {rollouts_input}")
@@ -317,9 +351,9 @@ if __name__ == "__main__":
         ###########################################
 
         # Plot mean path of reference and state_of_interrest
-        print("\nPlotting mean path and standard deviation...")
         if args.plot_r:
             print("Plotting states of reference...")
+            print("Plotting mean path and standard deviation...")
 
             # Retrieve requested sates list
             req_ref = EVAL_PARAMS["ref"]
@@ -387,16 +421,14 @@ if __name__ == "__main__":
                         "be ploted as it does not exist."
                     )
 
-        # Plot mean path of reference and state_of_interrest
-        if EVAL_PARAMS["merged"]:
-            fig = plt.figure(
-                figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i + 1}"
-            )
-            ax = fig.add_subplot(111)
-            colors = "bgrcmk"
-            cycol = cycle(colors)
-        print("\nPlotting mean path and standard deviation.")
-        if args.plot_r:
+            # Plot mean path of reference and state_of_interrest
+            if EVAL_PARAMS["merged"]:
+                fig = plt.figure(
+                    figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_1"
+                )
+                ax = fig.add_subplot(111)
+                colors = "bgrcmk"
+                cycol = cycle(colors)
             for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
                 if (i + 1) in req_ref or not req_ref:
                     if not EVAL_PARAMS["merged"]:
@@ -455,16 +487,20 @@ if __name__ == "__main__":
         # Also plot mean and std of the observations
         if args.plot_o:
             print("Plotting observations...")
+            print("Plotting mean path and standard deviation...")
 
             # Retrieve requested obs list
             req_obs = EVAL_PARAMS["obs"]
 
-            # Calculate mean observation path and std
-            fig = plt.figure(
-                figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i+2}"
+            # Create figure
+            fig2 = plt.figure(
+                figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_2"
             )
             colors = "bgrcmk"
             cycol = cycle(colors)
+            ax2 = fig2.add_subplot(111)
+
+            # Calculate mean observation path and std
             obs_trimmed = [
                 path
                 for path in eval_paths["s"]
@@ -476,7 +512,6 @@ if __name__ == "__main__":
             obs_std_path = np.transpose(
                 np.squeeze(np.std(np.array(obs_trimmed), axis=0))
             )
-            ax2 = fig.add_subplot(111)
             t = range(max(eval_paths["episode_length"]))
 
             # Check if requested observation exists
@@ -522,11 +557,15 @@ if __name__ == "__main__":
         # Plot mean cost and std
         if args.plot_c:
             print("Plotting cost...")
+            print("Plotting mean path and standard deviation...")
+
+            # Create figure
+            fig3 = plt.figure(
+                figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_3"
+            )
+            ax3 = fig3.add_subplot(111)
 
             # Calculate mean observation path and std
-            fig = plt.figure(
-                figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i+2}"
-            )
             cost_trimmed = [
                 path
                 for path in eval_paths["r"]
@@ -538,14 +577,13 @@ if __name__ == "__main__":
             cost_std_path = np.transpose(
                 np.squeeze(np.std(np.array(cost_trimmed), axis=0))
             )
-            ax2 = fig.add_subplot(111)
             t = range(max(eval_paths["episode_length"]))
 
             # Plot state paths and std
-            ax2.plot(
+            ax3.plot(
                 t, cost_mean_path, color="g", linestyle="dashed", label=("mean cost"),
             )
-            ax2.fill_between(
+            ax3.fill_between(
                 t,
                 cost_mean_path - cost_std_path,
                 cost_mean_path + cost_std_path,
@@ -553,9 +591,9 @@ if __name__ == "__main__":
                 alpha=0.3,
                 label=("mean cost std"),
             )
-            ax2.set_title("Mean cost")
-            handles2, labels2 = ax2.get_legend_handles_labels()
-            ax2.legend(handles2, labels2, loc=2, fancybox=False, shadow=False)
+            ax3.set_title("Mean cost")
+            handles3, labels3 = ax3.get_legend_handles_labels()
+            ax3.legend(handles3, labels3, loc=2, fancybox=False, shadow=False)
 
         # Show figures
         plt.show()

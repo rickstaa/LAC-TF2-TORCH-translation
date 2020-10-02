@@ -13,6 +13,7 @@ episodes = int(1e5)
 num_of_paths_for_eval = 20
 num_of_policies = 5
 # num_of_policies = 1 # DEBUG
+which_policy_for_inference = [0]
 
 ENV_SEED = 0
 RANDOM_SEED = 0
@@ -169,6 +170,7 @@ EVAL_PARAMS = {
         "num_of_paths": 100,  # number of path for evaluation
     },
     "dynamic": {
+        "which_policy_for_inference": which_policy_for_inference,  # Which policies you want to use for the inference
         "additional_description": "original",
         "num_of_paths": num_of_paths_for_eval,  # number of path for evaluation
         "plot_average": True,
