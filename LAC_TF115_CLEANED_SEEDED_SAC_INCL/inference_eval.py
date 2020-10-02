@@ -12,7 +12,7 @@ from lac import LAC
 from envs.oscillator import oscillator
 from envs.Ex3_EKF import Ex3_EKF
 from utils import get_env_from_name
-from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED
+from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
 
 ###################################################
 # Main inference eval script ######################
@@ -59,10 +59,13 @@ if __name__ == "__main__":
     ###############################################
     print("\n=========Performing inference evaluation=========")
     for name in eval_agents:
-        dirname = os.path.dirname(__file__)
-        MODEL_PATH = os.path.abspath(
-            os.path.join(dirname, "./log/" + args.env_name + "/" + name)
-        )  # TODO: Make log paths env name lowercase
+        if REL_PATH:
+            MODEL_PATH = "/".join(["./log", args.env_name, name])
+        else:
+            dirname = os.path.dirname(__file__)
+            MODEL_PATH = os.path.abspath(
+                os.path.join(dirname, "./log/" + args.env_name + "/" + name)
+            )  # TODO: Make log paths env name lowercase
         print("evaluating " + name)
         print(f"Using model folder: {MODEL_PATH}")
         print(f"In environment: {args.env_name}")
@@ -137,7 +140,8 @@ if __name__ == "__main__":
             )
             if not LAC:
                 print(
-                    f"Agent {rollout} could not be loaded. Continuing to the next agent."
+                    f"Agent {rollout} could not be loaded. Continuing to the next "
+                    "agent."
                 )
                 continue
 
@@ -154,7 +158,10 @@ if __name__ == "__main__":
                 }
 
                 # env.reset() # MAke sure this is not seeded when reset
-                s = env.reset(eval=True)
+                if args.env_name.lower() == "ex3_ekf_gyro":
+                    s = env.reset(eval=True)
+                else:
+                    s = env.reset()
 
                 # Perfrom trail
                 for j in range(ENVS_PARAMS[args.env_name]["max_ep_steps"]):
@@ -340,7 +347,8 @@ if __name__ == "__main__":
                 if (i + 1) in req_ref or not req_ref:
                     if not EVAL_PARAMS["merged"]:
                         fig = plt.figure(
-                            figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i+1}"
+                            figsize=(9, 6),
+                            num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i+1}",
                         )
                         ax = fig.add_subplot(111)
                         color1 = "red"
@@ -354,7 +362,7 @@ if __name__ == "__main__":
                             t,
                             soi_mean_path[i],
                             color=color1,
-                            linestyle='dashed',
+                            linestyle="dashed",
                             label=f"state_of_interest_{i+1}_mean",
                         )
                         if not EVAL_PARAMS["merged"]:
@@ -369,11 +377,8 @@ if __name__ == "__main__":
                         )
                     if i <= (len(ref_mean_path) - 1):
                         ax.plot(
-                            t,
-                            ref_mean_path[i],
-                            color=color2,
-                            label=f"reference_{i+1}",
-                        )  # Fixme remove
+                            t, ref_mean_path[i], color=color2, label=f"reference_{i+1}",
+                        )
                         # ax.fill_between(
                         #     t,
                         #     ref_mean_path[i] - ref_std_path[i],
@@ -381,7 +386,7 @@ if __name__ == "__main__":
                         #     color=color2,
                         #     alpha=0.3,
                         #     label=f"reference_{i+1}_std",
-                        # )
+                        # ) # Fixme remove
                     if not EVAL_PARAMS["merged"]:
                         handles, labels = ax.get_legend_handles_labels()
                         ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
@@ -448,7 +453,13 @@ if __name__ == "__main__":
             for i in range(0, obs_mean_path.shape[0]):
                 if (i + 1) in req_obs or not req_obs:
                     color = next(cycol)
-                    ax2.plot(t, obs_mean_path[i], color=color, linestyle='dashed', label=("s_" + str(i)))
+                    ax2.plot(
+                        t,
+                        obs_mean_path[i],
+                        color=color,
+                        linestyle="dashed",
+                        label=("s_" + str(i)),
+                    )
                     ax2.fill_between(
                         t,
                         obs_mean_path[i] - obs_std_path[i],

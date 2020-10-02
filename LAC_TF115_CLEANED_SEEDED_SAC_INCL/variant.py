@@ -5,11 +5,11 @@ import sys
 import os
 import time
 
-# Computational settings
-# USE_GPU = True
-USE_GPU = False
+USE_GPU = True
+REL_PATH = True  # Whether to use a relative path for storign and loading models
 
-episodes = int(2e5)
+# episodes = int(2e5)
+episodes = int(1.1e4)
 num_of_paths_for_eval = 20
 num_of_policies = 10
 
@@ -21,10 +21,13 @@ ENV_SEED = None  # The environment seed
 RANDOM_SEED = None  # The numpy random seed
 
 # Setup log path and time string
-dirname = os.path.dirname(__file__)
-LOG_PATH = os.path.abspath(
-    os.path.join(dirname, "./log/" + ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M"))
-)
+if REL_PATH:
+    LOG_PATH = "/".join(["./log", ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M")])
+else:
+    dirname = os.path.dirname(__file__)
+    LOG_PATH = os.path.abspath(
+        os.path.join(dirname, "./log/" + ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M"))
+    )
 timestr = time.strftime("%Y%m%d_%H%M")
 
 # Main training loop parameters
@@ -47,7 +50,7 @@ TRAIN_PARAMS = {
 
 # Main evaluation parameters
 EVAL_PARAMS = {
-    "eval_list": ["LAC20201001_2228"],
+    "eval_list": ["LAC20201001_1218"],
     "additional_description": timestr,
     "num_of_paths": num_of_paths_for_eval,  # number of path for evaluation
     "plot_average": True,
@@ -79,9 +82,9 @@ ALG_PARAMS = {
     "adaptive_alpha": True,  # Enables automatic entropy temperature tuning
     "target_entropy": None,  # Set alpha target entropy, when None == -(action_dim)
     "network_structure": {
-        "critic": [128, 64, 32], # LAC
+        "critic": [128, 64, 32],  # LAC
         "actor": [128, 64, 32],
-        "q_critic": [128, 64, 32], # SAC
+        "q_critic": [128, 64, 32],  # SAC
     },  # The network structure of the agent.
 }
 
