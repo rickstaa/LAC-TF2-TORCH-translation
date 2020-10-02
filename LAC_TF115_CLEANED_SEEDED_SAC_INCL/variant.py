@@ -9,14 +9,15 @@ import time
 REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
-episodes = int(1.1e4)  # DEBUG
+episodes = int(1e5)  # DEBUG
 # episodes = int(2e5)
 num_of_paths_for_eval = 20
 num_of_policies = 10
 # eval_list = ["LAC20201002_1200"] # DEBUG
-eval_list = ["LAC20201002_1849"]
+eval_list = ["SAC20201002_1903"]
 # use_lyapunov = True
 use_lyapunov = False
+# wich_policy_for_inference = [1,2,5]
 
 # Environment parameters
 ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
