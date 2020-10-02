@@ -14,9 +14,9 @@ episodes = int(1e5)  # DEBUG
 num_of_paths_for_eval = 20
 num_of_policies = 10
 # eval_list = ["LAC20201002_1200"] # DEBUG
-eval_list = ["LAC20201002_1200_1_3inputs"]
-use_lyapunov = True
-# use_lyapunov = False
+eval_list = ["LAC20201002_1849"]
+# use_lyapunov = True
+use_lyapunov = False
 
 # Environment parameters
 ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
@@ -96,7 +96,7 @@ ENVS_PARAMS = {
         "eval_render": False,
     },
     "Ex3_EKF_gyro": {
-        "max_ep_steps": 1000,
+        "max_ep_steps": 800,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,

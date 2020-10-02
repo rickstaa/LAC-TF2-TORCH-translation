@@ -448,7 +448,8 @@ class Ex3_EKF_gyro(gym.Env):
 
         # 4. calculate hat_y
         y = np.vstack((acc_m, mag_m))
-        hat_y_acc_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)), quatPure2Q([0, 0, -1]))
+        # hat_y_acc_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)), quatPure2Q([0, 0, -1]))
+        hat_y_acc_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)), quatPure2Q([0, 0, 1]))
         mag_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(q_pred)), quatRightMulMat(q_pred)),
                          quatPure2Q([np.cos(np.pi * 30 / 180), 0, np.sin(np.pi * 30 / 180)]))
         hat_y = np.vstack((hat_y_acc_q[1:4], mag_m_q[1:4]))
@@ -485,7 +486,7 @@ class Ex3_EKF_gyro(gym.Env):
         # cost = np.linalg.norm(aaa) * np.log(t+1)
 
 
-        if cost > (150):
+        if cost > (300):
             done = True
         else:
             done = False
@@ -520,7 +521,7 @@ class Ex3_EKF_gyro(gym.Env):
             self.q_t = np.array([0.6,0.2,0.5,0.4])
         self.q_t = self.q_t /np.linalg.norm(self.q_t)
         self.q_t_init = self.q_t
-        self.hat_q = self.q_t + np.random.normal([ 0,0,0,0], [ 0.1,0.1,0.1,0.1])*0.1
+        self.hat_q = self.q_t + np.random.normal([ 0,0,0,0], [ 0.1,0.1,0.1,0.1])*1.0
         # self.hat_q = np.random.normal([0, 0, 0, 0], [0.1, 0.1, 0.1, 0.1]) * 0.1
         self.hat_q = self.hat_q /np.linalg.norm(self.hat_q)
         self.q_pred_init = self.hat_q
