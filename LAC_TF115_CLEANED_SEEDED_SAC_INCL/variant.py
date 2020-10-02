@@ -13,6 +13,7 @@ episodes = int(1.1e4)  # DEBUG
 num_of_paths_for_eval = 20
 num_of_policies = 10
 eval_list = ["LAC20201002_1200_1_3inputs"]
+use_lyapunov = True
 
 # Environment parameters
 ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
@@ -58,8 +59,7 @@ EVAL_PARAMS = {
 
 # Learning algorithm parameters
 ALG_PARAMS = {
-    "use_lyapunov": True,  # If false the SAC algorithm will be used
-    # "use_lyapunov": False,  # If false the SAC algorithm will be used
+    "use_lyapunov": use_lyapunov,  # If false the SAC algorithm will be used
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
