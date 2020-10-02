@@ -12,9 +12,9 @@ USE_GPU = False
 episodes = int(2e5)
 num_of_paths_for_eval = 20
 num_of_policies = 10
+eval_list = ["LAC20201002_1200"]
 
 # Environment parameters
-# ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
 ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
 # ENV_NAME = "oscillator"  # The gym environment you want to train in
 ENV_SEED = None  # The environment seed
@@ -25,6 +25,7 @@ dirname = os.path.dirname(__file__)
 LOG_PATH = os.path.abspath(
     os.path.join(dirname, "./log/" + ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M"))
 )
+
 timestr = time.strftime("%Y%m%d_%H%M")
 
 # Main training loop parameters
@@ -47,7 +48,7 @@ TRAIN_PARAMS = {
 
 # Main evaluation parameters
 EVAL_PARAMS = {
-    "eval_list": ["LAC20201001_2228"],
+    "eval_list": eval_list,
     "additional_description": timestr,
     "num_of_paths": num_of_paths_for_eval,  # number of path for evaluation
     "plot_average": True,
@@ -93,20 +94,8 @@ ENVS_PARAMS = {
         "max_episodes": int(1e6),
         "eval_render": False,
     },
-    "Ex3_EKF": {
-        "max_ep_steps": 500,
-        "max_global_steps": episodes,
-        "max_episodes": int(1e6),
-        "eval_render": False,
-    },
     "Ex3_EKF_gyro": {
         "max_ep_steps": 800,
-        "max_global_steps": TRAIN_PARAMS["episodes"],
-        "max_episodes": int(1e6),
-        "eval_render": False,
-    },
-    "Ex4_EKF": {
-        "max_ep_steps": 100,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,
