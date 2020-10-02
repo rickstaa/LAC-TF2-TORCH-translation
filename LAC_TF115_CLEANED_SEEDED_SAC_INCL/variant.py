@@ -5,11 +5,11 @@ import sys
 import os
 import time
 
-# Computational settings
-# USE_GPU = True
+REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
-episodes = int(2e5)
+episodes = int(1.1e4)  # DEBUG
+# episodes = int(2e5)
 num_of_paths_for_eval = 20
 num_of_policies = 10
 eval_list = ["LAC20201002_1200_1_3inputs"]
@@ -21,22 +21,18 @@ ENV_SEED = None  # The environment seed
 RANDOM_SEED = None  # The numpy random seed
 
 # Setup log path and time string
-dirname = os.path.dirname(__file__)
-LOG_PATH = os.path.abspath(
-    os.path.join(dirname, "./log/" + ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M"))
-)
-
+if REL_PATH:
+    LOG_PATH = "/".join(["./log", ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M")])
+else:
+    dirname = os.path.dirname(__file__)
+    LOG_PATH = os.path.abspath(
+        os.path.join(dirname, "./log/" + ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M"))
+    )
 timestr = time.strftime("%Y%m%d_%H%M")
 
 # Main training loop parameters
 TRAIN_PARAMS = {
-    # "episodes": int(
-    #     1.1e4
-    # ),  # DEBUG The number of episodes you want to perform # Oscillator environment
-    "episodes": episodes,  # The number of episodes you want to perform # Oscillator environment
-    # "episodes": int(
-    #     6e4
-    # ),  # The number of episodes you want to perform # EX3 environment
+    "episodes": episodes,  # The number of episodes you want to perform
     "num_of_training_paths": 100,  # Number of training rollouts stored for analysis
     "evaluation_frequency": 2048,  # After how many steps the performance is evaluated
     "num_of_evaluation_paths": 10,  # number of rollouts for evaluation  # DEBUG
@@ -80,9 +76,9 @@ ALG_PARAMS = {
     "adaptive_alpha": True,  # Enables automatic entropy temperature tuning
     "target_entropy": None,  # Set alpha target entropy, when None == -(action_dim)
     "network_structure": {
-        "critic": [128, 64, 32], # LAC
+        "critic": [128, 64, 32],  # LAC
         "actor": [128, 64, 32],
-        "q_critic": [128, 64, 32], # SAC
+        "q_critic": [128, 64, 32],  # SAC
     },  # The network structure of the agent.
 }
 

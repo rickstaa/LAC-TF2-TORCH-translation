@@ -3,12 +3,16 @@ import datetime
 import numpy as np
 import ENV.env
 import time
+import os
 
+REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
+# episodes = int(1.1e4)  # DEBUG
 episodes = int(1e5)
 num_of_paths_for_eval = 20
 num_of_policies = 5
+# num_of_policies = 1 # DEBUG
 
 ENV_SEED = 0
 RANDOM_SEED = 0
@@ -18,17 +22,13 @@ alpha = 0.99
 alpha3 = 0.2
 actor = [128, 64, 32]
 critic = [128, 64, 32]
-# episodes = int(1e5) # Oscillator
-# episodes = int(4e6)  # EX_3
-# episodes = int(1.1e4)  # DEBUG
-# episodes = int(1e5)  # EX_3
 approx_value = True
 use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
-    "eval_list": ["LAC20200922_1459"],
-    "env_name": "Ex3_EKF",
+    "eval_list": ["LAC20201002_0852"],
+    # "env_name": "Ex3_EKF",
     "env_name": "Ex3_EKF_gyro",
     # "env_name": "oscillator",
     "algorithm_name": "LAC",
@@ -47,13 +47,23 @@ VARIANT = {
 }
 if VARIANT["algorithm_name"] == "RARL":
     ITA = 0
-VARIANT["log_path"] = "/".join(
-    [
-        "./log",
-        VARIANT["env_name"],
-        VARIANT["algorithm_name"] + VARIANT["additional_description"],
-    ]
-)
+if REL_PATH:
+    VARIANT["log_path"] = "/".join(
+        [
+            "./log",
+            VARIANT["env_name"],
+            VARIANT["algorithm_name"] + VARIANT["additional_description"],
+        ]
+    )
+else:
+    dirname = os.path.dirname(__file__)
+    VARIANT["log_path"] = os.path.abspath(
+        os.path.join(
+            dirname,
+            "./log/" + VARIANT["env_name"],
+            "LAC" + time.strftime("%Y%m%d_%H%M"),
+        )
+    )
 
 ENV_PARAMS = {
     "oscillator": {
@@ -165,6 +175,7 @@ EVAL_PARAMS = {
         # "plot_average": False,
         "directly_show": True,
         "plot_ref": True,  # Whether you also want to plot the states of reference
+        "merged": True,  # Whether you want to display all the states of references in one fig
         "ref": [],  # Which state of reference you want to plot (empty means all obs).
         "plot_obs": True,  # Whether you also want to plot the observations
         "obs": [],  # Which observations you want to plot (empty means all obs).
