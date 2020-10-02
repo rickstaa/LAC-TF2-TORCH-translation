@@ -5,7 +5,8 @@ import sys
 import os
 import time
 
-REL_PATH = True  # Whether to use a relative path for storign and loading models
+REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
+# REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
 episodes = int(1e5)  # DEBUG
@@ -56,6 +57,7 @@ EVAL_PARAMS = {
     "ref": [],  # Which state of reference you want to plot (empty means all obs).
     "plot_obs": True,  # Whether you also want to plot the observations
     "obs": [],  # Which observations you want to plot (empty means all obs).
+    "plot_cost": True,  # Whether you also want to plot the cost
 }
 
 # Learning algorithm parameters

@@ -179,6 +179,7 @@ EVAL_PARAMS = {
         "ref": [],  # Which state of reference you want to plot (empty means all obs).
         "plot_obs": True,  # Whether you also want to plot the observations
         "obs": [],  # Which observations you want to plot (empty means all obs).
+        "plot_cost": True,  # Whether you also want to plot the cost
     },
 }
 VARIANT["env_params"] = ENV_PARAMS[VARIANT["env_name"]]
