@@ -8,4 +8,4 @@ profiling/
 log/
 __pycache__/
 .vscode/
-.idea/
+# .idea/
