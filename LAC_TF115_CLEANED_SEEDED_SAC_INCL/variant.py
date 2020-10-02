@@ -8,12 +8,12 @@ import time
 REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
-episodes = int(1.1e4)  # DEBUG
+episodes = int(1e5)  # DEBUG
 # episodes = int(2e5)
 num_of_paths_for_eval = 20
 num_of_policies = 10
 eval_list = ["LAC20201002_1200_1_3inputs"]
-use_lyapunov = True
+use_lyapunov = False
 
 # Environment parameters
 ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
@@ -22,12 +22,13 @@ ENV_SEED = None  # The environment seed
 RANDOM_SEED = None  # The numpy random seed
 
 # Setup log path and time string
+alg_prefix = "LAC" if use_lyapunov else "SAC"
 if REL_PATH:
-    LOG_PATH = "/".join(["./log", ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M")])
+    LOG_PATH = "/".join(["./log", ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M")])
 else:
     dirname = os.path.dirname(__file__)
     LOG_PATH = os.path.abspath(
-        os.path.join(dirname, "./log/" + ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M"))
+        os.path.join(dirname, "./log/" + ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M"))
     )
 timestr = time.strftime("%Y%m%d_%H%M")
 
