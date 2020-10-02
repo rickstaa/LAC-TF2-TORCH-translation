@@ -122,7 +122,6 @@ class LAC(object):
             self.qc_target_seed1 = None
             self.qc_target_seed2 = None
 
-
         # Determine target entropy
         if ALG_PARAMS["target_entropy"] is None:
             self.target_entropy = -self.a_dim  # lower bound of the policy entropy
@@ -358,7 +357,6 @@ class LAC(object):
                     alpha_loss,
                     self.td_error_1,
                     self.td_error_2,
-                    self.l_error,
                 ]
 
             # Create optimizer array
@@ -454,18 +452,12 @@ class LAC(object):
             # Return optimization results
             return labda, alpha, l_error, entropy, a_loss
         else:
-            (
-                entropy,
-                alpha,
-                a_loss,
-                alpha_loss,
-                q1_error,
-                q2_error,
-                l_error,
-            ) = self.sess.run(self.diagnostics, feed_dict)
+            entropy, alpha, a_loss, alpha_loss, q1_error, q2_error = self.sess.run(
+                self.diagnostics, feed_dict
+            )
 
             # Return optimization results
-            return alpha, q1_error, q2_error, entropy, a_loss, l_error
+            return alpha, q1_error, q2_error, entropy, a_loss
 
     def _build_a(
         self,
@@ -547,25 +539,13 @@ class LAC(object):
                 )
             else:
                 net_0 = tf.compat.v1.layers.dense(
-                    s,
-                    n1,
-                    activation=tf.nn.relu,
-                    name="l1",
-                    trainable=trainable,
+                    s, n1, activation=tf.nn.relu, name="l1", trainable=trainable,
                 )  # 原始是30
                 net_1 = tf.compat.v1.layers.dense(
-                    net_0,
-                    n2,
-                    activation=tf.nn.relu,
-                    name="l2",
-                    trainable=trainable,
+                    net_0, n2, activation=tf.nn.relu, name="l2", trainable=trainable,
                 )  # 原始是30
                 mu = tf.compat.v1.layers.dense(
-                    net_1,
-                    self.a_dim,
-                    activation=None,
-                    name="mu",
-                    trainable=trainable,
+                    net_1, self.a_dim, activation=None, name="mu", trainable=trainable,
                 )
                 log_sigma = tf.compat.v1.layers.dense(
                     net_1,
@@ -649,10 +629,16 @@ class LAC(object):
             if RANDOM_SEED is not None:
                 layers = []
                 w1_s = tf.compat.v1.get_variable(
-                    "w1_s", [self.s_dim, n1], trainable=trainable, initializer=initializer
+                    "w1_s",
+                    [self.s_dim, n1],
+                    trainable=trainable,
+                    initializer=initializer,
                 )
                 w1_a = tf.compat.v1.get_variable(
-                    "w1_a", [self.a_dim, n1], trainable=trainable, initializer=initializer
+                    "w1_a",
+                    [self.a_dim, n1],
+                    trainable=trainable,
+                    initializer=initializer,
                 )
                 b1 = tf.compat.v1.get_variable(
                     "b1", [1, n1], trainable=trainable, initializer=tf.zeros_initializer
@@ -679,9 +665,7 @@ class LAC(object):
                 w1_a = tf.compat.v1.get_variable(
                     "w1_a", [self.a_dim, n1], trainable=trainable,
                 )
-                b1 = tf.compat.v1.get_variable(
-                    "b1", [1, n1], trainable=trainable,
-                )
+                b1 = tf.compat.v1.get_variable("b1", [1, n1], trainable=trainable,)
                 net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
                 layers.append(net_0)
                 for i in range(1, len(self.network_structure["q_critic"])):
@@ -705,9 +689,7 @@ class LAC(object):
                     layers[-1], 1, trainable=trainable, kernel_initializer=initializer
                 )  # Q(s,a)
             else:
-                return tf.layers.dense(
-                    layers[-1], 1, trainable=trainable
-                )  # Q(s,a)
+                return tf.layers.dense(layers[-1], 1, trainable=trainable)  # Q(s,a)
 
     def _build_l(
         self, s, a, name="lyapunov_critic", reuse=None, custom_getter=None, seed=None
@@ -873,7 +855,6 @@ def train(log_dir):
         else:
             current_path = {
                 "rewards": [],
-                "lyapunov_error": [],
                 "critic_error": [],
                 "alpha": [],
                 "entropy": [],
@@ -950,7 +931,6 @@ def train(log_dir):
                             q2_error,
                             entropy,
                             a_loss,
-                            l_loss,
                         ) = policy.learn(lr_a_now, lr_l_now, lr_a, lr_c_now, batch)
 
             # Save path results
@@ -964,7 +944,6 @@ def train(log_dir):
                     current_path["a_loss"].append(a_loss)
                 else:
                     current_path["rewards"].append(r)
-                    current_path["lyapunov_error"].append(l_loss)
                     current_path["critic_error"].append(min(q1_error, q2_error))
                     current_path["alpha"].append(alpha)
                     current_path["entropy"].append(entropy)

@@ -59,8 +59,8 @@ EVAL_PARAMS = {
 
 # Learning algorithm parameters
 ALG_PARAMS = {
-    "use_lyapunov": True,  # If false the SAC algorithm will be used
-    # "use_lyapunov": False,  # If false the SAC algorithm will be used
+    # "use_lyapunov": True,  # If false the SAC algorithm will be used
+    "use_lyapunov": False,  # If false the SAC algorithm will be used
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
