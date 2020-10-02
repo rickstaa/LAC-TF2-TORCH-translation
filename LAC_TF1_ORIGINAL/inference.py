@@ -58,6 +58,12 @@ if __name__ == "__main__":
         default=EVAL_PARAMS["plot_obs"],
         help="Whether you want to plot the observations.",
     )
+    parser.add_argument(
+        "--plot-c",
+        type=bool,
+        default=EVAL_PARAMS["plot_cost"],
+        help="Whether want to plot the cost.",
+    )
     args = parser.parse_args()
 
     # Create model path
@@ -479,6 +485,44 @@ if __name__ == "__main__":
                         label=("s_" + str(i + 1)),
                     )
             ax2.set_title("Observations")
+            handles2, labels2 = ax2.get_legend_handles_labels()
+            ax2.legend(handles2, labels2, loc=2, fancybox=False, shadow=False)
+
+        # Plot mean cost and std
+        if args.plot_c:
+            print("Plotting cost...")
+
+            # Calculate mean observation path and std
+            fig = plt.figure(
+                figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i+2}"
+            )
+            cost_trimmed = [
+                path
+                for path in eval_paths["r"]
+                if len(path) == max(eval_paths["episode_length"])
+            ]
+            cost_mean_path = np.transpose(
+                np.squeeze(np.mean(np.array(cost_trimmed), axis=0))
+            )
+            cost_std_path = np.transpose(
+                np.squeeze(np.std(np.array(cost_trimmed), axis=0))
+            )
+            ax2 = fig.add_subplot(111)
+            t = range(max(eval_paths["episode_length"]))
+
+            # Plot state paths and std
+            ax2.plot(
+                t, cost_mean_path, color="g", linestyle="dashed", label=("mean cost"),
+            )
+            ax2.fill_between(
+                t,
+                cost_mean_path - cost_std_path,
+                cost_mean_path + cost_std_path,
+                color="g",
+                alpha=0.3,
+                label=("mean cost std"),
+            )
+            ax2.set_title("Mean cost")
             handles2, labels2 = ax2.get_legend_handles_labels()
             ax2.legend(handles2, labels2, loc=2, fancybox=False, shadow=False)
 
