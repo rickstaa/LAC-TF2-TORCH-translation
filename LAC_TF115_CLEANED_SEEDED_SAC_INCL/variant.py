@@ -9,11 +9,12 @@ REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loadin
 # REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
-episodes = int(1e5)  # DEBUG
+episodes = int(1.1e4)  # DEBUG
 # episodes = int(2e5)
 num_of_paths_for_eval = 20
 num_of_policies = 10
-eval_list = ["LAC20201002_1200_1_3inputs"]
+eval_list = ["SAC20201002_1255"]  # DEBUG
+# eval_list = ["LAC20201002_1200_1_3inputs"]
 use_lyapunov = False
 
 # Environment parameters
@@ -29,7 +30,9 @@ if REL_PATH:
 else:
     dirname = os.path.dirname(__file__)
     LOG_PATH = os.path.abspath(
-        os.path.join(dirname, "./log/" + ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M"))
+        os.path.join(
+            dirname, "./log/" + ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M")
+        )
     )
 timestr = time.strftime("%Y%m%d_%H%M")
 
