@@ -5,8 +5,8 @@ import sys
 import os
 import time
 
-# REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
-REL_PATH = True  # Whether to use a relative path for storign and loading models
+REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
+# REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
 episodes = int(1e5)  # DEBUG
@@ -17,7 +17,7 @@ num_of_policies = 10
 eval_list = ["SAC20201002_1903"]
 # use_lyapunov = True
 use_lyapunov = False
-# wich_policy_for_inference = [1,2,5]
+which_policy_for_inference = [0]
 
 # Environment parameters
 ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
@@ -52,6 +52,7 @@ TRAIN_PARAMS = {
 
 # Main evaluation parameters
 EVAL_PARAMS = {
+    "which_policy_for_inference": which_policy_for_inference,  # Which policies you want to use for the inference
     "eval_list": eval_list,
     "additional_description": timestr,
     "num_of_paths": num_of_paths_for_eval,  # number of path for evaluation
