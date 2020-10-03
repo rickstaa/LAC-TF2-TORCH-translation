@@ -241,6 +241,7 @@ class Ex3_EKF_gyro(gym.Env):
 
     def __init__(self):
 
+        clean = True
         self.choice = 'otherCase'
 
         self.t = 0
@@ -251,9 +252,18 @@ class Ex3_EKF_gyro(gym.Env):
         self.cov_noise_gyro_bias = np.array([[0.00000, 0, 0], [0, 0.00000, 0], [0, 0, 0.00000]])
         # the true value of self.noise_gyro_bias & self.cov_noise_gyro_bias is unknown,
         # and the measurement of acc&mag is used to compensate the uncertain drift caused by noise_gyro_bias
-        self.cov_noise_i = np.array([[.00001, 0, 0], [0, .00001, 0], [0, 0, .00001]])
-        self.cov_a = np.array([[0.0005, 0, 0], [0, 0.0005, 0], [0, 0, 0.0005]])
-        self.cov_mag = np.array([[0.0003, 0, 0], [0, 0.0003, 0], [0, 0, 0.0003]])
+
+        if not clean:
+            self.cov_noise_i = np.array([[.00001, 0, 0], [0, .00001, 0], [0, 0, .00001]])
+            self.cov_a = np.array([[0.0005, 0, 0], [0, 0.0005, 0], [0, 0, 0.0005]])
+            self.cov_mag = np.array([[0.0003, 0, 0], [0, 0.0003, 0], [0, 0, 0.0003]])
+        else:
+            self.cov_noise_i = np.array([[.00000, 0, 0], [0, .0000, 0], [0, 0, .0000]])
+            self.cov_a = np.array([[0.000, 0, 0], [0, 0.000, 0], [0, 0, 0.000]])
+            self.cov_mag = np.array([[0.000, 0, 0], [0, 0.000, 0], [0, 0, 0.000]])
+
+
+
 
         # the true initial pose (from the sensor frame to the world frame)
         self.q_t = np.random.uniform([-1,-1,-1,-1], [1,1,1,1])
@@ -396,6 +406,7 @@ class Ex3_EKF_gyro(gym.Env):
 
     def step(self, action):  # here u1,u2=measurement, which is a result of the action
         train = False
+        clean = True
 
         u_11, u_21, u_31, u_41, u_51, u_61, \
         u_12, u_22, u_32, u_42, u_52, u_62, \
@@ -417,7 +428,13 @@ class Ex3_EKF_gyro(gym.Env):
         noise_gyro_bias_var = np.random.multivariate_normal([0, 0, 0], self.cov_noise_gyro_bias).flatten()
         noise_gyro_bias_t = self.noise_gyro_bias + np.array(
             [[noise_gyro_bias_var[0]], [noise_gyro_bias_var[1]], [noise_gyro_bias_var[2]]])
-        noise_i = np.random.multivariate_normal([0, 0, 0], self.cov_noise_i).flatten()
+
+
+        if not clean:
+            noise_i = np.random.multivariate_normal([0, 0, 0], self.cov_noise_i).flatten()
+        else:
+            noise_i = np.random.multivariate_normal([0, 0, 0], self.cov_noise_i).flatten()*0
+
         omega_obs = omega + noise_gyro_bias_t + np.array([[noise_i[0]], [noise_i[1]], [noise_i[2]]])
         # omega_obs = omega
 
@@ -425,14 +442,23 @@ class Ex3_EKF_gyro(gym.Env):
         # change gravity direction
         # acc_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(self.q_t)), quatRightMulMat(self.q_t)), quatPure2Q([0, 0, -1]))
         acc_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(self.q_t)), quatRightMulMat(self.q_t)), quatPure2Q([0, 0, 1]))
-        acc_i = np.random.multivariate_normal([0., 0., 0.], self.cov_a).flatten()
+        if not clean:
+            acc_i = np.random.multivariate_normal([0., 0., 0.], self.cov_a).flatten()
+        else:
+            acc_i = np.random.multivariate_normal([0., 0., 0.], self.cov_a).flatten()*0
+
+
         acc_m = acc_m_q[1:4] + np.array([[acc_i[0]], [acc_i[1]], [acc_i[2]]])
         # acc_m = acc_m_q[1:4]
         acc_m = acc_m / np.linalg.norm(acc_m)
         # assume the dip angle of mag is diata = 30 degree =0.52 rad = (np.pi*30/180)
         mag_m_q = np.dot(np.dot(quatLeftMulMat(quatConj(self.q_t)), quatRightMulMat(self.q_t)),
                          quatPure2Q([np.cos(np.pi * 30 / 180), 0, np.sin(np.pi * 30 / 180)]))
-        mag_i = np.random.multivariate_normal([0, 0, 0], self.cov_mag).flatten()
+        if not clean:
+            mag_i = np.random.multivariate_normal([0, 0, 0], self.cov_mag).flatten()
+        else:
+            mag_i = np.random.multivariate_normal([0, 0, 0], self.cov_mag).flatten()*0
+
         mag_m = mag_m_q[1:4] + np.array([[mag_i[0]], [mag_i[1]], [mag_i[2]]])
         # mag_m = mag_m_q[1:4]
         mag_m = mag_m / np.linalg.norm(mag_m)
@@ -485,7 +511,6 @@ class Ex3_EKF_gyro(gym.Env):
         # cost = np.linalg.norm(aaa) * np.power( gamma,t)
         # cost = np.linalg.norm(aaa) * np.log(t+1)
 
-
         if cost > (300):
             done = True
         else:
@@ -518,10 +543,11 @@ class Ex3_EKF_gyro(gym.Env):
         if not eval:
             self.q_t = np.random.uniform([-1,-1,-1,-1], [1,1,1,1])# the state q, the initial value can be set randomly
         else:
-            self.q_t = np.array([0.6,0.2,0.5,0.4])
+            self.q_t = np.array([0.6,0.7,0.5,0.4])
         self.q_t = self.q_t /np.linalg.norm(self.q_t)
         self.q_t_init = self.q_t
-        self.hat_q = self.q_t + np.random.normal([ 0,0,0,0], [ 0.1,0.1,0.1,0.1])*1.0
+        # self.hat_q = self.q_t + np.random.normal([ 0,0,0,0], [ 0.1,0.1,0.1,0.1])*1.0
+        self.hat_q = self.q_t + np.random.normal([0, 0, 0, 0], [0.1, 0.1, 0.1, 0.1]) * 0.1
         # self.hat_q = np.random.normal([0, 0, 0, 0], [0.1, 0.1, 0.1, 0.1]) * 0.1
         self.hat_q = self.hat_q /np.linalg.norm(self.hat_q)
         self.q_pred_init = self.hat_q
