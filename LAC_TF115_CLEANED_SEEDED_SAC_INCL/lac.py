@@ -925,13 +925,9 @@ def train(log_dir):
                             lr_a_now, lr_l_now, lr_a, lr_c_now, batch
                         )
                     else:
-                        (
-                            alpha,
-                            q1_error,
-                            q2_error,
-                            entropy,
-                            a_loss,
-                        ) = policy.learn(lr_a_now, lr_l_now, lr_a, lr_c_now, batch)
+                        (alpha, q1_error, q2_error, entropy, a_loss,) = policy.learn(
+                            lr_a_now, lr_l_now, lr_a, lr_c_now, batch
+                        )
 
             # Save path results
             if training_started:
