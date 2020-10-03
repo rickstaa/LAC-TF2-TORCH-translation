@@ -241,7 +241,7 @@ class Ex3_EKF_gyro(gym.Env):
 
     def __init__(self):
 
-        clean = True
+        clean = False
         self.choice = 'otherCase'
 
         self.t = 0
@@ -406,7 +406,7 @@ class Ex3_EKF_gyro(gym.Env):
 
     def step(self, action):  # here u1,u2=measurement, which is a result of the action
         train = False
-        clean = True
+        clean = False
 
         u_11, u_21, u_31, u_41, u_51, u_61, \
         u_12, u_22, u_32, u_42, u_52, u_62, \
@@ -511,7 +511,7 @@ class Ex3_EKF_gyro(gym.Env):
         # cost = np.linalg.norm(aaa) * np.power( gamma,t)
         # cost = np.linalg.norm(aaa) * np.log(t+1)
 
-        if cost > (300):
+        if cost > (150):
             done = True
         else:
             done = False
