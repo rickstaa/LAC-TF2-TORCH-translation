@@ -94,7 +94,7 @@ if __name__ == "__main__":
             MODEL_PATH = os.path.abspath(
                 os.path.join(dirname, "./log/" + args.env_name + "/" + name)
             )  # TODO: Make log paths env name lowercase
-            LOG_PATH = os.path.abspath(os.path.join(MODEL_PATH, "eval"))
+            LOG_PATH = os.path.abspath(os.path.join(MODEL_PATH, "figure"))
             os.makedirs(LOG_PATH, exist_ok=True)
 
         print("evaluating " + name)
@@ -152,6 +152,9 @@ if __name__ == "__main__":
 
         # Retrieve rollouts from variant file
         rollouts_input = EVAL_PARAMS["which_policy_for_inference"]
+
+        # Use all rollouts if roolouts_inpuy is emptry []
+        rollouts_input = rollout_list if not rollouts_input else rollouts_input
 
         # Validate given policies
         if any([not isinstance(x, (int, float)) for x in rollouts_input]):
@@ -621,14 +624,14 @@ if __name__ == "__main__":
         # Save figures to pdf if requested
         if args.save_figs:
             fig_1.savefig(
-                os.path.join(LOG_PATH, "figure_1." + args.fig_file_type),
+                os.path.join(LOG_PATH, "Quatonian." + args.fig_file_type),
                 bbox_inches="tight",
             )
             fig_2.savefig(
-                os.path.join(LOG_PATH, "figure_2." + args.fig_file_type),
+                os.path.join(LOG_PATH, "State." + args.fig_file_type),
                 bbox_inches="tight",
             )
             fig_3.savefig(
-                os.path.join(LOG_PATH, "figure_3." + args.fig_file_type),
+                os.path.join(LOG_PATH, "Cost." + args.fig_file_type),
                 bbox_inches="tight",
             )

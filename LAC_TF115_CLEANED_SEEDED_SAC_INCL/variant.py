@@ -5,18 +5,18 @@ import sys
 import os
 import time
 
-REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
-# REL_PATH = True  # Whether to use a relative path for storign and loading models
+# REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
+REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
-# episodes = int(1e4)  # DEBUG
-episodes = int(1e5)
-num_of_policies = 10
-num_of_paths_for_eval = 20
-eval_list = ["SAC20201003_1002"]
-# use_lyapunov = True
-use_lyapunov = False
-which_policy_for_inference = [9]
+episodes = int(0.5e4)  # DEBUG
+# episodes = int(1e5)
+num_of_policies = 40
+num_of_paths_for_eval = 50
+eval_list = ["LAC20201003_2114"]
+use_lyapunov = True
+# use_lyapunov = False
+which_policy_for_inference = [1, 2, 3]
 
 # Environment parameters
 ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
@@ -42,7 +42,7 @@ TRAIN_PARAMS = {
     "episodes": episodes,  # The number of episodes you want to perform
     "num_of_training_paths": 100,  # Number of training rollouts stored for analysis
     "evaluation_frequency": 2048,  # After how many steps the performance is evaluated
-    "num_of_evaluation_paths": 10,  # number of rollouts for evaluation  # DEBUG
+    "num_of_evaluation_paths": 20,  # number of rollouts for evaluation  # DEBUG
     # "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
     # "num_of_trials": 4,  # number of randomly seeded trained agents
     "num_of_trials": num_of_policies,  # number of randomly seeded trained agents # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
@@ -64,7 +64,7 @@ EVAL_PARAMS = {
     "obs": [],  # Which observations you want to plot (empty means all obs).
     "plot_cost": True,  # Whether you also want to plot the cost.
     "save_figs": True,  # Whether you want to save the figures to pdf.
-    "fig_file_type": "jpg",  # The file type you want to use for saving the figures.
+    "fig_file_type": "pdf",  # The file type you want to use for saving the figures.
 }
 
 # Learning algorithm parameters
