@@ -11,13 +11,7 @@ import argparse
 from lac import LAC
 
 from utils import get_env_from_name
-from variant import (
-    EVAL_PARAMS,
-    ENVS_PARAMS,
-    ENV_NAME,
-    ENV_SEED,
-    REL_PATH,
-)
+from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
 
 ###################################################
 # Main inference eval script ######################
@@ -273,6 +267,7 @@ if __name__ == "__main__":
                         episode_path["reference"].append(np.array(info["reference"]))
 
                     # Terminate if max step has been reached
+                    done = False  # Ignore done signal from env because inference
                     if j == (ENVS_PARAMS[args.env_name]["max_ep_steps"] - 1):
                         done = True
 
@@ -475,7 +470,7 @@ if __name__ == "__main__":
                         #     color=color2,
                         #     alpha=0.3,
                         #     label=f"reference_{i+1}_std",
-                        # ) # Fixme remove
+                        # )  # FIXME: remove
                     if not EVAL_PARAMS["merged"]:
                         handles, labels = ax.get_legend_handles_labels()
                         ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
@@ -493,9 +488,7 @@ if __name__ == "__main__":
             req_obs = EVAL_PARAMS["obs"]
 
             # Create figure
-            fig2 = plt.figure(
-                figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_2"
-            )
+            fig2 = plt.figure(figsize=(9, 6), num="LAC_TF115_CLEANED_SEEDED_SAC_INCL_2")
             colors = "bgrcmk"
             cycol = cycle(colors)
             ax2 = fig2.add_subplot(111)
@@ -560,9 +553,7 @@ if __name__ == "__main__":
             print("Plotting mean path and standard deviation...")
 
             # Create figure
-            fig3 = plt.figure(
-                figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_3"
-            )
+            fig3 = plt.figure(figsize=(9, 6), num="LAC_TF115_CLEANED_SEEDED_SAC_INCL_3")
             ax3 = fig3.add_subplot(111)
 
             # Calculate mean observation path and std

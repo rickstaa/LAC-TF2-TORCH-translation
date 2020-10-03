@@ -55,9 +55,11 @@ EVAL_PARAMS = {
     "plot_average": True,
     "directly_show": True,
     "plot_ref": True,  # Whether you also want to plot the states of reference
+    "merged": True,  # Whether you want to display all the states of references in one fig
     "ref": [],  # Which state of reference you want to plot (empty means all obs).
     "plot_obs": True,  # Whether you also want to plot the observations
     "obs": [],  # Which observations you want to plot (empty means all obs).
+    "plot_cost": True,  # Whether you also want to plot the cost
 }
 
 # Learning algorithm parameters
