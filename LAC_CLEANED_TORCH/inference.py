@@ -267,6 +267,7 @@ if __name__ == "__main__":
                         episode_path["reference"].append(np.array(info["reference"]))
 
                     # Terminate if max step has been reached
+                    done = False  # Ignore done signal from env because inference
                     if j == (ENVS_PARAMS[args.env_name]["max_ep_steps"] - 1):
                         done = True
 
