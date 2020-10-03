@@ -57,12 +57,14 @@ EVAL_PARAMS = {
     "num_of_paths": num_of_paths_for_eval,  # number of path for evaluation
     "plot_average": True,
     "directly_show": True,
-    "plot_ref": True,  # Whether you also want to plot the states of reference
-    "merged": True,  # Whether you want to display all the states of references in one fig
+    "plot_ref": True,  # Whether you also want to plot the states of reference.
+    "merged": True,  # Whether you want to display all the states of references in one fig.
     "ref": [],  # Which state of reference you want to plot (empty means all obs).
-    "plot_obs": True,  # Whether you also want to plot the observations
+    "plot_obs": True,  # Whether you also want to plot the observations.
     "obs": [],  # Which observations you want to plot (empty means all obs).
-    "plot_cost": True,  # Whether you also want to plot the cost
+    "plot_cost": True,  # Whether you also want to plot the cost.
+    "save_figs": True,  # Whether you want to save the figures to pdf.
+    "fig_file_type": "jpg",  # The file type you want to use for saving the figures.
 }
 
 # Learning algorithm parameters

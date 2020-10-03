@@ -765,7 +765,12 @@ class LAC(object):
             path (str): The path where you want to save the policy.
         """
 
-        save_path = self.saver.save(self.sess, path + "/policy/model.ckpt")
+        # Retrieve relative path
+        # NOTE: Needed since tf saves the path in the checkpoint file
+        save_path_rel = os.path.relpath(path + "/policy/model.ckpt", start=os.curdir)
+
+        # Save model
+        save_path = self.saver.save(self.sess, save_path_rel)
         print("Save to path: ", save_path)
 
     def restore(self, path):
