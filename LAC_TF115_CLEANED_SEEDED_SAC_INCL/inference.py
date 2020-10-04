@@ -13,6 +13,7 @@ from lac import LAC
 from utils import get_env_from_name
 from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
 
+
 ###################################################
 # Main inference eval script ######################
 ###################################################
@@ -256,7 +257,9 @@ if __name__ == "__main__":
                 continue
 
             # Perform a number of paths in the environment
-            for i in range(math.ceil(EVAL_PARAMS["num_of_paths"] / len(rollout_list))):
+            for i in range(
+                math.ceil(EVAL_PARAMS["num_of_paths"] / len(rollouts_input))
+            ):
 
                 # Path storage buckets
                 episode_path = {
@@ -433,9 +436,7 @@ if __name__ == "__main__":
             )
             print(f"Plotting results for states of reference {ref_str}.")
             invalid_refs = [
-                ref
-                for ref in req_ref
-                if (ref > (soi_mean_path.shape[0] + 1) or ref < 0)
+                ref for ref in req_ref if (ref > soi_mean_path.shape[0] or ref < 0)
             ]
             if invalid_refs:
                 for ref in invalid_refs:
@@ -472,7 +473,7 @@ if __name__ == "__main__":
                             soi_mean_path[i],
                             color=color1,
                             linestyle="dashed",
-                            # label=f"state_of_interest_{i+1}_mean",
+                            label=f"state_of_interest_{i+1}_mean",
                         )
                         if not EVAL_PARAMS["merged"]:
                             ax.set_title(f"States of interest and reference {i+1}")
@@ -482,14 +483,11 @@ if __name__ == "__main__":
                             soi_mean_path[i] + soi_std_path[i],
                             color=color1,
                             alpha=0.3,
-                            # label=f"state_of_interest_{i+1}_std",
+                            label=f"state_of_interest_{i+1}_std",
                         )
                     if i <= (len(ref_mean_path) - 1):
                         ax.plot(
-                            t,
-                            ref_mean_path[i],
-                            color=color2,
-                            # label=f"reference_{i+1}",
+                            t, ref_mean_path[i], color=color2, label=f"reference_{i+1}",
                         )
                         # ax.fill_between(
                         #     t,
@@ -543,9 +541,7 @@ if __name__ == "__main__":
             )
             print(f"Plotting results for obs {obs_str}.")
             invalid_obs = [
-                obs
-                for obs in req_obs
-                if (obs > (obs_mean_path.shape[0] + 1) or obs < 0)
+                obs for obs in req_obs if (obs > obs_mean_path.shape[0] or obs < 0)
             ]
             if invalid_obs:
                 for obs in invalid_obs:
