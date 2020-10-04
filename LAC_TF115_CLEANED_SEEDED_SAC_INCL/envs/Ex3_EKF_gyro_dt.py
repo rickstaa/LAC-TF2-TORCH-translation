@@ -16,15 +16,15 @@ import csv
 import matplotlib.pyplot as plt
 
 
-# This example is the RL based filter
-def omega_t_sim(t):
+def omega_t_sim0(t):
+    t=t*50*2
     # input = 0*np.cos(t) * self.dt
     # 额外给一个准确的角速度（带偏移+噪声），然后由此仿真出来acc，gyro，mag的测量值
     # 1. simulate the true angular velocity
-    a=200
-    b=250
-    c=250
-    d=300
+    a=100
+    b=500
+    c=500
+    d=700
     if a<= t < (a+b)/2:
         omega_1 = 2*pow((t-a)/(b-a),2) # the real angular velocity, in q_pred direction
         omega_2 = 0  # the real angular velocity, in y direction
@@ -49,10 +49,49 @@ def omega_t_sim(t):
         omega_1 = 0
         omega_2 = 0
         omega_3 = 0
-    omega = np.array([[omega_1], [omega_2], [omega_3]])*0.07
+    omega = np.array([[omega_1], [omega_2], [omega_3]])*0.35
     return omega
 
+
 def omega_t_sim1(t):
+    t=t*50*2
+    # input = 0*np.cos(t) * self.dt
+    # 额外给一个准确的角速度（带偏移+噪声），然后由此仿真出来acc，gyro，mag的测量值
+    # 1. simulate the true angular velocity
+    a=100
+    b=500
+    c=500
+    d=700
+    if a<= t < (a+b)/2:
+        omega_1 = 2*pow((t-a)/(b-a),2) # the real angular velocity, in q_pred direction
+        omega_2 = 0  # the real angular velocity, in y direction
+        omega_3 = 0  # the real angular velocity, in z direction
+    elif (a+b)/2 <= t < b:
+        omega_1 = 0
+        omega_2 = 1 - 2*pow((t-b)/(b-a),2)
+        omega_3 = 0
+    elif b <=t < c:
+        omega_1 = 1
+        omega_2 = 0
+        omega_3 = 0
+    elif c<= t <(c+d)/2:
+        omega_1 = 0
+        omega_2 = 0
+        omega_3 = 1-2*pow((t-c)/(d-c),2)
+    elif (c+d)/2 <= t < d:
+        omega_1 = 2*pow((t-d)/(d-c),2)
+        omega_2 = 0
+        omega_3 = 0
+    else :
+        omega_1 = 0
+        omega_2 = 0
+        omega_3 = 0
+    omega = np.array([[omega_1], [omega_2], [omega_3]])*0.35
+    return omega
+
+
+def omega_t_sim2(t):
+    t=t*50*2
     # input = 0*np.cos(t) * self.dt
     # 额外给一个准确的角速度（带偏移+噪声），然后由此仿真出来acc，gyro，mag的测量值
     # 1. simulate the true angular velocity
@@ -67,49 +106,15 @@ def omega_t_sim1(t):
     omega = np.array([[omega_1], [omega_2], [omega_3]])
     return omega
 
-def omega_t_sim2(t):
-    # input = 0*np.cos(t) * self.dt
-    # 额外给一个准确的角速度（带偏移+噪声），然后由此仿真出来acc，gyro，mag的测量值
-    # 1. simulate the true angular velocity
-    if (6 * math.pi / 0.2) < t <= ( 7* math.pi / 0.2):
-        omega_1 = np.sin((0.2 * t)) *0.4 # the real angular velocity, in q_pred direction
-        omega_2 = 0  # the real angular velocity, in y direction
-        omega_3 = 0  # the real angular velocity, in z direction
-    else:
-        omega_1 = 0
-        omega_2 = 0
-        omega_3 = 0
-    omega = np.array([[omega_1], [omega_2], [omega_3]])
-    return omega
-
 def omega_t_sim3(t):
+    t=t*50*2
     # input = 0*np.cos(t) * self.dt
     # 额外给一个准确的角速度（带偏移+噪声），然后由此仿真出来acc，gyro，mag的测量值
     # 1. simulate the true angular velocity
-    if (0.1 * math.pi / 0.2) < t <= (3 * math.pi / 0.2):
-        omega_1 = np.sin((0.2 * t))  # the real angular velocity, in q_pred direction
+    if (0.5 * math.pi / 0.008) < t <= ( 1.5* math.pi / 0.008):
+        omega_1 = np.sin((0.008 * t) - 0.5* math.pi) *0.4 # the real angular velocity, in q_pred direction
         omega_2 = 0  # the real angular velocity, in y direction
         omega_3 = 0  # the real angular velocity, in z direction
-    elif (19 * math.pi) < t <= (28 * math.pi):
-        w_norm = np.sin(t)
-        R = [[-0.1469, 0.3804, -0.9131], [-0.0470, 0.9194, 0.3906], [0.9880, 0.1003, -0.1172]]
-        R = np.mod(R, 2)  # normalize rotation matrix
-        w_vector = R * [np.sin(t), 0, 0]
-        omega_1 = w_vector[0][0]
-        omega_2 = w_vector[1][0]
-        omega_3 = w_vector[2][0]
-    elif (21 * math.pi * 1.5) < t <= (25 * math.pi * 1.5):
-        omega_1 = np.sin(t / 1.5)
-        omega_2 = 0
-        omega_3 = 0
-    elif (25 * math.pi * 1.5) <= t <= (29 * math.pi * 1.5):
-        omega_1 = 0
-        omega_2 = np.sin(t / 1.5)
-        omega_3 = 0
-    elif (29 * math.pi * 1.5) < t < (33 * math.pi * 1.5):
-        omega_1 = 0
-        omega_2 = 0
-        omega_3 = np.sin(t / 1.5)
     else:
         omega_1 = 0
         omega_2 = 0
@@ -118,18 +123,145 @@ def omega_t_sim3(t):
     return omega
 
 def omega_t_sim4(t):
-    # input = 0*np.cos(t) * self.dt
-    # 额外给一个准确的角速度（带偏移+噪声），然后由此仿真出来acc，gyro，mag的测量值
-    # 1. simulate the true angular velocity
-    if (2 * math.pi /0.05) < t <= (6 * math.pi /0.05):
-        omega_1 = np.sin((t*0.05))  # the real angular velocity, in q_pred direction
-        omega_2 = 0  # the real angular velocity, in y direction
-        omega_3 = 0  # the real angular velocity, in z direction
+    t=t*50*2
+    if (1 * math.pi / 0.02) < t <= (2 * math.pi / 0.02):
+        omega_1 = np.sin(t * 0.02)
+        omega_2 = 0
+        omega_3 = 0
+    elif (2 * math.pi / 0.02) <= t <= (3 * math.pi / 0.02):
+        omega_1 = 0
+        omega_2 = np.sin(t * 0.02)
+        omega_3 = 0
+    elif (3 * math.pi / 0.02) < t < (4 * math.pi / 0.02):
+        omega_1 = 0
+        omega_2 = 0
+        omega_3 = np.sin(t * 0.02)
     else:
         omega_1 = 0
         omega_2 = 0
         omega_3 = 0
-    omega = np.array([[omega_1], [omega_2], [omega_3]])
+    omega = np.array([[omega_1], [omega_2], [omega_3]])*0.4
+    return omega
+
+def omega_t_sim(t):
+    t=t*100*2
+    if (2 * math.pi / 0.02) < t <= (3 * math.pi / 0.02):
+        omega_1 = np.sin(t * 0.02)
+        omega_2 = 0
+        omega_3 = 0
+    elif (3 * math.pi / 0.02) <= t <= (4 * math.pi / 0.02):
+        omega_1 = np.sin(t * 0.02)
+        omega_2 = 0
+        omega_3 = 0
+    elif (4 * math.pi / 0.02) < t < (5 * math.pi / 0.02):
+        omega_1 = np.sin(t * 0.02)
+        omega_2 = 0
+        omega_3 = 0
+    elif (5 * math.pi / 0.02) < t <= (6 * math.pi / 0.02):
+        omega_1 = np.sin(t * 0.02)
+        omega_2 = 0
+        omega_3 = 0
+    elif (6 * math.pi / 0.02) <= t <= (7 * math.pi / 0.02):
+        omega_1 = np.sin(t * 0.02)
+        omega_2 = 0
+        omega_3 = 0
+    elif (7 * math.pi / 0.02) < t < (8 * math.pi / 0.02):
+        omega_1 = np.sin(t * 0.02)
+        omega_2 = 0
+        omega_3 = 0
+    else:
+        omega_1 = 0
+        omega_2 = 0
+        omega_3 = 0
+    omega = np.array([[omega_1], [omega_2], [omega_3]])*1
+    return omega
+
+
+def omega_t_sim6(t):
+    t=t*0.8
+    # input = 0*np.cos(t) * self.dt
+    # 额外给一个准确的角速度（带偏移+噪声），然后由此仿真出来acc，gyro，mag的测量值
+    # 1. simulate the true angular velocity
+    start = 5
+    risingStage = 1
+    holding = 15
+    a1=start
+    b1=start+risingStage
+    c1=start+risingStage+holding
+    d1=start+2.*risingStage+holding
+    a2=start+2.*risingStage+holding
+    b2=start+3.*risingStage+holding
+    c2=start+3.*risingStage+2.*holding
+    d2=start+4.*risingStage+2.*holding
+    a3=start+4.*risingStage+2.*holding
+    b3=start+5.*risingStage+2.*holding
+    c3=start+5.*risingStage+3.*holding
+    d3=start+6.*risingStage+3.*holding
+    if a1<= t < (a1+b1)/2:
+        omega_1 = 2*pow((t-a1)/(b1-a1),2) # the real angular velocity, in q_pred direction
+        omega_2 = 0  # the real angular velocity, in y direction
+        omega_3 = 0  # the real angular velocity, in z direction
+    elif (a1+b1)/2 <= t < b1:
+        omega_1 = 1 - 2*pow((t-b1)/(b1-a1),2)
+        omega_2 = 0
+        omega_3 = 0
+    elif b1 <=t < c1:
+        omega_1 = 1
+        omega_2 = 0
+        omega_3 = 0
+    elif c1<= t <(c1+d1)/2:
+        omega_1 = 1-2*pow((t-c1)/(d1-c1),2)
+        omega_2 = 0
+        omega_3 = 0
+    elif (c1+d1)/2 <= t < d1:
+        omega_1 = 2*pow((t-d1)/(d1-c1),2)
+        omega_2 = 0
+        omega_3 = 0
+    elif a2<= t < (a2+b2)/2:
+        omega_1 = 0 # the real angular velocity, in q_pred direction
+        omega_2 = 2*pow((t-a2)/(b2-a2),2)  # the real angular velocity, in y direction
+        omega_3 = 0  # the real angular velocity, in z direction
+    elif (a2+b2)/2 <= t < b2:
+        omega_1 = 0
+        omega_2 = (1 - 2*pow((t-b2)/(b2-a2),2))
+        omega_3 = 0
+    elif b2 <=t < c2:
+        omega_1 = 0
+        omega_2 = 1
+        omega_3 = 0
+    elif c2<= t <(c2+d2)/2:
+        omega_1 = 0
+        omega_2 = (1-2*pow((t-c2)/(d2-c2),2))
+        omega_3 = 0
+    elif (c2+d2)/2 <= t < d2:
+        omega_1 = 0
+        omega_2 = 2*pow((t-d2)/(d2-c2),2)
+        omega_3 = 0
+    elif a3<= t < (a3+b3)/2:
+        omega_1 = 0 # the real angular velocity, in q_pred direction
+        omega_2 = 0  # the real angular velocity, in y direction
+        omega_3 = 2*pow((t-a3)/(b3-a3),2)  # the real angular velocity, in z direction
+    elif (a3+b3)/2 <= t < b3:
+        omega_1 = 0
+        omega_2 = 0
+        omega_3 = 1 - 2*pow((t-b3)/(b3-a3),2)
+    elif b3 <=t < c3:
+        omega_1 = 0
+        omega_2 = 0
+        omega_3 = 1
+    elif c3<= t <(c3+d3)/2:
+        omega_1 = 0
+        omega_2 = 0
+        omega_3 = 1-2*pow((t-c3)/(d3-c3),2)
+    elif (c3+d3)/2 <= t < d3:
+        omega_1 = 0
+        omega_2 = 0
+        omega_3 = 2*pow((t-d3)/(d3-c3),2)
+    else :
+        omega_1 = 0
+        omega_2 = 0
+        omega_3 = 0
+    omega = np.array([[omega_1], [omega_2], [omega_3]])*0.3
     return omega
 
 def q_t_dot(t, q_t):
@@ -245,7 +377,7 @@ class Ex3_EKF_gyro(gym.Env):
         self.choice = 'otherCase'
 
         self.t = 0
-        self.dt = 0.5
+        self.dt = 0.01
 
         self.noise_gyro_bias = np.array(
             [[0.0], [0.0], [0.0]])  # a small changing bias in angular velocity, the initial value is 0.0001
@@ -254,7 +386,7 @@ class Ex3_EKF_gyro(gym.Env):
         # and the measurement of acc&mag is used to compensate the uncertain drift caused by noise_gyro_bias
 
         if not self.clean:
-            self.cov_noise_i = np.array([[.00001, 0, 0], [0, .00001, 0], [0, 0, .00001]])
+            self.cov_noise_i = np.array([[.0003, 0, 0], [0, .0003, 0], [0, 0, .0003]])
             self.cov_a = np.array([[0.0005, 0, 0], [0, 0.0005, 0], [0, 0, 0.0005]])
             self.cov_mag = np.array([[0.0003, 0, 0], [0, 0.0003, 0], [0, 0, 0.0003]])
         else:
@@ -273,10 +405,10 @@ class Ex3_EKF_gyro(gym.Env):
         high = np.array([10000, 10000, 10000])
 
         self.action_space = spaces.Box(low=np.array(
-            [-10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10.])*0.01,
+            [-10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10.])*0.00025,
                                        high=np.array(
                                            [10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10.,
-                                            10., 10., 10.])*0.01,
+                                            10., 10., 10.])*0.00025,
                                        dtype=np.float32)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
 
@@ -406,7 +538,7 @@ class Ex3_EKF_gyro(gym.Env):
 
     def step(self, action):  # here u1,u2=measurement, which is a result of the action
         train = False
-    
+       
 
         u_11, u_21, u_31, u_41, u_51, u_61, \
         u_12, u_22, u_32, u_42, u_52, u_62, \
@@ -534,9 +666,10 @@ class Ex3_EKF_gyro(gym.Env):
                 reference=np.array([q_t[0], q_t[1], q_t[2], q_t[3]]),
                 state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
 
-            # return np.hstack([hat_eta,np.hstack(omega_obs)]), cost, done, dict(reference=np.array([q_t[0], q_t[1], q_t[2], q_t[3]]),
-            #                             state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
-
+            # DEBUG
+            # return hat_eta, omega, cost, done, dict(
+            #     reference=np.array([q_t[0], q_t[1], q_t[2], q_t[3]]),
+            #     state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
 
     def reset(self, eval=False):
         self.t = 0
@@ -578,16 +711,19 @@ class Ex3_EKF_gyro(gym.Env):
 
 if __name__ == '__main__':
     env = Ex3_EKF_gyro()
-    T = 3200
+    T = 16
 
     # choice = 'saveData'
-    choice = 'saveData'
+    choice = []
     if env.saveChoice(choice) == 'saveData':
+        s = env.reset()
         path = []
+        steps = []
         omega_obs,acc_m,mag_m,q_t,hat_q = env.reset()
         measurement = np.vstack([omega_obs,acc_m,mag_m,np.vstack(q_t),np.vstack(hat_q)])
         measurement = np.hstack(measurement)
         path.append(measurement)
+        steps.append(0)
         for i in range(int(T / env.dt)):
             # s, r, info, done = env.step(np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
             # path.append(s)
@@ -595,7 +731,27 @@ if __name__ == '__main__':
             measurement = np.vstack([omega_obs,acc_m,mag_m,np.vstack(q_t),np.vstack(hat_q)])
             measurement = np.hstack(measurement)
             path.append(measurement)
+            steps.append(i)
         np.savetxt('5.csv', path, delimiter = ',')
+        fig = plt.figure(figsize=(9, 6))
+        ax = fig.add_subplot(111)
+        ax.plot(steps, np.array(path)[:, 9], color='green', label='x0')
+        ax.plot(steps, np.array(path)[:, 10], color='yellow', label='x1')
+        ax.plot(steps, np.array(path)[:, 11], color='blue', label='x2')
+        ax.plot(steps, np.array(path)[:, 12], color='red', label='x3')
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
+        plt.show()
+        fig = plt.figure(figsize=(9, 6))
+        ax = fig.add_subplot(111)
+        ax.plot(steps, np.array(path)[:, 0], color='green', label='x0')
+        ax.plot(steps, np.array(path)[:, 1], color='yellow', label='x1')
+        ax.plot(steps, np.array(path)[:, 2], color='blue', label='x2')
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
+        plt.show()
+        # plt.savefig('1-.eps',format="eps")
+        print('done')
     else:
         path = []
         # path2=[]
@@ -604,8 +760,8 @@ if __name__ == '__main__':
         for i in range(int(T / env.dt)):
             # s, r, info, done = env.step(np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
             # path.append(s)
-            hat_q, r, info, done = env.step(np.array([ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
-            path.append(hat_q)
+            hat_q, omega, r, info, done = env.step(np.array([ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
+            path.append(omega)
             t1.append(i * env.dt)
         fig = plt.figure(figsize=(9, 6))
         ax = fig.add_subplot(111)

@@ -9,17 +9,21 @@ import time
 REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
-episodes = int(0.5e4)  # DEBUG
-# episodes = int(1e5)
+# episodes = int(0.1e4)  # DEBUG
+episodes = int(2e5)
 num_of_policies = 40
-num_of_paths_for_eval = 50
-eval_list = ["LAC20201003_2114"]
+num_of_paths_for_eval = 1
+eval_list = ["LAC20201004_1759"]
 use_lyapunov = True
 # use_lyapunov = False
-which_policy_for_inference = [1, 2, 3]
+which_policy_for_inference = [] # If this is empty, it means all the policies are evaluated;
+                                # then you can pick the best the one for the final inference
+
+
 
 # Environment parameters
-ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
+# ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
+ENV_NAME = "Ex3_EKF_gyro_dt"  # The gym environment you want to train in
 # ENV_NAME = "oscillator"  # The gym environment you want to train in
 ENV_SEED = None  # The environment seed
 RANDOM_SEED = None  # The numpy random seed
@@ -75,7 +79,7 @@ ALG_PARAMS = {
     "batch_size": 256,  # The SGD batch size
     "labda": 1.0,  # Initial value for the lyapunov constraint lagrance multiplier
     "alpha": 1.0,  # The initial value for the entropy lagrance multiplier
-    "alpha3": 0.2,  # The value of the stability condition multiplier
+    "alpha3": 0.1,  # The value of the stability condition multiplier
     "tau": 5e-3,  # Decay rate used in the polyak averaging
     "lr_a": 1e-4,  # The actor learning rate
     "lr_l": 3e-4,  # The lyapunov critic
@@ -102,6 +106,12 @@ ENVS_PARAMS = {
     },
     "Ex3_EKF_gyro": {
         "max_ep_steps": 800,
+        "max_global_steps": TRAIN_PARAMS["episodes"],
+        "max_episodes": int(1e6),
+        "eval_render": False,
+    },
+    "Ex3_EKF_gyro_dt": {
+        "max_ep_steps": 1000,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,

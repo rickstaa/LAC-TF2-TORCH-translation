@@ -87,7 +87,7 @@ if __name__ == "__main__":
     for name in eval_agents:
         if REL_PATH:
             MODEL_PATH = "/".join(["./log", args.env_name, name])
-            LOG_PATH = "/".join([MODEL_PATH, "eval"])
+            LOG_PATH = "/".join([MODEL_PATH, "figure"])
             os.makedirs(LOG_PATH, exist_ok=True)
         else:
             dirname = os.path.dirname(__file__)
@@ -363,7 +363,7 @@ if __name__ == "__main__":
                     eval_diagnostics[key] = [val]
                 else:
                     eval_diagnostics[key].append(val)
-            print("")
+            # print("")
         print("all_roll_outs:")
         for key, val in eval_diagnostics.items():
             print(f"- {key}: {np.mean(val)}")
@@ -476,14 +476,14 @@ if __name__ == "__main__":
                         )
                         if not EVAL_PARAMS["merged"]:
                             ax.set_title(f"States of interest and reference {i+1}")
-                        ax.fill_between(
-                            t,
-                            soi_mean_path[i] - soi_std_path[i],
-                            soi_mean_path[i] + soi_std_path[i],
-                            color=color1,
-                            alpha=0.3,
-                            # label=f"state_of_interest_{i+1}_std",
-                        )
+                        # ax.fill_between(
+                        #     t,
+                        #     soi_mean_path[i] - soi_std_path[i],
+                        #     soi_mean_path[i] + soi_std_path[i],
+                        #     color=color1,
+                        #     alpha=0.3,
+                        #     # label=f"state_of_interest_{i+1}_std",
+                        # )
                     if i <= (len(ref_mean_path) - 1):
                         ax.plot(
                             t,
