@@ -476,14 +476,14 @@ if __name__ == "__main__":
                         )
                         if not EVAL_PARAMS["merged"]:
                             ax.set_title(f"States of interest and reference {i+1}")
-                        # ax.fill_between(
-                        #     t,
-                        #     soi_mean_path[i] - soi_std_path[i],
-                        #     soi_mean_path[i] + soi_std_path[i],
-                        #     color=color1,
-                        #     alpha=0.3,
-                        #     # label=f"state_of_interest_{i+1}_std",
-                        # )
+                        ax.fill_between(
+                            t,
+                            soi_mean_path[i] - soi_std_path[i],
+                            soi_mean_path[i] + soi_std_path[i],
+                            color=color1,
+                            alpha=0.3,
+                            # label=f"state_of_interest_{i+1}_std",
+                        )
                     if i <= (len(ref_mean_path) - 1):
                         ax.plot(
                             t,

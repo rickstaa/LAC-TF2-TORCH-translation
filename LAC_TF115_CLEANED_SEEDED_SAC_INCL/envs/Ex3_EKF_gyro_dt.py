@@ -122,7 +122,7 @@ def omega_t_sim3(t):
     omega = np.array([[omega_1], [omega_2], [omega_3]])
     return omega
 
-def omega_t_sim4(t):
+def omega_t_sim(t):
     t=t*50*2
     if (1 * math.pi / 0.02) < t <= (2 * math.pi / 0.02):
         omega_1 = np.sin(t * 0.02)
@@ -143,7 +143,7 @@ def omega_t_sim4(t):
     omega = np.array([[omega_1], [omega_2], [omega_3]])*0.4
     return omega
 
-def omega_t_sim(t):
+def omega_t_sim5(t):
     t=t*100*2
     if (2 * math.pi / 0.02) < t <= (3 * math.pi / 0.02):
         omega_1 = np.sin(t * 0.02)

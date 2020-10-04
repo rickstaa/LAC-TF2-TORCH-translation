@@ -5,20 +5,18 @@ import sys
 import os
 import time
 
-# REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
-REL_PATH = True  # Whether to use a relative path for storign and loading models
+REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
+# REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
 # episodes = int(0.1e4)  # DEBUG
-episodes = int(2e5)
-num_of_policies = 40
+episodes = int(1.5e5)
+num_of_policies = 20
 num_of_paths_for_eval = 1
-eval_list = ["LAC20201004_1759"]
+eval_list = ["LAC20201004_2130"]
 use_lyapunov = True
 # use_lyapunov = False
-which_policy_for_inference = [] # If this is empty, it means all the policies are evaluated;
-                                # then you can pick the best the one for the final inference
-
+which_policy_for_inference = [0] # If this is empty, it means all the policies are evaluated;
 
 
 # Environment parameters
@@ -111,7 +109,7 @@ ENVS_PARAMS = {
         "eval_render": False,
     },
     "Ex3_EKF_gyro_dt": {
-        "max_ep_steps": 1000,
+        "max_ep_steps": 1600,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,
