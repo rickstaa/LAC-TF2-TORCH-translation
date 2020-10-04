@@ -5,20 +5,23 @@ import sys
 import os
 import time
 
-# REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
-REL_PATH = True  # Whether to use a relative path for storign and loading models
+REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
+# REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
 # episodes = int(0.1e4)  # DEBUG
 episodes = int(2e5)
 num_of_policies = 40
-num_of_paths_for_eval = 1
-eval_list = ["LAC20201004_1759"]
+num_of_paths_for_eval = 10
+eval_list = ["LAC20201004_2130"]
 use_lyapunov = True
 # use_lyapunov = False
-which_policy_for_inference = [] # If this is empty, it means all the policies are evaluated;
-                                # then you can pick the best the one for the final inference
-
+which_policy_for_inference = [0]
+# which_policy_for_inference = [
+#     0,
+#     1,
+# ]  # If this is empty, it means all the policies are evaluated;
+# # then you can pick the best the one for the final inference
 
 
 # Environment parameters
@@ -63,9 +66,9 @@ EVAL_PARAMS = {
     "directly_show": True,
     "plot_ref": True,  # Whether you also want to plot the states of reference.
     "merged": True,  # Whether you want to display all the states of references in one fig.
-    "ref": [],  # Which state of reference you want to plot (empty means all obs).
+    "ref": [1, 2],  # Which state of reference you want to plot (empty means all obs).
     "plot_obs": True,  # Whether you also want to plot the observations.
-    "obs": [],  # Which observations you want to plot (empty means all obs).
+    "obs": [1],  # Which observations you want to plot (empty means all obs).
     "plot_cost": True,  # Whether you also want to plot the cost.
     "save_figs": True,  # Whether you want to save the figures to pdf.
     "fig_file_type": "pdf",  # The file type you want to use for saving the figures.
