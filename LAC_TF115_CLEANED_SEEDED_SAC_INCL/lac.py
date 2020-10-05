@@ -154,14 +154,14 @@ class LAC(object):
             self.LR_C = tf.compat.v1.placeholder(tf.float32, None, "LR_C")
 
             # Create lagrance multiplier placeholders
-            log_labda = tf.compat.v1.get_variable(
+            self.log_labda = tf.compat.v1.get_variable(
                 "lambda", None, tf.float32, initializer=tf.math.log(ALG_PARAMS["labda"])
             )  # FIXME: Should be named log_labda
-            log_alpha = tf.compat.v1.get_variable(
+            self.log_alpha = tf.compat.v1.get_variable(
                 "alpha", None, tf.float32, initializer=tf.math.log(ALG_PARAMS["alpha"])
-            )  # FIXME: Should be named log_alpha
-            self.labda = tf.clip_by_value(tf.exp(log_labda), *SCALE_lambda_MIN_MAX)
-            self.alpha = tf.exp(log_alpha)
+            )  # FIXME: Should be named self.log_alpha
+            self.labda = tf.clip_by_value(tf.exp(self.log_labda), *SCALE_lambda_MIN_MAX)
+            self.alpha = tf.exp(self.log_alpha)
 
             ###########################################
             # Create Networks #########################
@@ -263,17 +263,17 @@ class LAC(object):
             )
 
             # Lagrance multiplier loss functions and optimizers graphs
-            labda_loss = -tf.reduce_mean(input_tensor=(log_labda * self.l_delta))
+            labda_loss = -tf.reduce_mean(input_tensor=(self.log_labda * self.l_delta))
             alpha_loss = -tf.reduce_mean(
                 input_tensor=(
-                    log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
+                    self.log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
                 )
             )
             self.alpha_train = tf.compat.v1.train.AdamOptimizer(self.LR_A).minimize(
-                alpha_loss, var_list=log_alpha
+                alpha_loss, var_list=self.log_alpha
             )
             self.lambda_train = tf.compat.v1.train.AdamOptimizer(self.LR_lag).minimize(
-                labda_loss, var_list=log_labda
+                labda_loss, var_list=self.log_labda
             )
 
             # Retrieve min Q target (Current state but now actor input)
@@ -860,6 +860,11 @@ def train(log_dir):
             # + log_dir_split[-2]
         )
         log_dir = "/".join(log_dir_split)
+
+        # Reset lagrance multipliers if requested
+        if TRAIN_PARAMS["reset_lagrance_multipliers"]:
+            policy.sess.run(policy.log_alpha.assign(tf.math.log(ALG_PARAMS["alpha"])))
+            policy.sess.run(policy.log_labda.assign(tf.math.log(ALG_PARAMS["labda"])))
     else:
         print(f"Train new model `{log_dir}`")
 

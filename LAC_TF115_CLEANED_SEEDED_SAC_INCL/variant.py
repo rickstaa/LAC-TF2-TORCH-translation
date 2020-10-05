@@ -22,7 +22,8 @@ which_policy_for_inference = [
 continue_training = (
     True  # Whether we want to continue training an already trained model
 )
-continue_model_folder = "LAC20201004_2339/0"  # The path of the model for which you want to continue the training
+continue_model_folder = "LAC20201004_2130/0"  # The path of the model for which you want to continue the training
+reset_lagrance_multipliers = True  # Whether you want the lagrance multipliers to be reset when you continue training an old model
 save_checkpoints = True  # Store intermediate models
 checkpoint_save_freq = 10000  # Intermediate model save frequency
 
@@ -60,6 +61,7 @@ TRAIN_PARAMS = {
     "continue_model_folder": continue_model_folder,  # The path of the model for which you want to continue the training
     "save_checkpoints": save_checkpoints,  # Store intermediate models
     "checkpoint_save_freq": checkpoint_save_freq,  # Intermediate model save frequency
+    "reset_lagrance_multipliers": reset_lagrance_multipliers,  # Reset lagrance multipliers when continue training an old model
 }
 
 # Main evaluation parameters
