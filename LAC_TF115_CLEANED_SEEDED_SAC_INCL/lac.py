@@ -854,9 +854,10 @@ def train(log_dir):
         # Create new storage folder
         log_dir_split = log_dir.split("/")
         log_dir_split[-2] = (
-            "_policy_".join(TRAIN_PARAMS["continue_model_folder"].split("/"))
-            + "_retrained_"
-            + log_dir_split[-2]
+            "_".join(TRAIN_PARAMS["continue_model_folder"].split("/"))
+            + "_finetune"
+            # + "_retrained_"
+            # + log_dir_split[-2]
         )
         log_dir = "/".join(log_dir_split)
     else:

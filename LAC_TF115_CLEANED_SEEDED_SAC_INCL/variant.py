@@ -17,12 +17,12 @@ eval_list = ["LAC20201004_2339"]
 use_lyapunov = True
 # use_lyapunov = False
 which_policy_for_inference = (
-    []
+    [0]
 )  # If this is empty, it means all the policies are evaluated;
 continue_training = (
     True  # Whether we want to continue training an already trained model
 )
-continue_model_folder = "LAC20201004_2130/0"  # The path of the model for which you want to continue the training
+continue_model_folder = "LAC20201004_2339/0"  # The path of the model for which you want to continue the training
 # save_checkpoints = True  # Store intermediate models
 # checkpoint_save_freq = 1000  # Intermediate model save frequency
 
