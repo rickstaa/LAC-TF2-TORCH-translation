@@ -13,12 +13,12 @@ USE_GPU = False
 episodes = int(1.5e5)
 num_of_policies = 20
 num_of_paths_for_eval = 1
-eval_list = ["LAC20201004_2130"]
+eval_list = ["LAC20201004_2339"]
 use_lyapunov = True
 # use_lyapunov = False
-which_policy_for_inference = [
-    0
-]  # If this is empty, it means all the policies are evaluated;
+which_policy_for_inference = (
+    []
+)  # If this is empty, it means all the policies are evaluated;
 
 
 # Environment parameters
@@ -63,9 +63,9 @@ EVAL_PARAMS = {
     "directly_show": True,
     "plot_ref": True,  # Whether you also want to plot the states of reference.
     "merged": True,  # Whether you want to display all the states of references in one fig.
-    "ref": [1, 2],  # Which state of reference you want to plot (empty means all obs).
+    "ref": [],  # Which state of reference you want to plot (empty means all obs).
     "plot_obs": True,  # Whether you also want to plot the observations.
-    "obs": [1],  # Which observations you want to plot (empty means all obs).
+    "obs": [],  # Which observations you want to plot (empty means all obs).
     "plot_cost": True,  # Whether you also want to plot the cost.
     "save_figs": True,  # Whether you want to save the figures to pdf.
     "fig_file_type": "pdf",  # The file type you want to use for saving the figures.
@@ -111,7 +111,7 @@ ENVS_PARAMS = {
         "eval_render": False,
     },
     "Ex3_EKF_gyro_dt": {
-        "max_ep_steps": 1600,
+        "max_ep_steps": 12000,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,
