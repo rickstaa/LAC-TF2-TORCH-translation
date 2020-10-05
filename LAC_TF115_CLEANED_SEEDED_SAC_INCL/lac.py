@@ -862,7 +862,7 @@ def train(log_dir):
         log_dir = "/".join(log_dir_split)
 
         # Reset lagrance multipliers if requested
-        if TRAIN_PARAMS["reset_lagrance_multipliers"]:
+        if ALG_PARAMS["reset_lagrance_multipliers"]:
             policy.sess.run(policy.log_alpha.assign(tf.math.log(ALG_PARAMS["alpha"])))
             policy.sess.run(policy.log_labda.assign(tf.math.log(ALG_PARAMS["labda"])))
     else:

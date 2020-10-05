@@ -61,7 +61,6 @@ TRAIN_PARAMS = {
     "continue_model_folder": continue_model_folder,  # The path of the model for which you want to continue the training
     "save_checkpoints": save_checkpoints,  # Store intermediate models
     "checkpoint_save_freq": checkpoint_save_freq,  # Intermediate model save frequency
-    "reset_lagrance_multipliers": reset_lagrance_multipliers,  # Reset lagrance multipliers when continue training an old model
 }
 
 # Main evaluation parameters
@@ -105,6 +104,7 @@ ALG_PARAMS = {
         "actor": [128, 64, 32],
         "q_critic": [128, 64, 32],  # SAC
     },  # The network structure of the agent.
+    "reset_lagrance_multipliers": reset_lagrance_multipliers,  # Reset lagrance multipliers when continue training an old model
 }
 
 # Environment parameters
