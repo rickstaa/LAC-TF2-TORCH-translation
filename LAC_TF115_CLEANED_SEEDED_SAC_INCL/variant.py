@@ -23,8 +23,8 @@ continue_training = (
     True  # Whether we want to continue training an already trained model
 )
 continue_model_folder = "LAC20201004_2130/0"  # The path of the model for which you want to continue the training
-# save_checkpoints = True  # Store intermediate models
-# checkpoint_save_freq = 1000  # Intermediate model save frequency
+save_checkpoints = True  # Store intermediate models
+checkpoint_save_freq = 5000  # Intermediate model save frequency
 
 # Environment parameters
 # ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
@@ -58,6 +58,8 @@ TRAIN_PARAMS = {
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
     "continue_training": continue_training,  # Whether we want to continue training an already trained model
     "continue_model_folder": continue_model_folder,  # The path of the model for which you want to continue the training
+    "save_checkpoints": save_checkpoints,  # Store intermediate models
+    "checkpoint_save_freq": checkpoint_save_freq,  # Intermediate model save frequency
 }
 
 # Main evaluation parameters
