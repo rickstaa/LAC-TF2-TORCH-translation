@@ -931,7 +931,10 @@ def train(log_dir):
             # FIXME: NEW Here makes sense
             # Save intermediate checkpoints if requested
             if TRAIN_PARAMS["save_checkpoints"]:
-                if j % TRAIN_PARAMS["checkpoint_save_freq"] == 0 and j != 0:
+                if (
+                    global_step % TRAIN_PARAMS["checkpoint_save_freq"] == 0
+                    and global_step != 0
+                ):
 
                     # Create intermediate result checkpoint folder
                     checkpoint_save_path = os.path.abspath(
@@ -939,7 +942,7 @@ def train(log_dir):
                     )
                     os.makedirs(checkpoint_save_path, exist_ok=True)
 
-                    # Save intermediat checkpoint
+                    # Save intermediate checkpoint
                     policy.save_result(checkpoint_save_path)
 
             # Break out of loop and save the final model
