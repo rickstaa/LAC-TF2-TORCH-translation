@@ -3,6 +3,7 @@
 
 import time
 from collections import deque
+import sys
 import os
 import random
 from packaging import version
@@ -155,10 +156,10 @@ class LAC(object):
             # Create lagrance multiplier placeholders
             log_labda = tf.compat.v1.get_variable(
                 "lambda", None, tf.float32, initializer=tf.math.log(ALG_PARAMS["labda"])
-            )
+            )  # FIXME: Should be named log_labda
             log_alpha = tf.compat.v1.get_variable(
                 "alpha", None, tf.float32, initializer=tf.math.log(ALG_PARAMS["alpha"])
-            )
+            )  # FIXME: Should be named log_alpha
             self.labda = tf.clip_by_value(tf.exp(log_labda), *SCALE_lambda_MIN_MAX)
             self.alpha = tf.exp(log_alpha)
 
@@ -821,6 +822,48 @@ def train(log_dir):
 
     # Create the Lyapunov Actor Critic agent
     policy = LAC(a_dim, s_dim)
+
+    # Load model if retraining is selected
+    if TRAIN_PARAMS["continue_training"]:
+
+        # Create retrain path
+        retrain_model_folder = TRAIN_PARAMS["continue_model_folder"]
+        retrain_model_path = os.path.abspath(
+            os.path.join(log_dir, "../../" + TRAIN_PARAMS["continue_model_folder"])
+        )
+
+        # Check if retrain model exists if not throw error
+        if not os.path.exists(retrain_model_path):
+            print(
+                "Shutting down training since the model you specified in the "
+                f"`continue_model_folder` `{retrain_model_folder}` "
+                f"argument was not found for the `{ENV_NAME}` environment."
+            )
+            sys.exit(0)
+
+        # Load retrain model
+        print(f"Restoring model `{retrain_model_path}`")
+        result = policy.restore(os.path.abspath(retrain_model_path + "/policy"))
+        if not result:
+            print(
+                "Shuting down training as something went wrong while loading "
+                f"model `{retrain_model_folder}`."
+            )
+            sys.exit(0)
+
+        # Create new storage folder
+        log_dir_split = log_dir.split("/")
+        log_dir_split[-2] = (
+            "_policy_".join(TRAIN_PARAMS["continue_model_folder"].split("/"))
+            + "_retrained_"
+            + log_dir_split[-2]
+        )
+        log_dir = "/".join(log_dir_split)
+    else:
+        print(f"Train new model `{log_dir}`")
+
+    # Print logging folder
+    print(f"Logging results to `{log_dir}`.")
 
     # Create replay memory buffer
     pool = Pool(

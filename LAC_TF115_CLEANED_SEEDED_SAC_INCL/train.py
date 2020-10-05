@@ -16,6 +16,6 @@ if __name__ == "__main__":
         TRAIN_PARAMS["start_of_trial"] + TRAIN_PARAMS["num_of_trials"],
     ):
         roll_out_log_path = LOG_PATH + "/" + str(i)
-        print("logging to " + roll_out_log_path)
+        # print("logging to " + roll_out_log_path)
         train(roll_out_log_path)
         tf.compat.v1.reset_default_graph()

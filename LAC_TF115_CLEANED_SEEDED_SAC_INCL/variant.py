@@ -19,7 +19,12 @@ use_lyapunov = True
 which_policy_for_inference = (
     []
 )  # If this is empty, it means all the policies are evaluated;
-
+continue_training = (
+    True  # Whether we want to continue training an already trained model
+)
+continue_model_folder = "LAC20201004_2130/0"  # The path of the model for which you want to continue the training
+# save_checkpoints = True  # Store intermediate models
+# checkpoint_save_freq = 1000  # Intermediate model save frequency
 
 # Environment parameters
 # ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
@@ -51,6 +56,8 @@ TRAIN_PARAMS = {
     # "num_of_trials": 4,  # number of randomly seeded trained agents
     "num_of_trials": num_of_policies,  # number of randomly seeded trained agents # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
+    "continue_training": continue_training,  # Whether we want to continue training an already trained model
+    "continue_model_folder": continue_model_folder,  # The path of the model for which you want to continue the training
 }
 
 # Main evaluation parameters
