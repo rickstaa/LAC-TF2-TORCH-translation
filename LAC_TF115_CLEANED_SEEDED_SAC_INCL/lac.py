@@ -922,8 +922,21 @@ def train(log_dir):
         # Training Episode loop
         for j in range(ENV_PARAMS["max_ep_steps"]):
 
-            # Break out of loop if global steps have been reached
             # FIXME: NEW Here makes sense
+            # Save intermediate checkpoints if requested
+            if TRAIN_PARAMS["save_checkpoints"]:
+                if j % TRAIN_PARAMS["checkpoint_save_freq"] == 0 and j != 0:
+
+                    # Create intermediate result checkpoint folder
+                    checkpoint_save_path = os.path.abspath(
+                        os.path.join(log_dir, "checkpoints", "step_" + str(j))
+                    )
+                    os.makedirs(checkpoint_save_path, exist_ok=True)
+
+                    # Save intermediat checkpoint
+                    policy.save_result(checkpoint_save_path)
+
+            # Break out of loop and save the final model
             if global_step > ENV_PARAMS["max_global_steps"]:
 
                 # Print step count, save model and stop the program
