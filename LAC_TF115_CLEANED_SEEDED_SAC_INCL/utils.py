@@ -89,7 +89,8 @@ def training_evaluation(env, policy):
     # Perform roolouts to evaluate performance
     for i in range(TRAIN_PARAMS["num_of_evaluation_paths"]):
         cost = 0
-        s = env.reset()
+        s = env.reset(eval=True)
+        # s = env.reset()  # DEBUG
         for j in range(ENV_PARAMS["max_ep_steps"]):
             if ENV_PARAMS["eval_render"]:
                 env.render()
