@@ -821,6 +821,7 @@ class Ex3_EKF_gyro(gym.Env):
             #     state_of_interest=np.array([hat_q[0], hat_q[1], hat_q[2], hat_q[3]]))
 
     def reset(self, eval=False):
+
         self.t = 0
         if not eval:
             self.q_t = np.random.uniform(

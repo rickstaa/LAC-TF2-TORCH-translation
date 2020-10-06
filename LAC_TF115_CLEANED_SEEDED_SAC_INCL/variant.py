@@ -10,7 +10,7 @@ REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loadin
 USE_GPU = False
 
 # episodes = int(0.1e4)  # DEBUG
-episodes = int(1.5e5)
+episodes = int(1e5)
 num_of_policies = 20
 num_of_paths_for_eval = 1
 eval_list = ["LAC20201004_2339"]
@@ -20,16 +20,17 @@ which_policy_for_inference = [
     0
 ]  # If this is empty, it means all the policies are evaluated;
 continue_training = (
-    True  # Whether we want to continue training an already trained model
+    False  # Whether we want to continue training an already trained model
 )
 continue_model_folder = "LAC20201004_2130/0"  # The path of the model for which you want to continue the training
-reset_lagrance_multipliers = True  # Whether you want the lagrance multipliers to be reset when you continue training an old model
-save_checkpoints = True  # Store intermediate models
+reset_lagrance_multipliers = False  # Whether you want the lagrance multipliers to be reset when you continue training an old model
+save_checkpoints = False  # Store intermediate models
 checkpoint_save_freq = 10000  # Intermediate model save frequency
 
 # Environment parameters
+ENV_NAME = "Ex3_EKF_gyro_dt_real"  # The gym environment you want to train in
 # ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
-ENV_NAME = "Ex3_EKF_gyro_dt"  # The gym environment you want to train in
+# ENV_NAME = "Ex3_EKF_gyro_dt"  # The gym environment you want to train in
 # ENV_NAME = "oscillator"  # The gym environment you want to train in
 ENV_SEED = None  # The environment seed
 RANDOM_SEED = None  # The numpy random seed
@@ -51,7 +52,7 @@ timestr = time.strftime("%Y%m%d_%H%M")
 TRAIN_PARAMS = {
     "episodes": episodes,  # The number of episodes you want to perform
     "num_of_training_paths": 100,  # Number of training rollouts stored for analysis
-    "evaluation_frequency": 2048,  # After how many steps the performance is evaluated
+    "evaluation_frequency": 4000,  # After how many steps the performance is evaluated
     "num_of_evaluation_paths": 20,  # number of rollouts for evaluation  # DEBUG
     # "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
     # "num_of_trials": 4,  # number of randomly seeded trained agents
@@ -122,7 +123,13 @@ ENVS_PARAMS = {
         "eval_render": False,
     },
     "Ex3_EKF_gyro_dt": {
-        "max_ep_steps": 12000,
+        "max_ep_steps": 120,
+        "max_global_steps": TRAIN_PARAMS["episodes"],
+        "max_episodes": int(1e6),
+        "eval_render": False,
+    },
+    "Ex3_EKF_gyro_dt_real": {
+        "max_ep_steps": 1000,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,
