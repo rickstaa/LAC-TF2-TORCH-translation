@@ -17,7 +17,9 @@ conda create -n lac_old python=3.6
 
 To activate the env:
 
-    conda activate lac_old
+```bash
+conda activate lac_old
+```
 
 ### Installation Environment
 

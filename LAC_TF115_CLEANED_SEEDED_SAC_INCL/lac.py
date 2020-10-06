@@ -803,6 +803,7 @@ def train(log_dir):
     # Create environment
     print(f"Your training in the {ENV_NAME} environment.\n")
     env = get_env_from_name(ENV_NAME, ENV_SEED)
+    test_env = get_env_from_name(ENV_NAME, ENV_SEED)
 
     # Set initial learning rates
     lr_a, lr_l, lr_c = (
@@ -1025,7 +1026,7 @@ def train(log_dir):
                 training_diagnostics = evaluate_training_rollouts(last_training_paths)
                 if training_diagnostics is not None:
                     if TRAIN_PARAMS["num_of_evaluation_paths"] > 0:
-                        eval_diagnostics = training_evaluation(env, policy)
+                        eval_diagnostics = training_evaluation(test_env, policy)
                         [
                             logger.logkv(key, eval_diagnostics[key])
                             for key in eval_diagnostics.keys()
