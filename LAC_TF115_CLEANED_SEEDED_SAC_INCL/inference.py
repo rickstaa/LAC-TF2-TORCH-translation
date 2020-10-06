@@ -271,11 +271,7 @@ if __name__ == "__main__":
                 }
 
                 # env.reset() # MAke sure this is not seeded when reset
-                if args.env_name.lower() in [
-                    "ex3_ekf_gyro",
-                    "ex3_ekf_gyro_dt",
-                    "ex3_ekf_gyro_dt_real",
-                ]:
+                if env.__class__.__name__.lower() == "ex3_ekf_gyro":
                     s = env.reset(eval=True)
                 else:
                     s = env.reset()
