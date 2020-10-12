@@ -13,7 +13,7 @@ class SquashedGaussianActor(tf.keras.Model):
         obs_dim,
         act_dim,
         hidden_sizes,
-        name,
+        name="test",
         log_std_min=-20,
         log_std_max=2.0,
         trainable=True,

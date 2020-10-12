@@ -20,6 +20,9 @@ from utils import evaluate_training_rollouts, get_env_from_name, training_evalua
 import logger
 from pool import Pool
 
+# Change backend to cudnn
+# torch.backends.cudnn.benchmark = True
+
 ###############################################
 # Script settings #############################
 ###############################################
@@ -42,9 +45,6 @@ if RANDOM_SEED is not None:
     np.random.seed(RANDOM_SEED)
     random.seed(RANDOM_SEED)
 
-# Change backend to cudnn
-# torch.backends.cudnn.benchmark = True
-
 
 ###############################################
 # Helper classes and functions  ###############
@@ -64,10 +64,12 @@ class actor_critic_trace(nn.Module):
 ###############################################
 # LAC algorithm class #########################
 ###############################################
+@torch.jit.script
 class LAC(object):
     """The lyapunov actor critic.
     """
 
+    @torch.jit.unused  # Improve: Not yet supported in 1.6 https://github.com/pytorch/pytorch/issues/45967
     def __init__(self, a_dim, s_dim, log_dir="."):
         """Initiate object state.
 
@@ -126,6 +128,14 @@ class LAC(object):
             self.step = 0
             self.tb_writer = SummaryWriter(log_dir=log_dir)
 
+        # # Convert networks to torchscripts  # DEBUG: Torchscript version
+        self.lc = torch.jit.script(self.lc)
+        self.lc_ = torch.jit.script(self.lc_)
+        self.ga = torch.jit.script(self.ga)
+        self.ga_ = torch.jit.script(self.ga_)
+        # self.ga.transform_linear_layers_2_torchscript()  # NOTE: See issue #18
+        # self.ga_.transform_linear_layers_2_torchscript()  # NOTE: See issue #18
+
         ###########################################
         # Create optimizers #######################
         ###########################################
@@ -150,6 +160,7 @@ class LAC(object):
                 with torch.no_grad():
                     self.tb_writer.add_graph(actor_critic_trace(self.ga, self.lc), obs)
 
+    @torch.jit.unused  # Improve: Not yet supported in 1.6 https://github.com/pytorch/pytorch/issues/45967
     def choose_action(self, s, evaluation=False):
         """Returns the current action of the policy.
 
@@ -162,19 +173,29 @@ class LAC(object):
             np.numpy: The current action.
         """
 
+        # # Get current best action
+        # if evaluation is True:
+        #     try:
+        #         with torch.no_grad():
+        #             _, deterministic_a, _ = self.ga(torch.Tensor(s).unsqueeze(0))
+        #             return deterministic_a[0].numpy()
+        #     except ValueError:
+        #         return
+        # else:
+        #     with torch.no_grad():
+        #         a, _, _ = self.ga(torch.Tensor(s).unsqueeze(0))
+        #         return a[0].numpy()
         # Get current best action
         if evaluation is True:
-            try:
-                with torch.no_grad():
-                    _, deterministic_a, _ = self.ga(torch.Tensor(s).unsqueeze(0))
-                    return deterministic_a[0].numpy()
-            except ValueError:
-                return
+            with torch.no_grad():
+                _, deterministic_a, _ = self.ga(torch.Tensor(s).unsqueeze(0))
+                return deterministic_a[0].numpy()
         else:
             with torch.no_grad():
                 a, _, _ = self.ga(torch.Tensor(s).unsqueeze(0))
                 return a[0].numpy()
 
+    @torch.jit.unused  # Improve: Not yet supported in 1.6 https://github.com/pytorch/pytorch/issues/45967
     def learn(self, LR_A, LR_L, LR_lag, batch):
         """Runs the SGD to update all the optimize parameters.
 
@@ -225,7 +246,7 @@ class LAC(object):
         _, _, log_pis = self.ga(bs)
 
         # Calculate Lyapunov constraint function
-        self.l_delta = torch.mean(l_ - l.detach() + (ALG_PARAMS["alpha3"]) * br)
+        self.l_delta = torch.mean(l_ - l.detach() + ALG_PARAMS["alpha3"] * br)
 
         # Zero gradients on labda
         self.lambda_train.zero_grad()
@@ -281,6 +302,7 @@ class LAC(object):
             a_loss.detach(),
         )
 
+    @torch.jit.unused  # Improve: Not yet supported in 1.6 https://github.com/pytorch/pytorch/issues/45967
     def _build_a(self, name="gaussian_actor"):
         """Setup SquashedGaussianActor Graph.
 
@@ -299,6 +321,7 @@ class LAC(object):
             log_std_max=LOG_SIGMA_MIN_MAX[1],
         )
 
+    @torch.jit.unused
     def _build_l(self, name="lyapunov_critic"):
         """Setup lyapunov critic graph.
 
@@ -315,6 +338,7 @@ class LAC(object):
             hidden_sizes=self.network_structure["critic"],
         )
 
+    @torch.jit.unused  # Improve: Not yet supported in 1.6 https://github.com/pytorch/pytorch/issues/45967
     def save_result(self, path):
         """Save current policy.
 
@@ -346,6 +370,7 @@ class LAC(object):
         torch.save(models_state_save_dict, save_path)
         print("Save to path: ", save_path)
 
+    @torch.jit.unused  # Improve: Not yet supported in 1.6 https://github.com/pytorch/pytorch/issues/45967
     def restore(self, path):
         """Restore policy.
 
@@ -380,13 +405,16 @@ class LAC(object):
         return success_load
 
     @property
+    @torch.jit.unused
     def alpha(self):
         return self.log_alpha.exp()
 
     @property
+    @torch.jit.unused
     def labda(self):
         return torch.clamp(self.log_labda.exp(), *SCALE_lambda_MIN_MAX)
 
+    @torch.jit.unused  # Improve: Not yet supported in 1.6 https://github.com/pytorch/pytorch/issues/45967
     def update_target(self):
         # Polyak averaging for target variables
         with torch.no_grad():

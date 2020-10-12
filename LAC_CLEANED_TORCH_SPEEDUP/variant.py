@@ -5,47 +5,17 @@ import sys
 import os
 import time
 
-REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
-# REL_PATH = True  # Whether to use a relative path for storign and loading models
-USE_GPU = False
-
-# episodes = int(0.1e4)  # DEBUG
-episodes = int(1.1e4)
-num_of_policies = 1
-num_of_paths_for_eval = 50
-eval_list = ["LAC20201004_2339"]
-use_lyapunov = True
-# use_lyapunov = False
-which_policy_for_inference = [
-    0
-]  # If this is empty, it means all the policies are evaluated;
-continue_training = (
-    False  # Whether we want to continue training an already trained model
-)
-continue_model_folder = "LAC20201004_2130/0"  # The path of the model for which you want to continue the training
-reset_lagrance_multipliers = False  # Whether you want the lagrance multipliers to be reset when you continue training an old model
-save_checkpoints = False  # Store intermediate models
-checkpoint_save_freq = 10000  # Intermediate model save frequency
-
 # Environment parameters
-# ENV_NAME = "Ex3_EKF_gyro_dt_real"  # The gym environment you want to train in
-# ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
-# ENV_NAME = "Ex3_EKF_gyro_dt"  # The gym environment you want to train in
+# ENV_NAME = "Ex3_EKF"  # The gym environment you want to train in
 ENV_NAME = "oscillator"  # The gym environment you want to train in
 ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
 
 # Setup log path and time string
-alg_prefix = "LAC" if use_lyapunov else "SAC"
-if REL_PATH:
-    LOG_PATH = "/".join(["./log", ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M")])
-else:
-    dirname = os.path.dirname(__file__)
-    LOG_PATH = os.path.abspath(
-        os.path.join(
-            dirname, "./log/" + ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M")
-        )
-    )
+dirname = os.path.dirname(__file__)
+LOG_PATH = os.path.abspath(
+    os.path.join(dirname, "../log/" + ENV_NAME, "LAC" + time.strftime("%Y%m%d_%H%M"))
+)
 timestr = time.strftime("%Y%m%d_%H%M")
 
 # Debug Parameters
@@ -58,20 +28,30 @@ DEBUG_PARAMS = {
 
 # Main training loop parameters
 TRAIN_PARAMS = {
-    "episodes": episodes,  # The number of episodes you want to perform
+    "episodes": int(
+        1.1e4
+    ),  # DEBUG The number of episodes you want to perform # Oscillator environment
+    # "episodes": int(
+    #     1e5
+    # ),  # The number of episodes you want to perform # Oscillator environment
+    # "episodes": int(
+    #     6e4
+    # ),  # The number of episodes you want to perform # EX3 environment
     "num_of_training_paths": 10,  # Number of training rollouts stored for analysis
     "evaluation_frequency": 2048,  # After how many steps the performance is evaluated
-    "num_of_evaluation_paths": 0,  # number of rollouts for evaluation  # DEBUG
-    "num_of_trials": num_of_policies,  # number of randomly seeded trained agents # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
+    # "num_of_evaluation_paths": 10,  # number of rollouts for evaluation  # DEBUG
+    "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
+    # "num_of_trials": 4,  # number of randomly seeded trained agents
+    "num_of_trials": 1,  # number of randomly seeded trained agents # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
 }
 
 # Main evaluation parameters
 EVAL_PARAMS = {
-    "which_policy_for_inference": which_policy_for_inference,  # Which policies you want to use for the inference
-    "eval_list": eval_list,
+    "eval_list": ["LAC20200922_1608"],  # oscillator env
     "additional_description": timestr,
-    "num_of_paths": num_of_paths_for_eval,  # number of path for evaluation
+    "trials_for_eval": [str(i) for i in range(0, 3)],
+    "num_of_paths": 50,  # number of path for evaluation
     "plot_average": True,
     "directly_show": True,
     "plot_ref": True,  # Whether you also want to plot the states of reference
@@ -80,8 +60,6 @@ EVAL_PARAMS = {
     "plot_obs": True,  # Whether you also want to plot the observations
     "obs": [],  # Which observations you want to plot (empty means all obs).
     "plot_cost": True,  # Whether you also want to plot the cost
-    "save_figs": True,  # Whether you want to save the figures to pdf.
-    "fig_file_type": "pdf",  # The file type you want to use for saving the figures.
 }
 
 # Learning algorithm parameters

@@ -70,6 +70,17 @@ class SquashedGaussianMLPActor(nn.Module):
         self._log_std_min = log_std_min
         self._log_std_max = log_std_max
 
+    @torch.jit.unused
+    def transform_linear_layers_2_torchscript(self):
+        """Converts the linear network layers to TorchScripts. This method is needed as
+        the TorchScript module does not yet offer support for the methods contained in
+        the Distributions module (see issue #18).
+        """
+        self.net = torch.jit.script(self.net)
+        self.mu = torch.jit.script(self.mu)
+        self.log_sigma = torch.jit.script(self.log_sigma)
+
+    @torch.jit.unused
     def forward(self, obs, deterministic=False, with_logprob=True):
         """Perform forward pass through the network.
 
@@ -97,7 +108,7 @@ class SquashedGaussianMLPActor(nn.Module):
         std = torch.exp(log_std)
 
         # Check summing axis
-        sum_axis = 0 if obs.shape.__len__() == 1 else 1
+        sum_axis = 0 if len(obs.shape) == 1 else 1
 
         # Pre-squash distribution and sample
         pi_distribution = Normal(mu, std)

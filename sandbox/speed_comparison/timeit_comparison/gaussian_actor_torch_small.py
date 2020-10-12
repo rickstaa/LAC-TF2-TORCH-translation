@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions.normal import Normal
 
-from utils import mlp
+from utils_torch import mlp
 
 
 class SquashedGaussianMLPActor(nn.Module):
@@ -94,38 +94,39 @@ class SquashedGaussianMLPActor(nn.Module):
         mu = self.mu(net_out)
         log_std = self.log_sigma(net_out)
         log_std = torch.clamp(log_std, self._log_std_min, self._log_std_max)
-        std = torch.exp(log_std)
+        # std = torch.exp(log_std)
 
-        # Check summing axis
-        sum_axis = 0 if obs.shape.__len__() == 1 else 1
+        # # Check summing axis
+        # sum_axis = 0 if obs.shape.__len__() == 1 else 1
 
-        # Pre-squash distribution and sample
-        pi_distribution = Normal(mu, std)
-        if deterministic:
-            # Only used for evaluating policy at test time.
-            pi_action = mu
-        else:
-            pi_action = (
-                pi_distribution.rsample()
-            )  # Sample while using the parameterization trick
+        # # Pre-squash distribution and sample
+        # pi_distribution = Normal(mu, std)
+        # if deterministic:
+        #     # Only used for evaluating policy at test time.
+        #     pi_action = mu
+        # else:
+        #     pi_action = (
+        #         pi_distribution.rsample()
+        #     )  # Sample while using the parameterization trick
 
-        # Compute log probability in squashed gaussian
-        if with_logprob:
-            # Compute logprob from Gaussian, and then apply correction for Tanh
-            # squashing. NOTE: The correction formula is a little bit magic. To get an
-            # understanding of where it comes from, check out the original SAC paper
-            # (arXiv 1801.01290) and look in appendix C. This is a more
-            # numerically-stable equivalent to Eq 21. Try deriving it yourself as a
-            # (very difficult) exercise. :)
-            logp_pi = pi_distribution.log_prob(pi_action).sum(axis=-1)
-            logp_pi -= (2 * (np.log(2) - pi_action - F.softplus(-2 * pi_action))).sum(
-                axis=sum_axis
-            )
-        else:
-            logp_pi = None
+        # # Compute log probability in squashed gaussian
+        # if with_logprob:
+        #     # Compute logprob from Gaussian, and then apply correction for Tanh
+        #     # squashing. NOTE: The correction formula is a little bit magic. To get an
+        #     # understanding of where it comes from, check out the original SAC paper
+        #     # (arXiv 1801.01290) and look in appendix C. This is a more
+        #     # numerically-stable equivalent to Eq 21. Try deriving it yourself as a
+        #     # (very difficult) exercise. :)
+        #     logp_pi = pi_distribution.log_prob(pi_action).sum(axis=-1)
+        #     logp_pi -= (2 * (np.log(2) - pi_action - F.softplus(-2 * pi_action))).sum(
+        #         axis=sum_axis
+        #     )
+        # else:
+        #     logp_pi = None
 
-        # Calculate scaled action and return the action and its log probability
-        pi_action = torch.tanh(pi_action)  # Squash gaussian to be between -1 and 1
+        # # Calculate scaled action and return the action and its log probability
+        # pi_action = torch.tanh(pi_action)  # Squash gaussian to be between -1 and 1
 
-        # Return action and log likelihood
-        return pi_action, mu, logp_pi
+        # # Return action and log likelihood
+        # return pi_action, mu, logp_pi
+        return 1, 1, 1

@@ -20,6 +20,9 @@ from utils import evaluate_training_rollouts, get_env_from_name, training_evalua
 import logger
 from pool import Pool
 
+# Change backend to cudnn
+torch.backends.cudnn.benchmark = True
+
 ###############################################
 # Script settings #############################
 ###############################################
@@ -231,7 +234,7 @@ class LAC(object):
         with torch.no_grad():
             a_, _, _ = self.ga_(bs_)
             l_ = self.lc_(bs_, a_)
-            l_target = br + self.gamma * (1 - bterminal) * l_
+            l_target = br + self.gamma * (1 - bterminal) * l_.detach()
 
         # Calculate current lyapunov value
         l = self.lc(bs, ba)
@@ -272,7 +275,10 @@ class LAC(object):
         self.a_train.zero_grad()
 
         # Calculate actor loss
-        a_loss = self.labda * self.l_delta + self.alpha * torch.mean(log_pis)
+        # a_loss = self.labda * self.l_delta + self.alpha * torch.mean(log_pis)
+        a_loss = self.labda.detach() * self.l_delta + self.alpha.detach() * torch.mean(
+            log_pis
+        )  # DEBUG
 
         # Apply gradients
         a_loss.backward()
@@ -488,7 +494,7 @@ def train(log_dir):
         #     "lambda": [],
         #     "lyapunov_error": [],
         #     "entropy": [],
-        # } # DEBUG
+        # }  # DEBUG
         current_path = {
             "rewards": torch.tensor([], dtype=torch.float32),
             "a_loss": torch.tensor([], dtype=torch.float32),

@@ -54,8 +54,6 @@ TRAIN_PARAMS = {
     "num_of_training_paths": 100,  # Number of training rollouts stored for analysis
     "evaluation_frequency": 4000,  # After how many steps the performance is evaluated
     "num_of_evaluation_paths": 20,  # number of rollouts for evaluation  # DEBUG
-    # "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
-    # "num_of_trials": 4,  # number of randomly seeded trained agents
     "num_of_trials": num_of_policies,  # number of randomly seeded trained agents # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
     "continue_training": continue_training,  # Whether we want to continue training an already trained model

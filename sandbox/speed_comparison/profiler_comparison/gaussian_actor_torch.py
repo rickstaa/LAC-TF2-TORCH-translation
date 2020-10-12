@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions.normal import Normal
 
-from utils import mlp
+from utils_torch import mlp
 
 
 class SquashedGaussianMLPActor(nn.Module):

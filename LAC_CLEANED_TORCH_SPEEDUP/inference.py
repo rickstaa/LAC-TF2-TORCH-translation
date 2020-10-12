@@ -13,7 +13,6 @@ from lac import LAC
 from utils import get_env_from_name
 from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
 
-
 ###################################################
 # Main inference eval script ######################
 ###################################################
@@ -53,28 +52,7 @@ if __name__ == "__main__":
         default=EVAL_PARAMS["plot_cost"],
         help="Whether want to plot the cost.",
     )
-    parser.add_argument(
-        "--save-figs",
-        type=bool,
-        default=EVAL_PARAMS["save_figs"],
-        help="Whether you want to save the figures to pdf.",
-    )
-    parser.add_argument(
-        "--fig-file-type",
-        type=str,
-        default=EVAL_PARAMS["fig_file_type"],
-        help="The file type you want to use for saving the figures.",
-    )
     args = parser.parse_args()
-
-    # Validate file types
-    sup_file_types = ["pdf", "svg", "png", "jpg"]
-    if args.fig_file_type not in sup_file_types:
-        print(
-            f"The requested figure save file type {args.fig_file_type} is not "
-            "supported file types are {sup_file_types}."
-        )
-        sys.exit(0)
 
     # Create model path
     eval_agents = (
@@ -87,16 +65,12 @@ if __name__ == "__main__":
     print("\n=========Performing inference evaluation=========")
     for name in eval_agents:
         if REL_PATH:
-            MODEL_PATH = "/".join(["../log", args.env_name, name])
-            LOG_PATH = "/".join([MODEL_PATH, "figure"])
-            os.makedirs(LOG_PATH, exist_ok=True)
+            MODEL_PATH = "/".join(["./log", args.env_name, name])
         else:
             dirname = os.path.dirname(__file__)
             MODEL_PATH = os.path.abspath(
-                os.path.join(dirname, "../log/" + args.env_name + "/" + name)
+                os.path.join(dirname, "./log/" + args.env_name + "/" + name)
             )  # TODO: Make log paths env name lowercase
-            LOG_PATH = os.path.abspath(os.path.join(MODEL_PATH, "figure"))
-            os.makedirs(LOG_PATH, exist_ok=True)
 
         print("evaluating " + name)
         print(f"Using model folder: {MODEL_PATH}")
@@ -153,9 +127,6 @@ if __name__ == "__main__":
 
         # Retrieve rollouts from variant file
         rollouts_input = EVAL_PARAMS["which_policy_for_inference"]
-
-        # Use all rollouts if roolouts_inpuy is emptry []
-        rollouts_input = rollout_list if not rollouts_input else rollouts_input
 
         # Validate given policies
         if any([not isinstance(x, (int, float)) for x in rollouts_input]):
@@ -257,9 +228,7 @@ if __name__ == "__main__":
                 continue
 
             # Perform a number of paths in the environment
-            for i in range(
-                math.ceil(EVAL_PARAMS["num_of_paths"] / len(rollouts_input))
-            ):
+            for i in range(math.ceil(EVAL_PARAMS["num_of_paths"] / len(rollout_list))):
 
                 # Path storage buckets
                 episode_path = {
@@ -271,7 +240,7 @@ if __name__ == "__main__":
                 }
 
                 # env.reset() # MAke sure this is not seeded when reset
-                if env.__class__.__name__.lower() == "ex3_ekf_gyro":
+                if args.env_name.lower() == "ex3_ekf_gyro":
                     s = env.reset(eval=True)
                 else:
                     s = env.reset()
@@ -366,7 +335,7 @@ if __name__ == "__main__":
                     eval_diagnostics[key] = [val]
                 else:
                     eval_diagnostics[key].append(val)
-            # print("")
+            print("")
         print("all_roll_outs:")
         for key, val in eval_diagnostics.items():
             print(f"- {key}: {np.mean(val)}")
@@ -436,7 +405,9 @@ if __name__ == "__main__":
             )
             print(f"Plotting results for states of reference {ref_str}.")
             invalid_refs = [
-                ref for ref in req_ref if (ref > soi_mean_path.shape[0] or ref < 0)
+                ref
+                for ref in req_ref
+                if (ref > (soi_mean_path.shape[0] + 1) or ref < 0)
             ]
             if invalid_refs:
                 for ref in invalid_refs:
@@ -447,20 +418,20 @@ if __name__ == "__main__":
 
             # Plot mean path of reference and state_of_interrest
             if EVAL_PARAMS["merged"]:
-                fig_1 = plt.figure(
+                fig = plt.figure(
                     figsize=(9, 6), num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_1"
                 )
-                ax = fig_1.add_subplot(111)
+                ax = fig.add_subplot(111)
                 colors = "bgrcmk"
                 cycol = cycle(colors)
             for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
                 if (i + 1) in req_ref or not req_ref:
                     if not EVAL_PARAMS["merged"]:
-                        fig_1 = plt.figure(
+                        fig = plt.figure(
                             figsize=(9, 6),
                             num=f"LAC_TF115_CLEANED_SEEDED_SAC_INCL_{i+1}",
                         )
-                        ax = fig_1.add_subplot(111)
+                        ax = fig.add_subplot(111)
                         color1 = "red"
                         color2 = "blue"
                     else:
@@ -473,7 +444,7 @@ if __name__ == "__main__":
                             soi_mean_path[i],
                             color=color1,
                             linestyle="dashed",
-                            label=f"state_of_interest_{i+1}_mean",
+                            # label=f"state_of_interest_{i+1}_mean",
                         )
                         if not EVAL_PARAMS["merged"]:
                             ax.set_title(f"States of interest and reference {i+1}")
@@ -483,11 +454,14 @@ if __name__ == "__main__":
                             soi_mean_path[i] + soi_std_path[i],
                             color=color1,
                             alpha=0.3,
-                            label=f"state_of_interest_{i+1}_std",
+                            # label=f"state_of_interest_{i+1}_std",
                         )
                     if i <= (len(ref_mean_path) - 1):
                         ax.plot(
-                            t, ref_mean_path[i], color=color2, label=f"reference_{i+1}",
+                            t,
+                            ref_mean_path[i],
+                            color=color2,
+                            # label=f"reference_{i+1}",
                         )
                         # ax.fill_between(
                         #     t,
@@ -514,10 +488,10 @@ if __name__ == "__main__":
             req_obs = EVAL_PARAMS["obs"]
 
             # Create figure
-            fig_2 = plt.figure(figsize=(9, 6), num="LAC_CLEANED_TORCH_incl_2")
+            fig2 = plt.figure(figsize=(9, 6), num="LAC_CLEANED_TORCH_incl_2")
             colors = "bgrcmk"
             cycol = cycle(colors)
-            ax2 = fig_2.add_subplot(111)
+            ax2 = fig2.add_subplot(111)
 
             # Calculate mean observation path and std
             obs_trimmed = [
@@ -539,7 +513,9 @@ if __name__ == "__main__":
             )
             print(f"Plotting results for obs {obs_str}.")
             invalid_obs = [
-                obs for obs in req_obs if (obs > obs_mean_path.shape[0] or obs < 0)
+                obs
+                for obs in req_obs
+                if (obs > (obs_mean_path.shape[0] + 1) or obs < 0)
             ]
             if invalid_obs:
                 for obs in invalid_obs:
@@ -577,10 +553,8 @@ if __name__ == "__main__":
             print("Plotting mean path and standard deviation...")
 
             # Create figure
-            fig_3 = plt.figure(
-                figsize=(9, 6), num="LAC_TF115_CLEANED_SEEDED_SAC_INCL_3"
-            )
-            ax3 = fig_3.add_subplot(111)
+            fig3 = plt.figure(figsize=(9, 6), num="LAC_TF115_CLEANED_SEEDED_SAC_INCL_3")
+            ax3 = fig3.add_subplot(111)
 
             # Calculate mean observation path and std
             cost_trimmed = [
@@ -614,18 +588,3 @@ if __name__ == "__main__":
 
         # Show figures
         plt.show()
-
-        # Save figures to pdf if requested
-        if args.save_figs:
-            fig_1.savefig(
-                os.path.join(LOG_PATH, "Quatonian." + args.fig_file_type),
-                bbox_inches="tight",
-            )
-            fig_2.savefig(
-                os.path.join(LOG_PATH, "State." + args.fig_file_type),
-                bbox_inches="tight",
-            )
-            fig_3.savefig(
-                os.path.join(LOG_PATH, "Cost." + args.fig_file_type),
-                bbox_inches="tight",
-            )

@@ -33,7 +33,7 @@ from variant import (
     ENV_PARAMS,
     LOG_SIGMA_MIN_MAX,
     SCALE_lambda_MIN_MAX,
-    # DEBUG_PARAMS,
+    DEBUG_PARAMS,
 )
 
 # Set random seed to get comparable results for each run
@@ -60,16 +60,16 @@ if not USE_GPU:
 else:
     print("Tensorflow is using GPU")
 
-# # Disable tf.function graph execution if debug
-# if DEBUG_PARAMS["debug"] and not (
-#     DEBUG_PARAMS["trace_net"] or DEBUG_PARAMS["trace_learn"]
-# ):
-#     print(
-#         "WARNING: tf.functions are executed in eager mode because DEBUG=True. "
-#         "This significantly slow down the training. Please disable DEBUG during "
-#         "deployment."
-#     )
-#     tf.config.experimental_run_functions_eagerly(True)
+# Disable tf.function graph execution if debug
+if DEBUG_PARAMS["debug"] and not (
+    DEBUG_PARAMS["trace_net"] or DEBUG_PARAMS["trace_learn"]
+):
+    print(
+        "WARNING: tf.functions are executed in eager mode because DEBUG=True. "
+        "This significantly slow down the training. Please disable DEBUG during "
+        "deployment."
+    )
+    tf.config.experimental_run_functions_eagerly(True)
 
 # Check for numeric errors
 # tf.debugging.enable_check_numerics()
@@ -195,7 +195,7 @@ class LAC(tf.Module):
         #                     name="actor_critic_trace", step=0, profiler_outdir=log_dir
         #                 )
 
-    @tf.function
+    # @tf.function
     def choose_action(self, s, evaluation=False):
         """Returns the current action of the policy.
 
@@ -412,7 +412,7 @@ class LAC(tf.Module):
     def labda(self):
         return tf.clip_by_value(tf.exp(self.log_labda), *SCALE_lambda_MIN_MAX)
 
-    @tf.function
+    # @tf.function
     def target_init(self):
         # Initializing targets to match main variables
         for pi_main, pi_targ in zip(self.ga.variables, self.ga_.variables):
@@ -420,7 +420,7 @@ class LAC(tf.Module):
         for l_main, l_targ in zip(self.lc.variables, self.lc_.variables):
             l_targ.assign(l_main)
 
-    @tf.function
+    # @tf.function
     def update_target(self):
         # Polyak averaging for target variables
         # (control flow because sess.run otherwise evaluates in nondeterministic order)
