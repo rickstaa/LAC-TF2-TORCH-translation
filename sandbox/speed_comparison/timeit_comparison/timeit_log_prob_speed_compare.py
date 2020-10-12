@@ -115,7 +115,6 @@ def sample_function():
     distribution = tfp.distributions.TransformedDistribution(
         distribution=base_distribution, bijector=reparm_trick_bijector
     )
-    clipped_mu = squash_bijector.forward(mu)
     logp_pi = distribution.log_prob(clipped_a)
 """
 tf_sample_code = """

@@ -128,4 +128,4 @@ class SquashedGaussianMLPActor(nn.Module):
         pi_action = torch.tanh(pi_action)  # Squash gaussian to be between -1 and 1
 
         # Return action and log likelihood
-        return pi_action, mu, logp_pi
+        return pi_action, pi_action, logp_pi
