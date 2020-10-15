@@ -1,5 +1,6 @@
-"""Contains the tensorflow actor.
+"""Contains an in Tensorflow implemented Squashed Gaussian Actor.
 """
+
 
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -8,19 +9,24 @@ from squash_bijector import SquashBijector
 
 
 class SquashedGaussianActor(tf.keras.Model):
+    """The squashed gaussian actor network.
+
+    Attributes:
+        net (torch.nn.modules.container.Sequential): The input/hidden layers of the
+            network.
+
+        mu (torch.nn.modules.linear.Linear): The output layer which returns the mean of
+            the actions.
+
+        log_sigma (torch.nn.modules.linear.Linear): The output layer which returns
+            the log standard deviation of the actions.
+    """
+
     def __init__(
-        self,
-        obs_dim,
-        act_dim,
-        hidden_sizes,
-        name="test",
-        log_std_min=-20,
-        log_std_max=2.0,
-        trainable=True,
-        seeds=[None, None],
-        **kwargs
+        self, obs_dim, act_dim, hidden_sizes, log_std_min=-20, log_std_max=2.0,
     ):
-        """Squashed Gaussian actor network.
+        """Constructs all the necessary attributes for the Squashed Gaussian Actor
+        object.
 
         Args:
             obs_dim (int): The dimension of the observation space.
@@ -29,27 +35,19 @@ class SquashedGaussianActor(tf.keras.Model):
 
             hidden_sizes (list): Array containing the sizes of the hidden layers.
 
-            name (str): The keras module name.
+            log_std_min (int, optional): The minimum log standard deviation. Defaults
+                to -20.
 
-            trainable (bool, optional): Whether the weights of the network layers should
-                be trainable. Defaults to True.
-
-            seeds (list, optional): The random seeds used for the weight initialization
-                and the sampling ([weights_seed, sampling_seed]). Defaults to
-                [None, None]
+            log_std_max (float, optional): The maximum log standard deviation. Defaults
+                to 2.0.
         """
-        super().__init__(name=name, **kwargs)
+        super().__init__()
 
         # Get class parameters
-        self._log_std_min = log_std_min
-        self._log_std_max = log_std_max
         self.s_dim = obs_dim
         self.a_dim = act_dim
-        self._seed = seeds[0]
-        self._initializer = tf.keras.initializers.GlorotUniform(
-            seed=self._seed
-        )  # Seed weights initializer
-        self._tfp_seed = seeds[1]
+        self._log_std_min = log_std_min
+        self._log_std_max = log_std_max
 
         # Create fully connected layers
         self.net = tf.keras.Sequential(
@@ -64,9 +62,8 @@ class SquashedGaussianActor(tf.keras.Model):
                 tf.keras.layers.Dense(
                     hidden_size_i,
                     activation="relu",
-                    name=name + "/l{}".format(i + 1),
-                    trainable=trainable,
-                    kernel_initializer=self._initializer,
+                    name="SquashedGaussianActor" + "/l{}".format(i + 1),
+                    trainable=True,
                 )
             )
 
@@ -79,9 +76,8 @@ class SquashedGaussianActor(tf.keras.Model):
                 tf.keras.layers.Dense(
                     act_dim,
                     activation=None,
-                    name=name + "/mu",
-                    trainable=trainable,
-                    kernel_initializer=self._initializer,
+                    name="SquashedGaussianActor/mu",
+                    trainable=True,
                 ),
             ]
         )
@@ -93,19 +89,23 @@ class SquashedGaussianActor(tf.keras.Model):
                 tf.keras.layers.Dense(
                     act_dim,
                     activation=None,
-                    name=name + "/log_sigma",
-                    kernel_initializer=self._initializer,
-                    trainable=trainable,
+                    name="SquashedGaussianActor/log_sigma",
+                    trainable=True,
                 ),
             ]
         )
 
     @tf.function
-    def call(self, inputs):
-        """Perform forward pass."""
+    def call(self, obs):
+        """Perform forward pass through the network.
 
-        # Retrieve inputs
-        obs = inputs
+        Args:
+            obs (torch.Tensor): The tensor of observations.
+
+        Returns:
+            torch.Tensor,  torch.Tensor: The actions given by the policy, the log
+            probabilities of each of these actions.
+        """
 
         # Perform forward pass through fully connected layers
         net_out = self.net(obs)
@@ -127,7 +127,7 @@ class SquashedGaussianActor(tf.keras.Model):
         base_distribution = tfp.distributions.MultivariateNormalDiag(
             loc=tf.zeros(self.a_dim), scale_diag=tf.ones(self.a_dim)
         )
-        epsilon = base_distribution.sample(batch_size, seed=self._tfp_seed)
+        epsilon = base_distribution.sample(batch_size)
         raw_action = affine_bijector.forward(epsilon)
         clipped_a = squash_bijector.forward(raw_action)
 

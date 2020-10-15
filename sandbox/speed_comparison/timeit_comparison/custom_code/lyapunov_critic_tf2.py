@@ -1,5 +1,6 @@
-"""Contains the tensorflow critic.
+"""Contains an in Tensorflow implemented LYapunov Critic.
 """
+
 
 import tensorflow as tf
 
@@ -14,8 +15,6 @@ class LyapunovCritic(tf.keras.Model):
         log_std_min=-20,
         log_std_max=2.0,
         trainable=True,
-        seed=None,
-        **kwargs,
     ):
         """Lyapunov Critic network.
 
@@ -26,26 +25,12 @@ class LyapunovCritic(tf.keras.Model):
 
             hidden_sizes (list): Array containing the sizes of the hidden layers.
 
-            name (str): The keras module name.
-
-            log_std_min (int, optional): The min log_std. Defaults to -20.
-
-            log_std_max (float, optional): The max log_std. Defaults to 2.0.
-
-            trainable (bool, optional): Whether the weights of the network layers should
-                be trainable. Defaults to True.
-
-            seed (int, optional): The random seed. Defaults to None.
         """
-        super().__init__(name=name, **kwargs)
+        super().__init__()
 
         # Get class parameters
         self.s_dim = obs_dim
         self.a_dim = act_dim
-        self._seed = seed
-        self._initializer = tf.keras.initializers.GlorotUniform(
-            seed=self._seed
-        )  # Seed weights initializer
 
         # Create network layers
         self.net = tf.keras.Sequential(
@@ -60,20 +45,15 @@ class LyapunovCritic(tf.keras.Model):
                 tf.keras.layers.Dense(
                     hidden_size_i,
                     activation="relu",
-                    name=name + "/{}".format(i),
-                    trainable=trainable,
-                    kernel_initializer=self._initializer,
+                    name="LyapunovCritic" + "/{}".format(i),
+                    trainable=True,
                 )
             )
 
     @tf.function
     def call(self, inputs):
         """Perform forward pass."""
-
-        # Perform forward pass through input layers
         net_out = self.net(tf.concat(inputs, axis=-1))
-
-        # Return result
         return tf.expand_dims(
             tf.reduce_sum(tf.math.square(net_out), axis=1), axis=1
         )  # L(s,a)

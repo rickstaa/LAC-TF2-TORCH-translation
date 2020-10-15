@@ -1,23 +1,20 @@
-"""Tensorflow 2.0 log_probability + action squashing calculation version. Used to
-compare which version is faster.
+"""Small test script that analysis if there is a speed difference between Pytorch and
+Tensorflow of performing a squashing operation to a action and a distribution.
 """
 
 import time
-
 import tensorflow as tf
 import tensorflow_probability as tfp
 from squash_bijector import SquashBijector
 
 # Script settings
-N_SAMPLE = int(1e3)  # How many times we sample
+N_SAMPLE = int(5e5)  # How many times we sample
+# tf.config.set_visible_devices([], "GPU") # Disable GPU
 batch_size = 256
-
-# Create dummy inputs
 mu = tf.zeros((batch_size, 3), dtype=tf.float32)
 std = tf.ones((batch_size, 3), dtype=tf.float32)
 
 
-# Create tf.function
 @tf.function
 def sample_function():
     squash_bijector = SquashBijector()
@@ -25,21 +22,22 @@ def sample_function():
     base_distribution = tfp.distributions.MultivariateNormalDiag(
         loc=tf.zeros(3), scale_diag=tf.ones(3)
     )
-    epsilon = base_distribution.sample(batch_size)
-    raw_action = affine_bijector.forward(epsilon)
-    clipped_a = squash_bijector.forward(raw_action)
+    epsilon_dummy = tf.random.uniform((batch_size, 3), dtype=tf.float32)
+    pi_action = affine_bijector.forward(epsilon_dummy)
+    pi_action = squash_bijector.forward(pi_action)
     reparm_trick_bijector = tfp.bijectors.Chain((squash_bijector, affine_bijector))
     distribution = tfp.distributions.TransformedDistribution(
         distribution=base_distribution, bijector=reparm_trick_bijector
     )
-    _ = squash_bijector.forward(mu)
-    _ = distribution.log_prob(clipped_a)
+    logp_pi = distribution.log_prob(pi_action)
 
 
-# Calculate log probabilities in loop
-print(f"Use Tensorflow to compute the log_prob for dummy arrays {N_SAMPLE} time.")
+# Perform calculation inside loop
+print(f"Performing TF log_prob squash operation inside a loop {N_SAMPLE} times")
 start_time = time.time()
-for _ in range(0, N_SAMPLE):
+for ii in range(N_SAMPLE):
     sample_function()
 duration = time.time() - start_time
-print(f"Duration: {duration} s")
+
+# Print duration
+print(f"The duration was: {duration} s")

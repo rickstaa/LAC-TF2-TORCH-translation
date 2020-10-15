@@ -5,7 +5,7 @@ tensorflow when using rsample/sample on the normal distribution.
 import timeit
 
 # Script settings
-N_SAMPLE = int(1e6)  # How many times we sample
+N_SAMPLE = int(5e5)  # How many times we sample
 
 ######################################################
 # Test Lyapunov forward action #######################
@@ -21,6 +21,9 @@ pytorch_setup_code = """
 import torch
 from gaussian_actor_torch import SquashedGaussianMLPActor
 from lyapunov_critic_torch import MLPLyapunovCritic
+torch.set_default_tensor_type('torch.cuda.FloatTensor') # Enable global GPU
+# torch.backends.cudnn.benchmark = True  # Enable cudnn autotuner
+torch.backends.cudnn.fastest = True  # Enable cudnn fastest autotuner
 ga = SquashedGaussianMLPActor(
     obs_dim=8,
     act_dim=3,
@@ -49,6 +52,7 @@ tf_setup_code = """
 import tensorflow as tf
 from gaussian_actor_tf2 import SquashedGaussianActor
 from lyapunov_critic_tf2 import LyapunovCritic
+# tf.config.set_visible_devices([], "GPU") # Disable GPU
 ga = SquashedGaussianActor(
     obs_dim=8,
     act_dim=3,

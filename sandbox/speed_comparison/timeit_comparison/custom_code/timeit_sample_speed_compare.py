@@ -21,6 +21,9 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 from torch.distributions.normal import Normal
+torch.set_default_tensor_type('torch.cuda.FloatTensor') # Enable global GPU
+# torch.backends.cudnn.benchmark = True  # Enable cudnn autotuner
+torch.backends.cudnn.fastest = True  # Enable cudnn fastest autotuner
 batch_size=256
 mu = torch.zeros(batch_size, 3)
 std = torch.ones(batch_size, 3)
@@ -40,6 +43,7 @@ tf_setup_code = """
 import tensorflow as tf
 import tensorflow_probability as tfp
 from squash_bijector import SquashBijector
+# tf.config.set_visible_devices([], "GPU") # Disable GPU
 batch_size=256
 mu = tf.zeros(3)
 std = tf.ones(3)
@@ -66,6 +70,9 @@ print(
 pytorch_setup_code = """
 import torch
 from torch.distributions.normal import Normal
+torch.set_default_tensor_type('torch.cuda.FloatTensor') # Enable global GPU
+torch.backends.cudnn.benchmark = True  # Enable cudnn autotuner
+# torch.backends.cudnn.fastest = True  # Enable cudnn fastest autotuner
 batch_size=256
 mu = torch.zeros(batch_size, 3)
 std = torch.ones(batch_size, 3)
@@ -84,6 +91,7 @@ pytorch_time_2 = timeit.timeit(
 tf_setup_code = """
 import tensorflow as tf
 import tensorflow_probability as tfp
+# tf.config.set_visible_devices([], "GPU") # Disable GPU
 batch_size=256
 mu = tf.zeros((batch_size, 3), dtype=tf.float32)
 std = tf.ones((batch_size, 3), dtype=tf.float32)
