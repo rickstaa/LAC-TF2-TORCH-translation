@@ -16,8 +16,8 @@ episodes = int(1e5)
 num_of_policies = 20
 num_of_paths_for_eval = 100
 eval_list = ["LAC20201004_2339"]
-use_lyapunov = True
-# use_lyapunov = False
+# use_lyapunov = True
+use_lyapunov = False
 which_policy_for_inference = [
     0
 ]  # If this is empty, it means all the policies are evaluated;
@@ -49,6 +49,14 @@ else:
         )
     )
 timestr = time.strftime("%Y%m%d_%H%M")
+
+# Debug Parameters
+DEBUG_PARAMS = {
+    "trace_net": False,  # Whether we want to trace the network.
+    "use_tb": False,  # Whether you want to log to tensorboard
+    "tb_freq": 4,  # After how many episode we want to log to tensorboard
+    "write_w_b": False,  # Whether you want to log the model weights and biases
+}
 
 # Main training loop parameters
 TRAIN_PARAMS = {

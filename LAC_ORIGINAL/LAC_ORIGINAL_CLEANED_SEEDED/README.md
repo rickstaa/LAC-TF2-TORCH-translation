@@ -12,13 +12,13 @@ From the general python package sanity perspective, it is a good idea to use con
 To create a conda env with python3, one runs
 
 ```bash
-conda create -n lac_clean python=3.6
+conda create -n lac_original_cleaned_seeded python=3.6
 ```
 
 To activate the env:
 
 ```bash
-conda activate lac_clean
+conda activate lac_original_cleaned_seeded
 ```
 
 ### Installation Environment

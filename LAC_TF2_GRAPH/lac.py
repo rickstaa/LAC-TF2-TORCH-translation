@@ -981,11 +981,10 @@ def train(log_dir):
 
             # Retrieve (scaled) action based on the current policy
             a = policy.choose_action(s)
-            # a = np.squeeze(np.random.uniform(low=-1.0, high=1.0, size=(1, 2)))  # DEBUG
             action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
 
             # Perform action in env
-            s_, r, done, info = env.step(action)
+            s_, r, done, _ = env.step(action)
 
             # Increment global step count
             if training_started:

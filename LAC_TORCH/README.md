@@ -1,9 +1,8 @@
-# LAC_TF1_ORIGINAL
+# Cleaned up version of the LAC script (tf>2.0 - eager mode)
 
-The original LAC code as received from @panweihit. Nothing was changed in this version.
-This version works with `tf<=1.15`.
+This folder contains the cleaned up version of the LAC script. It uses `pytorch>=1.6.0`.
 
-## Usage instructions
+## Use instructions
 
 ### Conda environment
 
@@ -12,42 +11,46 @@ From the general python package sanity perspective, it is a good idea to use con
 To create a conda env with python3, one runs
 
 ```bash
-conda create -n lac_original_seeded python=3.6
+conda create -n lac_torch python=3.8
 ```
 
 To activate the env:
 
 ```bash
-conda activate lac_original_seeded
+conda activate lac_torch
 ```
 
 ### Installation Environment
 
 ```bash
-pip install numpy==1.16.3
-pip install tensorflow==1.13.1
-pip install tensorflow-probability==0.6.0
-pip install opencv-python
-pip install cloudpickle
-pip install gym
-pip install matplotlib
+pip install -r requirements.txt
 ```
 
 Then you are free to run main.py to train agents. Hyperparameters for training LAC in Cartpole are ready to run by default. If you would like to test other environments and algorithms, please open variant.py and choose corresponding 'env_name' and 'algorithm_name'.
 
-### Train instructions
+### Usage instructions
+
+#### Train instructions
 
 After you set the right hyperparameter in the `variant.py` file you can train an
 algorithm using the following command:
 
 ```bash
-python main.py
+python train.py
 ```
 
-### Evaluation instructions
+#### Evaluation instructions
 
 To evaluate the performance of the algorithm you can use the following command:
 
 ```bash
 python inference_eval.py --model-name=LAC20201001_1121 --env-name=Ex3_EKF_gyro
+```
+
+## Use GPU
+
+If you want to use GPU you have to install Pytorch using the following command:
+
+```bash
+conda install pytorch cudatoolkit=10.2 -c pytorch
 ```

@@ -33,6 +33,7 @@ from variant import (
     ENV_PARAMS,
     LOG_SIGMA_MIN_MAX,
     SCALE_lambda_MIN_MAX,
+    DEBUG_PARAMS,
 )
 
 # Set random seed to get comparable results for each run
