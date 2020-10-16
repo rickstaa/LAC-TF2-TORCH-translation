@@ -1,4 +1,4 @@
-# LAC_TF1_ORIGINAL
+# LAC_TF2_GRAPH
 
 In this folder the original LAC code has been translated to be compatible with TF2 and TF1.15.
 This was done using the steps given in the
@@ -46,7 +46,7 @@ pip install -r requirements_tf115.txt
 
 ### Change training parameters
 
-You can change the training parameters in the `variant.py` file. The essential variables are explained below:
+You can change the training parameters in the [variant.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2_GRAPH/variant.py) file. The essential variables are explained below:
 
 -   **ENV_NAME**: The environment in which you want to train your agent.
 -   **episodes**: The number of episodes you want the agent to perform.
@@ -61,7 +61,7 @@ You can change the training parameters in the `variant.py` file. The essential v
 
 ### Start the training
 
-After you set the right hyperparameter in the `variant.py` file, you can train an
+After you set the right hyperparameter in the [variant.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2_GRAPH/variant.py) file, you can train an
 algorithm in a specific folder using the following command:
 
 ```bash
@@ -72,7 +72,7 @@ python LAC_TF2_GRAPH/train.py
 
 ### Change training parameters
 
-You can change the inference parameters in the `variant.py` file. The essential variables are explained below:
+You can change the inference parameters in the [variant.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2_GRAPH/variant.py) file. The essential variables are explained below:
 
 -   **eval_list**: The names of the agents you want to run the inference for.
 -   **which_policy_for_inference**: Which policies of a trained agent you want to use for the inference. Each trained agent can contain multiple policies (see: `num_of_policies` parameter).
@@ -87,7 +87,7 @@ the following command:
 python LAC_TF2_GRAPH/inference_eval.py --model-name=<MODEL_NAME> --env-name=Ex3_EKF_gyro
 ```
 
-Alternatively, you can set the `eval_list` and `ENV_NAME` parameters in the `variant.py` file and
+Alternatively, you can set the `eval_list` and `ENV_NAME` parameters in the [variant.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2_GRAPH/variant.py) file and
 run the inference with the shorter command:
 
 ```bash
@@ -96,7 +96,7 @@ python LAC_TF2_GRAPH/inference_eval.py
 
 ## Add new environments
 
-New environments should be added in the `LAC_TF2_GRAPH/envs` folder. After you added a new environment
-to this folder, you have to add it to the available environments in the `utils.py` file. The currently
-available environments are found in the `get_env_from_name` function. If you did this successfully, you could
-train the LAC/SAC agent in your environment by setting it as the `ENV_NAME` in the variant.py file.
+New environments should be added in the [LAC_TF2_GRAPH/envs](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/tree/master/LAC_TF2_GRAPH/envs) folder. After you added a new environment
+to this folder, you have to add it to the available environments in the [utils.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2_GRAPH/utils.py) file. The currently
+available environments are found in the [get_env_from_name](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/d02e543fa35132645e81b69aa2fc6c1f07af1dff/LAC_TF2_GRAPH/utils.py#L12) function. If you did this successfully, you could
+train the LAC/SAC agent in your environment by setting it as the `ENV_NAME` in the [variant.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2_GRAPH/variant.py) file.
