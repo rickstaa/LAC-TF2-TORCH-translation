@@ -30,8 +30,8 @@ timestr = time.strftime("%Y%m%d_%H%M")
 VARIANT = {
     "eval_list": ["LAC20201002_0852"],
     # "env_name": "Ex3_EKF",
-    "env_name": "Ex3_EKF_gyro",
-    # "env_name": "oscillator",
+    # "env_name": "Ex3_EKF_gyro",
+    "env_name": "oscillator",
     "algorithm_name": "LAC",
     "additional_description": timestr,
     # 'evaluate': False,

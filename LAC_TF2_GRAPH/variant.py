@@ -14,13 +14,13 @@ USE_GPU = False
 # Training settings
 episodes = int(1e5)
 num_of_policies = 20
-num_of_paths_for_eval = 20
+num_of_paths_for_eval = 100
 eval_list = ["LAC20201004_2339"]
 use_lyapunov = True
 # use_lyapunov = False
-which_policy_for_inference = [
-    0
-]  # If this is empty, it means all the policies are evaluated;
+which_policy_for_inference = (
+    []
+)  # If this is empty, it means all the policies are evaluated;
 continue_training = (
     False  # Whether we want to continue training an already trained model
 )

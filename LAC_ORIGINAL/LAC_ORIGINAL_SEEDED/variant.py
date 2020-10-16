@@ -3,26 +3,32 @@ import datetime
 import numpy as np
 import ENV.env
 import time
+import os
 
+REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
+
+# episodes = int(1.1e4)  # DEBUG
+episodes = int(1e5)
+num_of_paths_for_eval = 20
+num_of_policies = 5
+# num_of_policies = 1 # DEBUG
+which_policy_for_inference = [0]
 
 ENV_SEED = 0
 RANDOM_SEED = 0
+
 # alpha = 1.0
 alpha = 0.99
 alpha3 = 0.2
-actor = [64, 64]
-critic = [128, 128]
-# episodes = int(1e5) # Oscillator
-# episodes = int(4e6)  # EX_3
-episodes = int(1.1e4)  # DEBUG
-# episodes = int(1e5)  # EX_3
+actor = [128, 64, 32]
+critic = [128, 64, 32]
 approx_value = True
 use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
-    "eval_list": ["LAC20200922_1459"],
+    "eval_list": ["LAC20201002_0852"],
     # "env_name": "Ex3_EKF",
     # "env_name": "Ex3_EKF_gyro",
     "env_name": "oscillator",
@@ -31,8 +37,8 @@ VARIANT = {
     # 'evaluate': False,
     "train": True,
     # 'train': False,
-    "num_of_trials": 1,  # number of random seeds
-    # "num_of_evaluation_paths": 10,  # DEBUG: number of rollouts for evaluation
+    "num_of_trials": num_of_policies,  # number of random seeds
+    # "num_of_evaluation_paths": 10,  # number of rollouts for evaluation  # DEBUG
     "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
     "num_of_training_paths": 10,  # number of training rollouts stored for analysis
     "start_of_trial": 0,
@@ -42,13 +48,23 @@ VARIANT = {
 }
 if VARIANT["algorithm_name"] == "RARL":
     ITA = 0
-VARIANT["log_path"] = "/".join(
-    [
-        "./log",
-        VARIANT["env_name"],
-        VARIANT["algorithm_name"] + VARIANT["additional_description"],
-    ]
-)
+if REL_PATH:
+    VARIANT["log_path"] = "/".join(
+        [
+            "./log",
+            VARIANT["env_name"],
+            VARIANT["algorithm_name"] + VARIANT["additional_description"],
+        ]
+    )
+else:
+    dirname = os.path.dirname(__file__)
+    VARIANT["log_path"] = os.path.abspath(
+        os.path.join(
+            dirname,
+            "./log/" + VARIANT["env_name"],
+            "LAC" + time.strftime("%Y%m%d_%H%M"),
+        )
+    )
 
 ENV_PARAMS = {
     "oscillator": {
@@ -68,7 +84,7 @@ ENV_PARAMS = {
         "network_structure": {"critic": critic, "actor": actor,},
     },
     "Ex3_EKF_gyro": {
-        "max_ep_steps": 500,
+        "max_ep_steps": 800,
         "max_global_steps": episodes,
         "max_episodes": int(1e6),
         "disturbance dim": 2,
@@ -93,15 +109,14 @@ ALG_PARAMS = {
         "memory_capacity": int(1e6),
         "min_memory_size": 1000,
         "batch_size": 256,
-        "labda": 0.99,
+        "labda": 1.0,
         "alpha": alpha,
         "alpha3": alpha3,
         "tau": 5e-3,
         "lr_a": 1e-4,
         "lr_c": 3e-4,
         "lr_l": 3e-4,
-        "gamma": 0.9,
-        # 'gamma': 0.75,
+        "gamma": 0.999,
         "steps_per_cycle": 100,
         "train_per_cycle": 80,
         "use_lyapunov": use_lyapunov,
@@ -155,15 +170,20 @@ EVAL_PARAMS = {
         "num_of_paths": 100,  # number of path for evaluation
     },
     "dynamic": {
+        "which_policy_for_inference": which_policy_for_inference,  # Which policies you want to use for the inference
         "additional_description": "original",
-        "num_of_paths": 50,  # number of path for evaluation
+        "num_of_paths": num_of_paths_for_eval,  # number of path for evaluation
         "plot_average": True,
         # "plot_average": False,
         "directly_show": True,
         "plot_ref": True,  # Whether you also want to plot the states of reference
+        "merged": True,  # Whether you want to display all the states of references in one fig
         "ref": [],  # Which state of reference you want to plot (empty means all obs).
         "plot_obs": True,  # Whether you also want to plot the observations
         "obs": [],  # Which observations you want to plot (empty means all obs).
+        "plot_cost": True,  # Whether you also want to plot the cost
+        "save_figs": True,  # Whether you want to save the figures to pdf.
+        "fig_file_type": "pdf",  # The file type you want to use for saving the figures.
     },
 }
 VARIANT["env_params"] = ENV_PARAMS[VARIANT["env_name"]]
@@ -173,7 +193,7 @@ VARIANT["alg_params"] = ALG_PARAMS[VARIANT["algorithm_name"]]
 RENDER = True
 
 
-def get_env_from_name(name):
+def get_env_from_name(name, ENV_SEED=None):
     if name == "oscillator":
         from envs.oscillator import oscillator as env
 

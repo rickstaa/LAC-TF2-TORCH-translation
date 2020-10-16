@@ -456,7 +456,7 @@ class LAC(object):
 
 def train(variant):
     env_name = variant["env_name"]
-    env = get_env_from_name(env_name)
+    env = get_env_from_name(env_name, ENV_SEED=ENV_SEED)
 
     env_params = variant["env_params"]
 
