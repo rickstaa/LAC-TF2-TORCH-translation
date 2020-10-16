@@ -33,7 +33,6 @@ from variant import (
     ENV_PARAMS,
     LOG_SIGMA_MIN_MAX,
     SCALE_lambda_MIN_MAX,
-    DEBUG_PARAMS,
 )
 
 # Set random seed to get comparable results for each run
@@ -81,6 +80,13 @@ if DEBUG_PARAMS["debug"] and not (
 # )
 
 
+# Print LAC/SAC message
+if ALG_PARAMS["use_lyapunov"]:
+    print("You are training the LAC algorithm.")
+else:
+    print("You are training the SAC algorithm.")
+
+
 ###############################################
 # LAC algorithm class #########################
 ###############################################
@@ -104,6 +110,7 @@ class LAC(tf.Module):
         # Set algorithm parameters as class objects
         self.network_structure = ALG_PARAMS["network_structure"]
         self.polyak = 1 - ALG_PARAMS["tau"]
+        self.use_lyapunov = ALG_PARAMS["use_lyapunov"]
 
         # Create network seeds
         self.ga_seeds = [
@@ -131,6 +138,7 @@ class LAC(tf.Module):
         self.LR_A = tf.Variable(ALG_PARAMS["lr_a"], name="LR_A")
         self.LR_lag = tf.Variable(ALG_PARAMS["lr_a"], name="LR_lag")
         self.LR_L = tf.Variable(ALG_PARAMS["lr_l"], name="LR_L")
+        self.LR_C = tf.Variable(ALG_PARAMS["lr_c"], name="LR_C")
 
         # Create lagrance multiplier placeholders
         self.log_labda = tf.Variable(tf.math.log(ALG_PARAMS["labda"]), name="lambda")
@@ -143,12 +151,16 @@ class LAC(tf.Module):
         # Create Gaussian Actor (GA) and Lyapunov critic (LC) Networks
         self.ga = self._build_a(seeds=self.ga_seeds)
         self.lc = self._build_l(seed=self.lc_seed)
+        self.q1 = self._build_c()  # FIXME: Add seeding
+        self.q2 = self._build_c()  # FIXME: Add seeding
 
         # Create GA and LC target networks
         # Don't get optimized but get updated according to the EMA of the main
         # networks
         self.ga_ = self._build_a(seeds=self.ga_target_seeds)
         self.lc_ = self._build_l(seed=self.lc_target_seed)
+        self.q1_ = self._build_c()
+        self.q2_ = self._build_c()  # FIXME: ADD seed
         self.target_init()
 
         # # Create summary writer
@@ -226,6 +238,9 @@ class LAC(tf.Module):
             return a[0]
 
     @tf.function
+    # def learn(
+    #     self, LR_A, LR_L, LR_lag, bs, ba, br, bterminal, bs_,
+    # ): # FIXME: DEBUG SPEED!
     def learn(self, LR_A, LR_L, LR_lag, batch):
         """Runs the SGD to update all the optimize parameters.
 
@@ -244,7 +259,7 @@ class LAC(tf.Module):
         ba = batch["a"]  # action
         br = batch["r"]  # reward
         bterminal = batch["terminal"]
-        bs_ = batch["s_"]  # next state
+        bs_ = batch["s_"]  # next state # FIXME: DEBUG SEED!
 
         # Update target networks
         self.update_target()
@@ -423,6 +438,10 @@ class LAC(tf.Module):
             pi_targ.assign(pi_main)
         for l_main, l_targ in zip(self.lc.variables, self.lc_.variables):
             l_targ.assign(l_main)
+        for q1_main, q1_targ in zip(self.q1.variables, self.q1_.variables):
+            q1_targ.assign(q1_main)
+        for q2_main, q2_targ in zip(self.q2.variables, self.q2_.variables):
+            q2_targ.assign(q2_main)
 
     @tf.function
     def update_target(self):
@@ -608,6 +627,16 @@ def train(log_dir):
                     labda, alpha, l_loss, entropy, a_loss = policy.learn(
                         lr_a_now, lr_l_now, lr_a, batch
                     )
+                    # labda, alpha, l_loss, entropy, a_loss = policy.learn(
+                    #     tf.convert_to_tensor(lr_a_now, dtype=tf.float32),
+                    #     tf.convert_to_tensor(lr_l_now, dtype=tf.float32),
+                    #     tf.convert_to_tensor(lr_a, dtype=tf.float32),
+                    #     tf.convert_to_tensor(batch["s"], dtype=tf.float32),
+                    #     tf.convert_to_tensor(batch["a"], dtype=tf.float32),
+                    #     tf.convert_to_tensor(batch["r"], dtype=tf.float32),
+                    #     tf.convert_to_tensor(batch["terminal"], dtype=tf.float32),
+                    #     tf.convert_to_tensor(batch["s_"], dtype=tf.float32),
+                    # )  # FIXME: DEBUG SPEED
 
             # Save path results
             if training_started:

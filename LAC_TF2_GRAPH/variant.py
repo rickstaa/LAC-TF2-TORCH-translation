@@ -11,6 +11,7 @@ REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loadin
 # USE_GPU = True
 USE_GPU = False
 
+# Training settings
 episodes = int(1e5)
 num_of_policies = 20
 num_of_paths_for_eval = 20

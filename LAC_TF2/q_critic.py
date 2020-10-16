@@ -1,10 +1,10 @@
-"""Contains the Lapunov critic.
+"""Contains the tensorflow critic.
 """
 
 import tensorflow as tf
 
 
-class LyapunovCritic(tf.keras.Model):
+class QCritic(tf.keras.Model):
     def __init__(
         self,
         obs_dim,
@@ -17,7 +17,7 @@ class LyapunovCritic(tf.keras.Model):
         seed=None,
         **kwargs,
     ):
-        """Lyapunov Critic network.
+        """Q Critic network.
 
         Args:
             obs_dim (int): The dimension of the observation space.
@@ -65,15 +65,15 @@ class LyapunovCritic(tf.keras.Model):
                     kernel_initializer=self._initializer,
                 )
             )
+        # FIXME: Check if correct
+        # IMPROVE: Formatting
+        self.net.add(
+            tf.keras.layers.Dense(1, name=name + "output layer"),
+            trainable=trainable,
+            kernel_initializer=self._initializer,
+        )
 
     @tf.function
     def call(self, inputs):
         """Perform forward pass."""
-
-        # Perform forward pass through input layers
-        net_out = self.net(tf.concat(inputs, axis=-1))
-
-        # Return result
-        return tf.expand_dims(
-            tf.reduce_sum(tf.math.square(net_out), axis=1), axis=1
-        )  # L(s,a)
+        return self.net(tf.concat(inputs, axis=-1))  # Q(s,a)

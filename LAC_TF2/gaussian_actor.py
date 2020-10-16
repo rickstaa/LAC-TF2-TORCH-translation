@@ -1,4 +1,4 @@
-"""Contains the tensorflow actor.
+"""Contains the Gaussian actor.
 """
 
 import tensorflow as tf

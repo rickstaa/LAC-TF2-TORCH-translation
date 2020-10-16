@@ -676,6 +676,7 @@ class LAC(object):
                     )
             else:
                 layers = []
+                # FIXME: UPDATE TO NEW VERSION
                 w1_s = tf.compat.v1.get_variable(
                     "w1_s", [self.s_dim, n1], trainable=trainable,
                 )

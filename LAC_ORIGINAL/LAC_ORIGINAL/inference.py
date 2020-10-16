@@ -8,11 +8,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 
-from lac import LAC
+from LAC.LAC_V1 import LAC
+from variant import (
+    EVAL_PARAMS,
+    ENV_PARAMS,
+    VARIANT,
+    ALG_PARAMS,
+    ENV_SEED,
+    get_env_from_name,
+    REL_PATH,
+)
 
-from utils import get_env_from_name
-from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
-
+# Modify VARIANT for LAC
+VARIANT["alg_params"] = ALG_PARAMS["LAC"]
+VARIANT["algorithm_name"] = "LAC"
+VARIANT["alg_params"]["network_structure"] = VARIANT["env_params"]["network_structure"]
+EVAL_PARAMS = EVAL_PARAMS["dynamic"]
 
 ###################################################
 # Main inference eval script ######################
@@ -26,13 +37,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model-name",
         type=str,
-        default=EVAL_PARAMS["eval_list"],
+        default=VARIANT["eval_list"],
         help="The name of the model you want to evaluate.",
     )
     parser.add_argument(
         "--env-name",
         type=str,
-        default=ENV_NAME,
+        default=VARIANT["env_name"],
         help="The name of the env you want to evaluate.",
     )
     parser.add_argument(
@@ -124,7 +135,7 @@ if __name__ == "__main__":
         a_dim = env.action_space.shape[0]
 
         # Create policy
-        policy = LAC(a_dim, s_dim)
+        policy = LAC(a_dim, s_dim, VARIANT["alg_params"])
 
         # Retrieve agents
         print("Looking for policies (rollouts)...")
@@ -277,7 +288,7 @@ if __name__ == "__main__":
                     s = env.reset()
 
                 # Perfrom trail
-                for j in range(ENVS_PARAMS[args.env_name]["max_ep_steps"]):
+                for j in range(ENV_PARAMS[args.env_name]["max_ep_steps"]):
 
                     # Perform action in the environment
                     a = policy.choose_action(s, True)
@@ -299,7 +310,7 @@ if __name__ == "__main__":
 
                     # Terminate if max step has been reached
                     done = False  # Ignore done signal from env because inference
-                    if j == (ENVS_PARAMS[args.env_name]["max_ep_steps"] - 1):
+                    if j == (ENV_PARAMS[args.env_name]["max_ep_steps"] - 1):
                         done = True
 
                     # Update current state
@@ -323,7 +334,7 @@ if __name__ == "__main__":
             # Calculate roll_out death rate
             roll_out_paths["death_rate"] = sum(
                 [
-                    episode <= (ENVS_PARAMS[args.env_name]["max_ep_steps"] - 1)
+                    episode <= (ENV_PARAMS[args.env_name]["max_ep_steps"] - 1)
                     for episode in roll_out_paths["episode_length"]
                 ]
             ) / len(roll_out_paths["episode_length"])
@@ -447,14 +458,14 @@ if __name__ == "__main__":
 
             # Plot mean path of reference and state_of_interrest
             if EVAL_PARAMS["merged"]:
-                fig_1 = plt.figure(figsize=(9, 6), num=f"LAC_TF115_1")
+                fig_1 = plt.figure(figsize=(9, 6), num=f"LAC_ORIGINAL_{i + 1}")
                 ax = fig_1.add_subplot(111)
                 colors = "bgrcmk"
                 cycol = cycle(colors)
             for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
                 if (i + 1) in req_ref or not req_ref:
                     if not EVAL_PARAMS["merged"]:
-                        fig_1 = plt.figure(figsize=(9, 6), num=f"LAC_TF115_{i+1}",)
+                        fig_1 = plt.figure(figsize=(9, 6), num=f"LAC_ORIGINAL_1")
                         ax = fig_1.add_subplot(111)
                         color1 = "red"
                         color2 = "blue"
@@ -494,7 +505,7 @@ if __name__ == "__main__":
                         #     color=color2,
                         #     alpha=0.3,
                         #     label=f"reference_{i+1}_std",
-                        # )  # FIXME: remove
+                        # )  # Fixme remove
                     if not EVAL_PARAMS["merged"]:
                         handles, labels = ax.get_legend_handles_labels()
                         ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
@@ -513,7 +524,7 @@ if __name__ == "__main__":
 
             # Create figure
             # BUG: Doesn't work with non merged option
-            fig_2 = plt.figure(figsize=(9, 6), num="LAC_TF115_2")
+            fig_2 = plt.figure(figsize=(9, 6), num="LAC_ORIGINAL_2")
             colors = "bgrcmk"
             cycol = cycle(colors)
             ax2 = fig_2.add_subplot(111)
@@ -576,7 +587,7 @@ if __name__ == "__main__":
             print("Plotting mean path and standard deviation...")
 
             # Create figure
-            fig_3 = plt.figure(figsize=(9, 6), num="LAC_TF115_3")
+            fig_3 = plt.figure(figsize=(9, 6), num="LAC_ORIGINAL_3")
             ax3 = fig_3.add_subplot(111)
 
             # Calculate mean observation path and std
