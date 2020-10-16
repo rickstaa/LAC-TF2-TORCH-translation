@@ -2,10 +2,10 @@
 
 I used this repository to translate the LAC code of [Minghoa](https://github.com/hithmh/Actor-critic-with-stability-guarantee) into tf2 and Pytorch code. It currently contains the following translations:
 
--   **LAC_ORIGINAL**: The original LAC code of [Minghoa](https://github.com/hithmh/Actor-critic-with-stability-guarantee) as received from @panweihit.
+-   [LAC_ORIGINAL](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/tree/master/LAC_ORIGINAL): The original LAC code of [Minghoa](https://github.com/hithmh/Actor-critic-with-stability-guarantee) as received from @panweihit.
 -   [LAC_TF2](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/tree/master/LAC_TF2): The LAC code translated to TF2.
 -   [LAC_TF2_GRAPH](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/tree/master/LAC_TF2_GRAPH): The LAC code translated to TF2 but now with EAGER mode disabled (Deprecated due to performance issues). This version also works with TF1.15.
--   **LAC_TORCH:** The LAC code translated into Pytorch code.
+-   [LAC_TORCH](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/tree/master/LAC_TORCH): The LAC code translated into Pytorch code.
 
 All these solutions will give the same results but will differ in training time. The [LAC_TF2](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/tree/master/LAC_TF2) version is currently the fastest solution.
 
