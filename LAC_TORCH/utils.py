@@ -21,17 +21,17 @@ def get_env_from_name(name, ENV_SEED):
     Returns:
         gym.Env: The gym environment.
     """
-    if name == "oscillator":
+    if name.lower() == "oscillator":
         from envs.oscillator import oscillator as env
 
         env = env()
         env = env.unwrapped
-    elif name == "Ex3_EKF":
+    elif name.lower() == "ex3_ekf":
         from envs.Ex3_EKF import Ex3_EKF as env
 
         env = env()
         env = env.unwrapped
-    elif name == "Ex4_EKF":
+    elif name.lower() == "ex4_ekf":
         from envs.Ex4_EKF import Ex4_EKF as env
 
         env = env()

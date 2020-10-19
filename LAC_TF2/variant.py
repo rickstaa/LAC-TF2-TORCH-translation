@@ -23,7 +23,7 @@ DEBUG_PARAMS = {
 
 # Training settings
 episodes = int(1e5)
-num_of_policies = 20
+num_of_policies = 5
 num_of_paths_for_eval = 100
 eval_list = ["LAC20201004_2339"]
 # use_lyapunov = True

@@ -1,25 +1,31 @@
 # Main TODOS
 
--   [ ] Add SAC
--   [ ] Variant
--   [ ] Add it to MLC
--   [ ] Add Ensemble
-    -   Important that it is dynamically create agents!!
-
-# Small TODOS
-
--   [ ] Fix infrerence figure problem when not merged
+-   [x] Add SAC
+-   [ ] Validate SAC
+-   [ ] Add seed None option
+-   [ ] Validate legacy code.
+-   [ ] Cleanup inference script
+    -   [ ] Fix infrerence figure problem when not merged
 -   [ ] Fix naming problem when two instances are started at the same time
+-   [ ] Add cleaned up script to all versions
+-   [ ] Cleanup legacy code
+-   [ ] Cleanup TF_2 and TF_TORCH code
+-   [ ] UPDATE READMES.md
+-   [ ] CLEANUP variant file
 
 # CHECKS
 
--   Add seed None to packages!
--   Add extra features to original
 -   Clean up ORiginal --> legacy
 -   Clean up GRAPH --> Legacy
 -   Clean up Torch
 -   Clean up TF2
 -   Check learning rates
+
+# OTHER
+
+-   [ ] Add it to MLC
+-   [ ] Add Ensemble
+    -   Important that it is dynamically create agents!!
 
 # Bugs
 

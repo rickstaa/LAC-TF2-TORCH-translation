@@ -1,5 +1,4 @@
-"""Script that can be used to display the performance and robustness of a trained
-agent."""
+"""Simple script used to test the performance of a trained model."""
 
 import os
 import sys
@@ -8,29 +7,44 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
-import itertools
 
-from lac import LAC
+from LAC.LAC_V1 import LAC
+from variant import (
+    EVAL_PARAMS,
+    ENV_PARAMS,
+    VARIANT,
+    ALG_PARAMS,
+    ENV_SEED,
+    get_env_from_name,
+    REL_PATH,
+)
 
-from utils import get_env_from_name
-from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
+# Modify VARIANT for LAC
+VARIANT["alg_params"] = ALG_PARAMS["LAC"]
+VARIANT["algorithm_name"] = "LAC"
+VARIANT["alg_params"]["network_structure"] = VARIANT["env_params"]["network_structure"]
+EVAL_PARAMS = EVAL_PARAMS["dynamic"]
 
+
+###################################################
+# Main inference eval script ######################
+###################################################
 if __name__ == "__main__":
 
-    # Parse cmdline arguments
+    # Parse Arguments
     parser = argparse.ArgumentParser(
         description="Evaluate the LAC agent in a given environment."
     )
     parser.add_argument(
         "--model-name",
         type=str,
-        default=EVAL_PARAMS["eval_list"],
+        default=VARIANT["eval_list"],
         help="The name of the model you want to evaluate.",
     )
     parser.add_argument(
         "--env-name",
         type=str,
-        default=ENV_NAME,
+        default=VARIANT["env_name"],
         help="The name of the env you want to evaluate.",
     )
     parser.add_argument(
@@ -65,7 +79,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Validate specified figure output file type
+    # Validate file types
     sup_file_types = ["pdf", "svg", "png", "jpg"]
     if args.fig_file_type not in sup_file_types:
         print(
@@ -74,40 +88,40 @@ if __name__ == "__main__":
         )
         sys.exit(0)
 
-    # Retrieve available policies
+    # Create model path
     eval_agents = (
         [args.model_name] if not isinstance(args.model_name, list) else args.model_name
     )
 
-    ####################################################
-    # Perform Inference for all agents #################
-    ####################################################
+    ###############################################
+    # Perform robustness eval for agents ##########
+    ###############################################
     print("\n=========Performing inference evaluation=========")
-
-    # Loop though USER defined agents list
-    # TODO: Test multi agents
     for name in eval_agents:
-
-        # Create agent policy and log paths
         if REL_PATH:
-            MODEL_PATH = "/".join(["./log", args.env_name.lower(), name])
+            MODEL_PATH = "/".join(["./log", args.env_name, name])
             LOG_PATH = "/".join([MODEL_PATH, "figure"])
             os.makedirs(LOG_PATH, exist_ok=True)
         else:
             dirname = os.path.dirname(__file__)
             MODEL_PATH = os.path.abspath(
-                os.path.join(dirname, "./log/" + args.env_name.lower() + "/" + name)
-            )
+                os.path.join(dirname, "./log/" + args.env_name + "/" + name)
+            )  # TODO: Make log paths env name lowercase
             LOG_PATH = os.path.abspath(os.path.join(MODEL_PATH, "figure"))
             os.makedirs(LOG_PATH, exist_ok=True)
+
         print("evaluating " + name)
         print(f"Using model folder: {MODEL_PATH}")
+        print(f"In environment: {args.env_name}")
+
+        ###########################################
+        # Create environment and setup policy #####
+        ###########################################
 
         # Create environment
-        print(f"In environment: {args.env_name}")
         env = get_env_from_name(args.env_name, ENV_SEED)
 
-        # Check if specified agent exists
+        # Check if model exists
         if not os.path.exists(MODEL_PATH):
             print(
                 f"Shutting down robustness eval since model `{args.model_name}` was "
@@ -121,23 +135,23 @@ if __name__ == "__main__":
         s_dim = env.observation_space.shape[0]
         a_dim = env.action_space.shape[0]
 
-        # Initiate the LAC policy
-        policy = LAC(a_dim, s_dim)
+        # Create policy
+        policy = LAC(a_dim, s_dim, VARIANT["alg_params"])
 
-        # Retrieve all trained policies (rollouts) for a given agent
+        # Retrieve agents
         print("Looking for policies (rollouts)...")
         rollout_list = os.listdir(MODEL_PATH)
         rollout_list = [
             rollout_name
             for rollout_name in rollout_list
             if os.path.exists(
-                os.path.abspath(MODEL_PATH + "/" + rollout_name + "/policy/model.pth")
+                os.path.abspath(MODEL_PATH + "/" + rollout_name + "/policy/checkpoint")
             )
         ]
         rollout_list = [int(item) for item in rollout_list if item.isnumeric()]
         rollout_list.sort()  # Sort rollouts_list
 
-        # Check if a given policy (rollout) exists
+        # Check if model exists
         if not rollout_list:
             print(
                 f"Shutting down robustness eval since no rollouts were found for model "
@@ -145,12 +159,17 @@ if __name__ == "__main__":
             )
             sys.exit(0)
 
-        # Retrieve USER defined rollouts list
+        ###########################################
+        # Run inference ###########################
+        ###########################################
+
+        # Retrieve rollouts from variant file
         rollouts_input = EVAL_PARAMS["which_policy_for_inference"]
+
+        # Use all rollouts if roolouts_inpuy is emptry []
         rollouts_input = rollout_list if not rollouts_input else rollouts_input
 
-        # Process requested rollouts input
-        # NOTE: Check if they exist and convert them to the right format.
+        # Validate given policies
         if any([not isinstance(x, (int, float)) for x in rollouts_input]):
             print(
                 "Please provide a valid list of rollouts in the "
@@ -158,7 +177,9 @@ if __name__ == "__main__":
                 " (example: [1, 2, 3])."
             )
             sys.exit(0)
-        rollouts_input = [int(item) for item in rollouts_input]
+        rollouts_input = [
+            int(item) for item in rollouts_input
+        ]  # convert to nr for comparison
         invalid_input_rollouts = [
             x for i, x in enumerate(rollouts_input) if not (x in rollout_list)
         ]
@@ -170,13 +191,12 @@ if __name__ == "__main__":
                 f"{rollout_str} {invalid_input_rollouts} do not exist."
             )
             sys.exit(0)
-        rollouts_input = [str(item) for item in rollouts_input]
+        rollouts_input = [str(item) for item in rollouts_input]  # convert back to str
+
+        # Print used roll outs
         print(f"Using rollouts: {rollouts_input}")
 
-        ############################################
-        # Run policy inference #####################
-        ############################################
-        # NOTE: Perform a number of paths in each rollout and store them
+        # Perform a number of paths in each rollout and store them
         roll_outs_paths = {}
         for rollout in rollouts_input:
 
@@ -192,7 +212,7 @@ if __name__ == "__main__":
                 "death_rate": 0.0,
             }
 
-            # Load current rollout policy
+            # Load current rollout agent
             LAC = policy.restore(
                 os.path.abspath(MODEL_PATH + "/" + rollout + "/policy")
             )
@@ -208,7 +228,7 @@ if __name__ == "__main__":
                 math.ceil(EVAL_PARAMS["num_of_paths"] / len(rollouts_input))
             ):
 
-                # Path storage bucket
+                # Path storage buckets
                 episode_path = {
                     "s": [],
                     "r": [],
@@ -217,15 +237,14 @@ if __name__ == "__main__":
                     "reference": [],
                 }
 
-                # Reset environment
-                # NOTE: Some environments require a eval variable
+                # env.reset() # MAke sure this is not seeded when reset
                 if env.__class__.__name__.lower() == "ex3_ekf_gyro":
                     s = env.reset(eval=True)
                 else:
                     s = env.reset()
 
-                # Retrieve path
-                for j in range(ENVS_PARAMS[args.env_name]["max_ep_steps"]):
+                # Perfrom trail
+                for j in range(ENV_PARAMS[args.env_name]["max_ep_steps"]):
 
                     # Perform action in the environment
                     a = policy.choose_action(s, True)
@@ -234,7 +253,7 @@ if __name__ == "__main__":
                     )
                     s_, r, done, info = env.step(action)
 
-                    # Store observations in path
+                    # Store observations
                     episode_path["s"].append(s)
                     episode_path["r"].append(r)
                     episode_path["s_"].append(s_)
@@ -247,7 +266,7 @@ if __name__ == "__main__":
 
                     # Terminate if max step has been reached
                     done = False  # Ignore done signal from env because inference
-                    if j == (ENVS_PARAMS[args.env_name]["max_ep_steps"] - 1):
+                    if j == (ENV_PARAMS[args.env_name]["max_ep_steps"] - 1):
                         done = True
 
                     # Update current state
@@ -257,7 +276,7 @@ if __name__ == "__main__":
                     if done:
                         break
 
-                # Append path to rollout paths list
+                # Append paths to paths list
                 roll_out_paths["s"].append(episode_path["s"])
                 roll_out_paths["r"].append(episode_path["r"])
                 roll_out_paths["s_"].append(episode_path["s_"])
@@ -268,20 +287,18 @@ if __name__ == "__main__":
                 roll_out_paths["episode_length"].append(len(episode_path["s"]))
                 roll_out_paths["return"].append(np.sum(episode_path["r"]))
 
-            # Calculate rollout death rate
+            # Calculate roll_out death rate
             roll_out_paths["death_rate"] = sum(
                 [
-                    episode <= (ENVS_PARAMS[args.env_name]["max_ep_steps"] - 1)
+                    episode <= (ENV_PARAMS[args.env_name]["max_ep_steps"] - 1)
                     for episode in roll_out_paths["episode_length"]
                 ]
             ) / len(roll_out_paths["episode_length"])
 
-            # Store rollout results in rollout dictionary
+            # Store rollout results in rollouts dictionary
             roll_outs_paths["roll_out_" + rollout] = roll_out_paths
 
-        ############################################
-        # Calculate rollout statistics #############
-        ############################################
+        # Loop through rollouts display statistics and add append paths to eval dict
         eval_paths = {}
         roll_outs_diag = {}
         for roll_out, roll_out_val in roll_outs_paths.items():
@@ -301,9 +318,9 @@ if __name__ == "__main__":
                 else:
                     eval_paths[key].extend(val)
 
-        ############################################
-        # Display rollout diagnostics ##############
-        ############################################
+        ###########################################
+        # Display path diagnostics ################
+        ###########################################
 
         # Display rollouts diagnostics
         print("\n==Rollouts Diagnostics==")
@@ -322,45 +339,35 @@ if __name__ == "__main__":
             print(f"- {key}: {np.mean(val)}")
             print(f"- {key}_std: {np.std(val)}")
 
-        ############################################
-        # Display performance figures ##############
-        ############################################
+        ###########################################
+        # Plot mean paths #########################
+        ###########################################
 
-        ####################################
-        # Plot mean path and std for #######
-        # states of reference. #############
-        ####################################
-        figs = {
-            "states_of_ref": [],
-            "states": [],
-            "costs": [],
-        }  # Store all figers (Needed for save)
+        # Plot mean path of reference and state_of_interrest
         if args.plot_r:
             print("Plotting states of reference...")
             print("Plotting mean path and standard deviation...")
 
-            # Retrieve USER defined sates of reference list
+            # Retrieve requested sates list
             req_ref = EVAL_PARAMS["ref"]
 
-            # Calculate mean path of the state of interest
+            # Calculate mean path of reference and state_of_interest
             soi_trimmed = [
                 path
                 for path in eval_paths["state_of_interest"]
                 if len(path) == max(eval_paths["episode_length"])
-            ]  # Trim unfinished paths
+            ]  # Needed because unequal paths # FIXME: CLEANUP
+            ref_trimmed = [
+                path
+                for path in eval_paths["reference"]
+                if len(path) == max(eval_paths["episode_length"])
+            ]  # Needed because unequal paths # FIXME: CLEANUP
             soi_mean_path = np.transpose(
                 np.squeeze(np.mean(np.array(soi_trimmed), axis=0))
             )
             soi_std_path = np.transpose(
                 np.squeeze(np.std(np.array(soi_trimmed), axis=0))
             )
-
-            # Calculate mean path of the state of reference
-            ref_trimmed = [
-                path
-                for path in eval_paths["reference"]
-                if len(path) == max(eval_paths["episode_length"])
-            ]  # Trim unfinished paths
             ref_mean_path = np.transpose(
                 np.squeeze(np.mean(np.array(ref_trimmed), axis=0))
             )
@@ -368,7 +375,7 @@ if __name__ == "__main__":
                 np.squeeze(np.std(np.array(ref_trimmed), axis=0))
             )
 
-            # Make sure mean path and std arrays are the right shape
+            # Make sure arrays are right dimension
             soi_mean_path = (
                 np.expand_dims(soi_mean_path, axis=0)
                 if len(soi_mean_path.shape) == 1
@@ -407,30 +414,17 @@ if __name__ == "__main__":
 
             # Plot mean path of reference and state_of_interrest
             if EVAL_PARAMS["merged"]:
-                fig = plt.figure(
-                    figsize=(9, 6),
-                    num=(
-                        "LAC_TORCH_" + str(len(list(itertools.chain(*figs.values()))))
-                    ),
-                )
-                ax = fig.add_subplot(111)
+                fig_1 = plt.figure(figsize=(9, 6), num=f"LAC_ORIGINAL_{i + 1}")
+                ax = fig_1.add_subplot(111)
                 colors = "bgrcmk"
                 cycol = cycle(colors)
-                figs["states_of_ref"].append(fig)  # Store figure reference
             for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
                 if (i + 1) in req_ref or not req_ref:
                     if not EVAL_PARAMS["merged"]:
-                        fig = plt.figure(
-                            figsize=(9, 6),
-                            num=(
-                                "LAC_TORCH_"
-                                + str(len(list(itertools.chain(*figs.values()))))
-                            ),
-                        )
-                        ax = fig.add_subplot(111)
+                        fig_1 = plt.figure(figsize=(9, 6), num=f"LAC_ORIGINAL_1")
+                        ax = fig_1.add_subplot(111)
                         color1 = "red"
                         color2 = "blue"
-                        figs["states_of_ref"].append(fig)  # Store figure reference
                     else:
                         color1 = next(cycol)
                         color2 = color1
@@ -455,7 +449,10 @@ if __name__ == "__main__":
                         )
                     if i <= (len(ref_mean_path) - 1):
                         ax.plot(
-                            t, ref_mean_path[i], color=color2, label=f"reference_{i+1}",
+                            t,
+                            ref_mean_path[i],
+                            color=color2,
+                            # label=f"reference_{i+1}",
                         )
                     if not EVAL_PARAMS["merged"]:
                         handles, labels = ax.get_legend_handles_labels()
@@ -465,26 +462,20 @@ if __name__ == "__main__":
                     handles, labels = ax.get_legend_handles_labels()
                     ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
 
-        ####################################
-        # Plot mean path and std for #######
-        # the observations #################
-        ####################################
+        # Also plot mean and std of the observations
         if args.plot_o:
             print("Plotting observations...")
             print("Plotting mean path and standard deviation...")
 
-            # Retrieve USER defined observations list
+            # Retrieve requested obs list
             req_obs = EVAL_PARAMS["obs"]
 
             # Create figure
-            fig = plt.figure(
-                figsize=(9, 6),
-                num=("LAC_TORCH_" + str(len(list(itertools.chain(*figs.values()))))),
-            )
+            # BUG: Doesn't work with non merged option
+            fig_2 = plt.figure(figsize=(9, 6), num="LAC_ORIGINAL_2")
             colors = "bgrcmk"
             cycol = cycle(colors)
-            ax2 = fig.add_subplot(111)
-            figs["states"].append(fig)  # Store figure reference
+            ax2 = fig_2.add_subplot(111)
 
             # Calculate mean observation path and std
             obs_trimmed = [
@@ -500,7 +491,7 @@ if __name__ == "__main__":
             )
             t = range(max(eval_paths["episode_length"]))
 
-            # Check if USER requested observation exists
+            # Check if requested observation exists
             obs_str = (
                 req_ref if req_ref else list(range(1, (obs_mean_path.shape[0] + 1)))
             )
@@ -515,7 +506,7 @@ if __name__ == "__main__":
                         "not exist."
                     )
 
-            # Plot mean observations path and std
+            # Plot state paths and std
             for i in range(0, obs_mean_path.shape[0]):
                 if (i + 1) in req_obs or not req_obs:
                     color = next(cycol)
@@ -538,23 +529,16 @@ if __name__ == "__main__":
             handles2, labels2 = ax2.get_legend_handles_labels()
             ax2.legend(handles2, labels2, loc=2, fancybox=False, shadow=False)
 
-        ####################################
-        # Plot mean cost and std for #######
-        # the observations #################
-        ####################################
+        # Plot mean cost and std
         if args.plot_c:
             print("Plotting cost...")
-            print("Plotting mean cost and standard deviation...")
+            print("Plotting mean path and standard deviation...")
 
             # Create figure
-            fig = plt.figure(
-                figsize=(9, 6),
-                num=("LAC_TORCH_" + str(len(list(itertools.chain(*figs.values()))))),
-            )
-            ax3 = fig.add_subplot(111)
-            figs["costs"].append(fig)  # Store figure reference
+            fig_3 = plt.figure(figsize=(9, 6), num="LAC_ORIGINAL_3")
+            ax3 = fig_3.add_subplot(111)
 
-            # Calculate mean cost and std
+            # Calculate mean observation path and std
             cost_trimmed = [
                 path
                 for path in eval_paths["r"]
@@ -568,7 +552,7 @@ if __name__ == "__main__":
             )
             t = range(max(eval_paths["episode_length"]))
 
-            # Plot mean cost and std
+            # Plot state paths and std
             ax3.plot(
                 t, cost_mean_path, color="g", linestyle="dashed", label=("mean cost"),
             )
@@ -587,27 +571,17 @@ if __name__ == "__main__":
         # Show figures
         plt.show()
 
-        # Save figures if requested
+        # Save figures to pdf if requested
         if args.save_figs:
-            for index, fig in enumerate(figs["states_of_ref"]):
-                fig.savefig(
-                    os.path.join(
-                        LOG_PATH,
-                        "Quatonian_" + str(index + 1) + "." + args.fig_file_type,
-                    ),
-                    bbox_inches="tight",
-                )
-            for index, fig in enumerate(figs["states"]):
-                fig.savefig(
-                    os.path.join(
-                        LOG_PATH, "State_" + str(index + 1) + "." + args.fig_file_type
-                    ),
-                    bbox_inches="tight",
-                )
-            for index, fig in enumerate(figs["costs"]):
-                fig.savefig(
-                    os.path.join(
-                        LOG_PATH, "Cost_" + str(index + 1) + "." + args.fig_file_type
-                    ),
-                    bbox_inches="tight",
-                )
+            fig_1.savefig(
+                os.path.join(LOG_PATH, "Quatonian." + args.fig_file_type),
+                bbox_inches="tight",
+            )
+            fig_2.savefig(
+                os.path.join(LOG_PATH, "State." + args.fig_file_type),
+                bbox_inches="tight",
+            )
+            fig_3.savefig(
+                os.path.join(LOG_PATH, "Cost." + args.fig_file_type),
+                bbox_inches="tight",
+            )

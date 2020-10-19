@@ -11,23 +11,13 @@ REL_PATH = False  # Whether to use a relative path for storign and loading model
 # USE_GPU = True
 USE_GPU = False
 
-# Debug Parameters
-DEBUG_PARAMS = {
-    "trace_net": False,  # Whether we want to trace the network.
-    "use_tb": False,  # Whether you want to log to tensorboard
-    "tb_freq": 4,  # After how many episode we want to log to tensorboard
-    "write_w_b": False,  # Whether you want to log the model weights and biases
-}
-
 # Training settings
-# episodes = int(1e5)
-episodes = int(1.1e4)  # DEBUG
+episodes = int(1e5)
 num_of_policies = 5
-# num_of_paths_for_eval = 100
-num_of_paths_for_eval = 10  # DEBUG
-eval_list = ["SAC20201019_1549"]
-# use_lyapunov = True
-use_lyapunov = False
+num_of_paths_for_eval = 100
+eval_list = ["LAC20201004_2339"]
+use_lyapunov = True
+# use_lyapunov = False
 which_policy_for_inference = [
     0
 ]  # If this is empty, it means all the policies are evaluated;
@@ -50,16 +40,12 @@ RANDOM_SEED = 0  # The numpy random seed
 # Setup log path and time string
 alg_prefix = "LAC" if use_lyapunov else "SAC"
 if REL_PATH:
-    LOG_PATH = "/".join(
-        ["./log", ENV_NAME.lower(), alg_prefix + time.strftime("%Y%m%d_%H%M")]
-    )
+    LOG_PATH = "/".join(["./log", ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M")])
 else:
     dirname = os.path.dirname(__file__)
     LOG_PATH = os.path.abspath(
         os.path.join(
-            dirname,
-            "./log/" + ENV_NAME.lower(),
-            alg_prefix + time.strftime("%Y%m%d_%H%M"),
+            dirname, "./log/" + ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M")
         )
     )
 timestr = time.strftime("%Y%m%d_%H%M")
@@ -87,7 +73,7 @@ EVAL_PARAMS = {
     "plot_average": True,
     "directly_show": True,
     "plot_ref": True,  # Whether you also want to plot the states of reference.
-    "merged": False,  # Whether you want to display all the states of references in one fig.
+    "merged": True,  # Whether you want to display all the states of references in one fig.
     "ref": [],  # Which state of reference you want to plot (empty means all obs).
     "plot_obs": True,  # Whether you also want to plot the observations.
     "obs": [],  # Which observations you want to plot (empty means all obs).
@@ -102,9 +88,9 @@ ALG_PARAMS = {
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
-    "labda": 0.99,  # Initial value for the lyapunov constraint lagrance multiplier
-    "alpha": 0.99,  # The initial value for the entropy lagrance multiplier
-    "alpha3": 0.2,  # The value of the stability condition multiplier
+    "labda": 1.0,  # Initial value for the lyapunov constraint lagrance multiplier
+    "alpha": 1.0,  # The initial value for the entropy lagrance multiplier
+    "alpha3": 0.1,  # The value of the stability condition multiplier
     "tau": 5e-3,  # Decay rate used in the polyak averaging
     "lr_a": 1e-4,  # The actor learning rate
     "lr_l": 3e-4,  # The lyapunov critic

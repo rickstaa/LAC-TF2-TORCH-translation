@@ -181,51 +181,6 @@ if __name__ == "__main__":
             sys.exit(0)
         rollouts_input = [str(item) for item in rollouts_input]  # convert back to str
 
-        # TODO: Old input prompt we can remove later
-        # # Get user input on which rollouts to use
-        # policy_str = "policy was" if len(rollout_list) == 1 else "policies were"
-        # print(
-        #     f"{len(rollout_list)} {(policy_str)} found in the model folder "
-        #     f"{rollout_list}."
-        # )
-        # while 1:
-
-        #     # Ask user for rollouts until input is correct
-        #     rollouts_input = input(
-        #         "Which policies (rollouts) do you want to use (Uses all if empty): "
-        #     )
-        #     if rollouts_input == "":
-        #         rollouts_input = [str(item) for item in rollout_list]
-        #         break
-        #     rollouts_input = rollouts_input.replace("[", "").replace("]", "").split(",")
-
-        #     # Check user input
-        #     invalid_input = [
-        #         not item.isnumeric() for item in rollouts_input
-        #     ]  # Check if numbers
-        #     if any(invalid_input):
-        #         print("Please provide a valid input (example: [1,2,3]).")
-        #         continue
-        #     rollouts_input = [
-        #         int(item) for item in rollouts_input
-        #     ]  # convert to nr for comparison
-        #     invalid_input_rollouts = [
-        #         x for i, x in enumerate(rollouts_input) if not (x in rollout_list)
-        #     ]
-        #     if len(invalid_input_rollouts) != 0:
-        #         rollout_str = (
-        #             "rollout" if sum(invalid_input_rollouts) <= 1 else "rollouts"
-        #         )
-        #         print(
-        #             f"Please re-check your input {rollout_str} "
-        #             f"{invalid_input_rollouts} do not exist."
-        #         )
-        #         continue
-        #     rollouts_input = [
-        #         str(item) for item in rollouts_input
-        #     ]  # convert back to str
-        #     break
-
         # Print used roll outs
         print(f"Using rollouts: {rollouts_input}")
 
@@ -484,14 +439,6 @@ if __name__ == "__main__":
                         ax.plot(
                             t, ref_mean_path[i], color=color2, label=f"reference_{i+1}",
                         )
-                        # ax.fill_between(
-                        #     t,
-                        #     ref_mean_path[i] - ref_std_path[i],
-                        #     ref_mean_path[i] + ref_std_path[i],
-                        #     color=color2,
-                        #     alpha=0.3,
-                        #     label=f"reference_{i+1}_std",
-                        # )  # FIXME: remove
                     if not EVAL_PARAMS["merged"]:
                         handles, labels = ax.get_legend_handles_labels()
                         ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
