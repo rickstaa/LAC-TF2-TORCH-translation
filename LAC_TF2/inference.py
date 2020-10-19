@@ -447,18 +447,14 @@ if __name__ == "__main__":
 
             # Plot mean path of reference and state_of_interrest
             if EVAL_PARAMS["merged"]:
-                fig_1 = plt.figure(
-                    figsize=(9, 6), num=f"LAC_TF2_1"
-                )
+                fig_1 = plt.figure(figsize=(9, 6), num=f"LAC_TF2_1")
                 ax = fig_1.add_subplot(111)
                 colors = "bgrcmk"
                 cycol = cycle(colors)
             for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
                 if (i + 1) in req_ref or not req_ref:
                     if not EVAL_PARAMS["merged"]:
-                        fig_1 = plt.figure(
-                            figsize=(9, 6), num=f"LAC_TF2_{i+1}",
-                        )
+                        fig_1 = plt.figure(figsize=(9, 6), num=f"LAC_TF2_{i+1}",)
                         ax = fig_1.add_subplot(111)
                         color1 = "red"
                         color2 = "blue"

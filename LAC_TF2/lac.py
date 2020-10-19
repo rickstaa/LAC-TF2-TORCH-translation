@@ -15,6 +15,8 @@ from tensorflow.keras.initializers import GlorotUniform
 
 from gaussian_actor import SquashedGaussianActor
 from lyapunov_critic import LyapunovCritic
+from q_critic import QCritic
+
 from utils import evaluate_training_rollouts, get_env_from_name, training_evaluation
 import logger
 from pool import Pool
@@ -88,6 +90,7 @@ else:
     print("You are training the SAC algorithm.")
 
 
+# TODO: Add None Seed option
 ###############################################
 # LAC algorithm class #########################
 ###############################################
@@ -126,8 +129,14 @@ class LAC(tf.Module):
         #     RANDOM_SEED,
         #     TFP_SEED_STREAM(),
         # ]  # [weight init seed, sample seed]
-        self.lc_seed = RANDOM_SEED + 2  # Weight init seed
-        self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
+        if self.use_lyapunov:
+            self.lc_seed = RANDOM_SEED + 2  # Weight init seed
+            self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
+        else:
+            self.q_1_seed = RANDOM_SEED + 4  # Weight init seed
+            self.q_1_target_seed = RANDOM_SEED + 5  # Weight init seed
+            self.q_2_seed = RANDOM_SEED + 6  # Weight init seed
+            self.q_2_target_seed = RANDOM_SEED + 7  # Weight init seed
 
         # Determine target entropy
         if ALG_PARAMS["target_entropy"] is None:
@@ -138,11 +147,16 @@ class LAC(tf.Module):
         # Create Learning rate placeholders
         self.LR_A = tf.Variable(ALG_PARAMS["lr_a"], name="LR_A")
         self.LR_lag = tf.Variable(ALG_PARAMS["lr_a"], name="LR_lag")
-        self.LR_L = tf.Variable(ALG_PARAMS["lr_l"], name="LR_L")
-        self.LR_C = tf.Variable(ALG_PARAMS["lr_c"], name="LR_C")
+        if self.use_lyapunov:
+            self.LR_L = tf.Variable(ALG_PARAMS["lr_l"], name="LR_L")
+        else:
+            self.LR_C = tf.Variable(ALG_PARAMS["lr_c"], name="LR_C")
 
         # Create lagrance multiplier placeholders
-        self.log_labda = tf.Variable(tf.math.log(ALG_PARAMS["labda"]), name="lambda")
+        if self.use_lyapunov:
+            self.log_labda = tf.Variable(
+                tf.math.log(ALG_PARAMS["labda"]), name="lambda"
+            )
         self.log_alpha = tf.Variable(tf.math.log(ALG_PARAMS["alpha"]), name="alpha")
 
         ###########################################
@@ -151,17 +165,21 @@ class LAC(tf.Module):
 
         # Create Gaussian Actor (GA) and Lyapunov critic (LC) Networks
         self.ga = self._build_a(seeds=self.ga_seeds)
-        self.lc = self._build_l(seed=self.lc_seed)
-        self.q1 = self._build_c()  # FIXME: Add seeding
-        self.q2 = self._build_c()  # FIXME: Add seeding
+        if self.use_lyapunov:
+            self.lc = self._build_l(seed=self.lc_seed)
+        else:
+            self.q_1 = self._build_c(seed=self.q_1_seed)
+            self.q_2 = self._build_c(seed=self.q_2_seed)
 
         # Create GA and LC target networks
         # Don't get optimized but get updated according to the EMA of the main
         # networks
         self.ga_ = self._build_a(seeds=self.ga_target_seeds)
-        self.lc_ = self._build_l(seed=self.lc_target_seed)
-        self.q1_ = self._build_c()
-        self.q2_ = self._build_c()  # FIXME: ADD seed
+        if self.use_lyapunov:
+            self.lc_ = self._build_l(seed=self.lc_target_seed)
+        else:
+            self.q_1_ = self._build_c(seed=self.q_1_target_seed)
+            self.q_2_ = self._build_c(seed=self.q_2_target_seed)
         self.target_init()
 
         # # Create summary writer
@@ -176,10 +194,21 @@ class LAC(tf.Module):
         self.alpha_train = tf.keras.optimizers.Adam(learning_rate=self.LR_A)
         self.lambda_train = tf.keras.optimizers.Adam(learning_rate=self.LR_lag)
         self.a_train = tf.keras.optimizers.Adam(learning_rate=self.LR_A)
-        self.l_train = tf.keras.optimizers.Adam(learning_rate=self.LR_L)
+        if self.use_lyapunov:
+            self.l_train = tf.keras.optimizers.Adam(learning_rate=self.LR_L)
+        else:
+            self.q_train = tf.keras.optimizers.Adam(learning_rate=self.LR_C)
 
         # Create model save dict
-        self._save_dict = {"gaussian_actor": self.ga, "lyapunov_critic": self.lc}
+        # FIXME: Where is this use? Looks like it is from tensorflow
+        if self.use_lyapunov:
+            self._save_dict = {"gaussian_actor": self.ga, "lyapunov_critic": self.lc}
+        else:
+            self._save_dict = {
+                "gaussian_actor": self.ga,
+                "q_critic_1": self.q_1,
+                "q_critic_2": self.q_2,
+            }
 
         # ###########################################
         # # Trace networks (DEBUGGING) ##############
@@ -242,7 +271,7 @@ class LAC(tf.Module):
     # def learn(
     #     self, LR_A, LR_L, LR_lag, bs, ba, br, bterminal, bs_,
     # ): # FIXME: DEBUG SPEED!
-    def learn(self, LR_A, LR_L, LR_lag, batch):
+    def learn(self, LR_A, LR_L, LR_lag, LR_C, batch):
         """Runs the SGD to update all the optimize parameters.
 
         Args:
@@ -262,44 +291,96 @@ class LAC(tf.Module):
         bterminal = batch["terminal"]
         bs_ = batch["s_"]  # next state # FIXME: DEBUG SEED!
 
+        # Update Learning rates
+        self.alpha_train.lr.assign(LR_A)
+        self.a_train.lr.assign(LR_A)
+        if self.use_lyapunov:
+            self.l_train.lr.assign(LR_L)
+            self.lambda_train.lr.assign(LR_lag)
+        else:
+            self.q_train.lr.assign(LR_C)
+
         # Update target networks
         self.update_target()
 
         # Get Lyapunov target
-        a_, _, _ = self.ga_(bs_)
-        l_ = self.lc_([bs_, a_])
-        l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * tf.stop_gradient(l_)
+        # TODO: Add more stop gradients
+        if self.use_lyapunov:
+            a_, _, _ = self.ga_(bs_)
+            l_ = self.lc_([bs_, a_])
+            l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * tf.stop_gradient(l_)
+        else:
+
+            # Target actions come from *current* policy
+            a2, _, logp_a2 = self.ga(bs_)
+
+            # Target Q-values
+            # FIXME: here optimized based on minimum Q value checkj which is wanted!
+            q1_pi_targ = self.q_1_([bs_, a2])
+            q2_pi_targ = self.q_2_([bs_, a2])
+            q_pi_targ = tf.minimum(
+                q1_pi_targ, q2_pi_targ
+            )  # Use min clipping to prevent overestimation bias (Replaced V by E(Q-H))
+            backup = tf.stop_gradient(
+                br
+                + ALG_PARAMS["gamma"]
+                * (1 - bterminal)
+                * (q_pi_targ - self.alpha * logp_a2)
+            )
 
         # Lyapunov candidate constraint function graph
-        with tf.GradientTape() as l_tape:
+        with tf.GradientTape() as c_tape:
+            if self.use_lyapunov:
 
-            # Calculate current lyapunov value
-            l = self.lc([bs, ba])
+                # Calculate current lyapunov value
+                l = self.lc([bs, ba])
 
-            # Calculate L_backup
-            l_error = tf.compat.v1.losses.mean_squared_error(
-                labels=l_target, predictions=l
-            )
+                # Calculate L_backup
+                l_error = tf.compat.v1.losses.mean_squared_error(
+                    labels=l_target, predictions=l
+                )
+            else:
+                # Retrieve the Q values from the two networks
+                q1 = self.q_1([bs, ba])
+                q2 = self.q_2([bs, ba])
+
+                # MSE loss against Bellman backup
+                loss_q1 = tf.reduce_mean((q1 - backup) ** 2)
+                loss_q2 = tf.reduce_mean((q2 - backup) ** 2)
+                loss_q = loss_q1 + loss_q2
 
         # Actor loss and optimizer graph
         with tf.GradientTape() as a_tape:
+            if self.use_lyapunov:
+                # Calculate current value and target lyapunov multiplier value
+                lya_a_, _, _ = self.ga(bs_)
+                lya_l_ = self.lc([bs_, lya_a_])
 
-            # Calculate current value and target lyapunov multiplier value
-            lya_a_, _, _ = self.ga(bs_)
-            lya_l_ = self.lc([bs_, lya_a_])
+                # Calculate Lyapunov constraint function
+                self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
+            else:
 
-            # Calculate Lyapunov constraint function
-            self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
+                # Retrieve the Q values from the two networks
+                q1_pi = self.q_1([bs, ba])
+                q2_pi = self.q_2([bs, ba])
+                q_pi = tf.minimum(q1_pi, q2_pi)
 
             # Calculate log probability of a_input based on current policy
             _, _, log_pis = self.ga(bs)
 
-            # Calculate actor loss
-            a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(log_pis)
+            if self.use_lyapunov:
+
+                # Calculate actor loss
+                a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(
+                    log_pis
+                )
+            else:
+                a_loss = tf.reduce_mean((self.log_alpha * log_pis - q_pi))
 
         # Lagrance multiplier loss functions and optimizers graphs
-        with tf.GradientTape() as lambda_tape:
-            labda_loss = -tf.reduce_mean(self.log_labda * self.l_delta)
+        if self.use_lyapunov:
+            with tf.GradientTape() as lambda_tape:
+                labda_loss = -tf.reduce_mean(self.log_labda * self.l_delta)
 
         # Calculate alpha loss
         with tf.GradientTape() as alpha_tape:
@@ -308,8 +389,9 @@ class LAC(tf.Module):
             )  # Trim down
 
         # Apply lambda gradients
-        lambda_grads = lambda_tape.gradient(labda_loss, [self.log_labda])
-        self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
+        if self.use_lyapunov:
+            lambda_grads = lambda_tape.gradient(labda_loss, [self.log_labda])
+            self.lambda_train.apply_gradients(zip(lambda_grads, [self.log_labda]))
 
         # Apply alpha gradients
         alpha_grads = alpha_tape.gradient(alpha_loss, [self.log_alpha])
@@ -320,17 +402,32 @@ class LAC(tf.Module):
         self.a_train.apply_gradients(zip(a_grads, self.ga.trainable_variables))
 
         # Apply critic gradients
-        l_grads = l_tape.gradient(l_error, self.lc.trainable_variables)
-        self.l_train.apply_gradients(zip(l_grads, self.lc.trainable_variables))
+        if self.use_lyapunov:
+            l_grads = c_tape.gradient(l_error, self.lc.trainable_variables)
+            self.l_train.apply_gradients(zip(l_grads, self.lc.trainable_variables))
+        else:
+            main_q_vars = (
+                self.q_1.trainable_variables + self.q_2.trainable_variables
+            )  # TODO: MAke object
+            q_grads = c_tape.gradient(loss_q, main_q_vars)
+            self.q_train.apply_gradients(zip(q_grads, main_q_vars))
 
         # Return results
-        return (
-            self.labda,
-            self.alpha,
-            l_error,
-            tf.reduce_mean(tf.stop_gradient(-log_pis)),
-            a_loss,
-        )
+        if self.use_lyapunov:
+            return (
+                self.labda,
+                self.alpha,
+                l_error,
+                tf.reduce_mean(tf.stop_gradient(-log_pis)),
+                a_loss,
+            )
+        else:
+            return (
+                self.alpha,
+                loss_q,
+                tf.reduce_mean(tf.stop_gradient(-log_pis)),
+                a_loss,
+            )
 
     def _build_a(self, name="gaussian_actor", trainable=True, seeds=[None, None]):
         """Setup SquashedGaussianActor Graph.
@@ -381,6 +478,32 @@ class LAC(tf.Module):
             obs_dim=self.s_dim,
             act_dim=self.a_dim,
             hidden_sizes=self.network_structure["critic"],
+            name=name,
+            trainable=trainable,
+            seed=seed,
+        )
+
+    def _build_c(self, name="q_critic", trainable=True, seed=None):
+        """Setup lyapunov critic graph.
+
+        Args:
+            name (str, optional): Network name. Defaults to "lyapunov_critic".
+
+            trainable (bool, optional): Whether the weights of the network layers should
+                be trainable. Defaults to True.
+
+            seed (int, optional): The seed used for the weight initialization. Defaults
+                to None.
+
+        Returns:
+            tuple: Tuple with network output tensors.
+        """
+
+        # Return GA
+        return QCritic(
+            obs_dim=self.s_dim,
+            act_dim=self.a_dim,
+            hidden_sizes=self.network_structure["q_critic"],
             name=name,
             trainable=trainable,
             seed=seed,
@@ -437,12 +560,14 @@ class LAC(tf.Module):
         # Initializing targets to match main variables
         for pi_main, pi_targ in zip(self.ga.variables, self.ga_.variables):
             pi_targ.assign(pi_main)
-        for l_main, l_targ in zip(self.lc.variables, self.lc_.variables):
-            l_targ.assign(l_main)
-        for q1_main, q1_targ in zip(self.q1.variables, self.q1_.variables):
-            q1_targ.assign(q1_main)
-        for q2_main, q2_targ in zip(self.q2.variables, self.q2_.variables):
-            q2_targ.assign(q2_main)
+        if self.use_lyapunov:
+            for l_main, l_targ in zip(self.lc.variables, self.lc_.variables):
+                l_targ.assign(l_main)
+        else:
+            for q1_main, q1_targ in zip(self.q_1.variables, self.q_1_.variables):
+                q1_targ.assign(q1_main)
+            for q2_main, q2_targ in zip(self.q_2.variables, self.q_2_.variables):
+                q2_targ.assign(q2_main)
 
     @tf.function
     def update_target(self):
@@ -450,9 +575,14 @@ class LAC(tf.Module):
         # (control flow because sess.run otherwise evaluates in nondeterministic order)
         for pi_main, pi_targ in zip(self.ga.variables, self.ga_.variables):
             pi_targ.assign(self.polyak * pi_targ + (1 - self.polyak) * pi_main)
-
-        for l_main, l_targ in zip(self.lc.variables, self.lc_.variables):
-            l_targ.assign(self.polyak * l_targ + (1 - self.polyak) * l_main)
+        if self.use_lyapunov:
+            for l_main, l_targ in zip(self.lc.variables, self.lc_.variables):
+                l_targ.assign(self.polyak * l_targ + (1 - self.polyak) * l_main)
+        else:
+            for q1_main, q1_targ in zip(self.q_1.variables, self.q_1_.variables):
+                q1_targ.assign(self.polyak * q1_targ + (1 - self.polyak) * q1_main)
+            for q2_main, q2_targ in zip(self.q_2.variables, self.q_2_.variables):
+                q2_targ.assign(self.polyak * q2_targ + (1 - self.polyak) * q2_main)
 
 
 def train(log_dir):
@@ -464,15 +594,19 @@ def train(log_dir):
     """
 
     # Create environment
+    print(f"Your training in the {ENV_NAME} environment.\n")
     env = get_env_from_name(ENV_NAME, ENV_SEED)
+    test_env = get_env_from_name(ENV_NAME, ENV_SEED)
 
     # Set initial learning rates
-    lr_a, lr_l = (
+    lr_a, lr_l, lr_c = (
         ALG_PARAMS["lr_a"],
         ALG_PARAMS["lr_l"],
+        ALG_PARAMS["lr_c"],
     )
     lr_a_now = ALG_PARAMS["lr_a"]  # learning rate for actor, lambda and alpha
     lr_l_now = ALG_PARAMS["lr_l"]  # learning rate for lyapunov critic
+    lr_c_now = ALG_PARAMS["lr_c"]  # learning rate for q critic
 
     # Get observation and action space dimension and limits from the environment
     s_dim = env.observation_space.shape[0]
@@ -551,14 +685,23 @@ def train(log_dir):
     for i in range(ENV_PARAMS["max_episodes"]):
 
         # Create variable to store information about the current path
-        current_path = {
-            "rewards": [],
-            "a_loss": [],
-            "alpha": [],
-            "lambda": [],
-            "lyapunov_error": [],
-            "entropy": [],
-        }
+        if policy.use_lyapunov:
+            current_path = {
+                "rewards": [],
+                "a_loss": [],
+                "alpha": [],
+                "lambda": [],
+                "lyapunov_error": [],
+                "entropy": [],
+            }
+        else:
+            current_path = {
+                "rewards": [],
+                "critic_error": [],
+                "alpha": [],
+                "entropy": [],
+                "a_loss": [],
+            }
 
         # # Stop training if max number of steps has been reached
         # # FIXME: OLD_VERSION This makes no sense since the global steps will never be
@@ -572,7 +715,7 @@ def train(log_dir):
 
         # Training Episode loop
         for j in range(ENV_PARAMS["max_ep_steps"]):
-
+            # Add checkpoint save
             # Break out of loop if global steps have been reached
             # FIXME: NEW Here makes sense
             if global_step > ENV_PARAMS["max_global_steps"]:
@@ -591,7 +734,6 @@ def train(log_dir):
 
             # Retrieve (scaled) action based on the current policy
             a = policy.choose_action(s)
-            # a = np.squeeze(np.random.uniform(low=-1.0, high=1.0, size=(1, 2)))  # DEBUG
             action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
 
             # Perform action in env
@@ -625,28 +767,32 @@ def train(log_dir):
                 # Perform STG a set number of times (train per cycle)
                 for _ in range(ALG_PARAMS["train_per_cycle"]):
                     batch = pool.sample(ALG_PARAMS["batch_size"])
-                    labda, alpha, l_loss, entropy, a_loss = policy.learn(
-                        lr_a_now, lr_l_now, lr_a, batch
-                    )
-                    # labda, alpha, l_loss, entropy, a_loss = policy.learn(
-                    #     tf.convert_to_tensor(lr_a_now, dtype=tf.float32),
-                    #     tf.convert_to_tensor(lr_l_now, dtype=tf.float32),
-                    #     tf.convert_to_tensor(lr_a, dtype=tf.float32),
-                    #     tf.convert_to_tensor(batch["s"], dtype=tf.float32),
-                    #     tf.convert_to_tensor(batch["a"], dtype=tf.float32),
-                    #     tf.convert_to_tensor(batch["r"], dtype=tf.float32),
-                    #     tf.convert_to_tensor(batch["terminal"], dtype=tf.float32),
-                    #     tf.convert_to_tensor(batch["s_"], dtype=tf.float32),
-                    # )  # FIXME: DEBUG SPEED
+                    if policy.use_lyapunov:
+                        labda, alpha, l_loss, entropy, a_loss = policy.learn(
+                            lr_a_now, lr_l_now, lr_a, batch
+                        )
+                    else:
+                        alpha, loss_q, entropy, a_loss = policy.learn(
+                            lr_a_now, lr_l_now, lr_a, lr_c_now, batch
+                        )
 
             # Save path results
             if training_started:
-                current_path["rewards"].append(r)
-                current_path["lyapunov_error"].append(l_loss)
-                current_path["alpha"].append(alpha)
-                current_path["lambda"].append(labda)
-                current_path["entropy"].append(entropy)
-                current_path["a_loss"].append(a_loss)
+                if policy.use_lyapunov:
+                    current_path["rewards"].append(r)
+                    current_path["lyapunov_error"].append(l_loss)
+                    current_path["alpha"].append(alpha)
+                    current_path["lambda"].append(labda)
+                    current_path["entropy"].append(entropy)
+                    current_path["a_loss"].append(a_loss)
+                else:
+                    current_path["rewards"].append(r)
+                    current_path["critic_error"].append(loss_q.numpy())
+                    current_path["alpha"].append(alpha.numpy())
+                    current_path["entropy"].append(entropy.numpy())
+                    current_path["a_loss"].append(
+                        a_loss.numpy()
+                    )  # Improve: Check if this is the fastest way
 
             # Evalute the current performance and log results
             if (
@@ -658,7 +804,7 @@ def train(log_dir):
                 training_diagnostics = evaluate_training_rollouts(last_training_paths)
                 if training_diagnostics is not None:
                     if TRAIN_PARAMS["num_of_evaluation_paths"] > 0:
-                        eval_diagnostics = training_evaluation(env, policy)
+                        eval_diagnostics = training_evaluation(test_env, policy)
                         [
                             logger.logkv(key, eval_diagnostics[key])
                             for key in eval_diagnostics.keys()
@@ -878,4 +1024,5 @@ def train(log_dir):
                 frac = 1.0 - (global_step - 1.0) / ENV_PARAMS["max_global_steps"]
                 lr_a_now = lr_a * frac  # learning rate for actor, lambda, alpha
                 lr_l_now = lr_l * frac  # learning rate for lyapunov critic
+                lr_c_now = lr_c * frac  # learning rate for q critic
                 break  # FIXME: Redundant

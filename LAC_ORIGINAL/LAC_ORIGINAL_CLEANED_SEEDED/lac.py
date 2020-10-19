@@ -170,7 +170,7 @@ class LAC(object):
             )
 
             # Create Networks for the (fixed) lyapunov temperature boundary
-            # DEBUG: This Network has the same parameters as the original gaussian actor
+            # Note: This Network has the same parameters as the original gaussian actor
             # but now it receives the next state. This was needed as the target network
             # uses exponential moving average.
             # NOTE: Used as a minimum lambda constraint boundary
@@ -616,7 +616,6 @@ def train(log_dir):
 
             # Retrieve (scaled) action based on the current policy
             a = policy.choose_action(s)
-            # a = np.squeeze(np.random.uniform(low=-1.0, high=1.0, size=(1, 2)))  # DEBUG
             action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
 
             # Perform action in env

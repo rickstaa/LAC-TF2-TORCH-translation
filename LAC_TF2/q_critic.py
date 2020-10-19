@@ -4,7 +4,15 @@
 import tensorflow as tf
 
 
+# TODO: Update docstring
 class QCritic(tf.keras.Model):
+    """Soft Q critic network.
+
+    Attributes:
+        q (torch.nn.modules.container.Sequential): The layers of the network.
+    """
+
+    # TODO: ADD SEEDING:
     def __init__(
         self,
         obs_dim,
@@ -51,7 +59,9 @@ class QCritic(tf.keras.Model):
         self.net = tf.keras.Sequential(
             [
                 tf.keras.layers.InputLayer(
-                    dtype=tf.float32, input_shape=(obs_dim + act_dim), name="input",
+                    dtype=tf.float32,
+                    input_shape=(obs_dim + act_dim),
+                    name=name + "/input",
                 )
             ]
         )
@@ -60,7 +70,7 @@ class QCritic(tf.keras.Model):
                 tf.keras.layers.Dense(
                     hidden_size_i,
                     activation="relu",
-                    name=name + "/{}".format(i),
+                    name=name + "/l{}".format(i),
                     trainable=trainable,
                     kernel_initializer=self._initializer,
                 )
@@ -68,9 +78,12 @@ class QCritic(tf.keras.Model):
         # FIXME: Check if correct
         # IMPROVE: Formatting
         self.net.add(
-            tf.keras.layers.Dense(1, name=name + "output layer"),
-            trainable=trainable,
-            kernel_initializer=self._initializer,
+            tf.keras.layers.Dense(
+                1,
+                name=name + "/output",
+                trainable=trainable,
+                kernel_initializer=self._initializer,
+            ),
         )
 
     @tf.function

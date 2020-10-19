@@ -188,17 +188,6 @@ class LAC(object):
         else:
             self.q_train = Adam(q_params, lr=self.LR_C)
 
-        # Create model save dict
-        # FIXME: Where is this use?
-        if self.use_lyapunov:
-            self._save_dict = {"gaussian_actor": self.ga, "lyapunov_critic": self.lc}
-        else:
-            self._save_dict = {
-                "gaussian_actor": self.ga,
-                "q_critic_1": self.q_1,
-                "q_critic_2": self.q_1,
-            }
-
         # ###########################################
         # # Trace networks (DEBUGGING) ##############
         # ###########################################
@@ -357,7 +346,7 @@ class LAC(object):
             # a_loss = self.labda * self.l_delta + self.alpha * torch.mean(log_pis)
             a_loss = self.labda.detach() * self.l_delta + self.alpha.detach() * torch.mean(
                 log_pis
-            )  # DEBUG
+            )
         else:
             a_loss = (self.log_alpha * log_pis - q_pi).mean()
 
@@ -386,7 +375,7 @@ class LAC(object):
             loss_q2 = ((q2 - backup) ** 2).mean()
             loss_q = loss_q1 + loss_q2
 
-            # Apply graidents
+            # Apply gradients
             loss_q.backward()
             self.q_train.step()
 
@@ -455,11 +444,11 @@ class LAC(object):
             hidden_sizes=self.network_structure["critic"],
         )
 
-    def _build_c(self, name="lyapunov_critic"):
+    def _build_c(self, name="q_critic"):
         """Setup q critic .
 
         Args:
-            name (str, optional): Network name. Defaults to "lyapunov_critic".
+            name (str, optional): Network name. Defaults to "q_critic".
 
         Returns:
             tuple: Tuple with network output tensors.
@@ -468,7 +457,7 @@ class LAC(object):
         return QCritic(
             obs_dim=self.s_dim,
             act_dim=self.a_dim,
-            hidden_sizes=self.network_structure["critic"],
+            hidden_sizes=self.network_structure["q_critic"],
         )
 
     def save_result(self, path):
@@ -715,7 +704,7 @@ def train(log_dir):
                 "lambda": [],
                 "entropy": [],
                 "a_loss": [],
-            }  # DEBUG
+            }
             # current_path = {
             #     "rewards": torch.tensor([], dtype=torch.float32),
             #     "a_loss": torch.tensor([], dtype=torch.float32),
@@ -723,7 +712,7 @@ def train(log_dir):
             #     "lambda": torch.tensor([], dtype=torch.float32),
             #     "lyapunov_error": torch.tensor([], dtype=torch.float32),
             #     "entropy": torch.tensor([], dtype=torch.float32),
-            # }  # DEBUG: Check if this is the fastest way
+            # }  # Improve: Check if this is the fastest way
         else:
             current_path = {
                 "rewards": [],
@@ -826,7 +815,7 @@ def train(log_dir):
                     current_path["entropy"].append(entropy.numpy())
                     current_path["a_loss"].append(
                         a_loss.numpy()
-                    )  # DEBUG: Check if this is the fastest way
+                    )  # Improve: Check if this is the fastest way
                     # current_path["rewards"] = torch.cat(
                     #     (current_path["rewards"], torch.tensor([r]))
                     # )
@@ -852,7 +841,7 @@ def train(log_dir):
                     current_path["entropy"].append(entropy.numpy())
                     current_path["a_loss"].append(
                         a_loss.numpy()
-                    )  # DEBUG: Check if this is the fastest way
+                    )  # Improve: Check if this is the fastest way
 
             # Evalute the current performance and log results
             if (
@@ -892,7 +881,7 @@ def train(log_dir):
                             [key, ":", str(round(training_diagnostics[key], 2)), "|"]
                         )
                         for key in training_diagnostics.keys()
-                    ]  # DEBUG: Check if this is the fastest way
+                    ]  # Improve: Check if this is the fastest way
                     # [
                     #     string_to_print.extend(
                     #         [

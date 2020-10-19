@@ -698,10 +698,7 @@ class LAC(object):
                         )
                     )
 
-            # Return q-critic graph
-            # return tf.expand_dims(
-            #     tf.reduce_sum(input_tensor=layers[-1], axis=1), axis=1
-            # )  # Q(s,a) # DEBUG
+            # Return l-critic graph
             if RANDOM_SEED is not None:
                 return tf.compat.v1.layers.dense(
                     layers[-1], 1, trainable=trainable, kernel_initializer=initializer

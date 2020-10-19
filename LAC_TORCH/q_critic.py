@@ -1,3 +1,6 @@
+"""Contains the Q-critic.
+"""
+
 import torch
 from torch import nn
 from utils import mlp
@@ -10,8 +13,8 @@ class QCritic(nn.Module):
     Attributes:
         q (torch.nn.modules.container.Sequential): The layers of the network.
     """
-    # TODO: ADD SEEDING:
 
+    # TODO: ADD SEEDING:
     def __init__(
         self, obs_dim, act_dim, hidden_sizes, activation=nn.ReLU, use_fixed_seed=False
     ):

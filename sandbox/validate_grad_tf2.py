@@ -278,7 +278,7 @@ class LAC(object):
             )
 
             # Create Networks for the (fixed) lyapunov temperature boundary
-            # DEBUG: This graph has the same parameters as the original gaussian actor
+            # NOTE: This graph has the same parameters as the original gaussian actor
             # but now it receives the next state. This was needed as the target network
             # uses exponential moving average.
             (

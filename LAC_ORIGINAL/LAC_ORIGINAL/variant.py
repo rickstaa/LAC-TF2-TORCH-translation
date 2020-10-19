@@ -8,11 +8,9 @@ import os
 REL_PATH = True  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
-# episodes = int(1.1e4)  # DEBUG
 episodes = int(1e5)
 num_of_paths_for_eval = 20
 num_of_policies = 5
-# num_of_policies = 1 # DEBUG
 which_policy_for_inference = [0]
 
 ENV_SEED = 0
@@ -38,7 +36,6 @@ VARIANT = {
     "train": True,
     # 'train': False,
     "num_of_trials": num_of_policies,  # number of random seeds
-    # "num_of_evaluation_paths": 10,  # number of rollouts for evaluation  # DEBUG
     "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
     "num_of_training_paths": 10,  # number of training rollouts stored for analysis
     "start_of_trial": 0,

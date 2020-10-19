@@ -6,7 +6,7 @@ import os
 import time
 
 # Script parameters
-REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
+REL_PATH = False  # Whether to use a relative path for storign and loading models
 # REL_PATH = True  # Whether to use a relative path for storign and loading models
 # USE_GPU = True
 USE_GPU = False
@@ -24,10 +24,10 @@ DEBUG_PARAMS = {
 # Training settings
 episodes = int(1e5)
 num_of_policies = 20
-num_of_paths_for_eval = 20
+num_of_paths_for_eval = 100
 eval_list = ["LAC20201004_2339"]
-use_lyapunov = True
-# use_lyapunov = False
+# use_lyapunov = True
+use_lyapunov = False
 which_policy_for_inference = [
     0
 ]  # If this is empty, it means all the policies are evaluated;

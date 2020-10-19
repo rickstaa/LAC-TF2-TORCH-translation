@@ -6,7 +6,7 @@ import os
 import time
 
 # Script parameters
-REL_PATH = False  # DEBUG: Whether to use a relative path for storign and loading models
+REL_PATH = False  # Whether to use a relative path for storign and loading models
 # REL_PATH = True  # Whether to use a relative path for storign and loading models
 # USE_GPU = True
 USE_GPU = False

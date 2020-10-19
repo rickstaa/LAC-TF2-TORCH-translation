@@ -535,7 +535,7 @@ def read_tb(path):
     maxstep = 0
     for fname in fnames:
         # for summary in tf.train.summary_iterator(fname):  # FIXME: Don't forget this change
-        for summary in tf.compat.v1.train.summary_iterator(fname):  # DEBUG
+        for summary in tf.compat.v1.train.summary_iterator(fname):
             if summary.step > 0:
                 for v in summary.summary.value:
                     pair = (summary.step, v.simple_value)

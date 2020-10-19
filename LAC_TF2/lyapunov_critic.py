@@ -51,7 +51,9 @@ class LyapunovCritic(tf.keras.Model):
         self.net = tf.keras.Sequential(
             [
                 tf.keras.layers.InputLayer(
-                    dtype=tf.float32, input_shape=(obs_dim + act_dim), name="input",
+                    dtype=tf.float32,
+                    input_shape=(obs_dim + act_dim),
+                    name=name + "/input",
                 )
             ]
         )
@@ -60,7 +62,7 @@ class LyapunovCritic(tf.keras.Model):
                 tf.keras.layers.Dense(
                     hidden_size_i,
                     activation="relu",
-                    name=name + "/{}".format(i),
+                    name=name + "/l{}".format(i),
                     trainable=trainable,
                     kernel_initializer=self._initializer,
                 )

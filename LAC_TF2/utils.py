@@ -93,7 +93,6 @@ def training_evaluation(env, policy):
             s = env.reset(eval=True)
         else:
             s = env.reset()
-        # s = env.reset()  # DEBUG
         for j in range(ENV_PARAMS["max_ep_steps"]):
             if ENV_PARAMS["eval_render"]:
                 env.render()

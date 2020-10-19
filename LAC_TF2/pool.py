@@ -101,16 +101,16 @@ class Pool(object):
                 min(self.memory_pointer, self.memory_capacity) - 1,
                 size=batch_size,
                 replace=False,
-            ) + max(1, 1 + self.memory_pointer - self.memory_capacity,) * np.ones(
+            ) + max(1, 1 + self.memory_pointer - self.memory_capacity) * np.ones(
                 [batch_size], np.int
             )
             batch = {}
             for key in self.memory.keys():
                 if "s" in key:
-                    # sample = self.memory[key][indices].astype(np.float32)
-                    sample = self.memory[key][indices]
+                    sample = self.memory[key][indices].astype(np.float32)
+                    # sample = self.memory[key][indices] # DEBUG
                     batch.update({key: sample})
                 else:
-                    # batch.update({key: self.memory[key][indices].astype(np.float32)})
-                    batch.update({key: self.memory[key][indices]})  # DEBUG
+                    batch.update({key: self.memory[key][indices].astype(np.float32)})
+                    # batch.update({key: self.memory[key][indices]})  # DEBUG
             return batch
