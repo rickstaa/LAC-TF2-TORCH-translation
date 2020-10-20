@@ -50,12 +50,16 @@ RANDOM_SEED = 0  # The numpy random seed
 # Setup log path and time string
 alg_prefix = "LAC" if use_lyapunov else "SAC"
 if REL_PATH:
-    LOG_PATH = "/".join(["./log", ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M")])
+    LOG_PATH = "/".join(
+        ["./log", ENV_NAME.lower(), alg_prefix + time.strftime("%Y%m%d_%H%M")]
+    )
 else:
     dirname = os.path.dirname(__file__)
     LOG_PATH = os.path.abspath(
         os.path.join(
-            dirname, "./log/" + ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M")
+            dirname,
+            "./log/" + ENV_NAME.lower(),
+            alg_prefix + time.strftime("%Y%m%d_%H%M"),
         )
     )
 timestr = time.strftime("%Y%m%d_%H%M")
@@ -66,7 +70,7 @@ TRAIN_PARAMS = {
     "num_of_training_paths": 100,  # Number of training rollouts stored for analysis
     "evaluation_frequency": 4000,  # After how many steps the performance is evaluated
     "num_of_evaluation_paths": 20,  # number of rollouts for evaluation
-    "num_of_trials": num_of_policies,  # number of randomly seeded trained agents # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
+    "num_of_trials": num_of_policies,  # number of randomly seeded trained agents  # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
     "continue_training": continue_training,  # Whether we want to continue training an already trained model
     "continue_model_folder": continue_model_folder,  # The path of the model for which you want to continue the training

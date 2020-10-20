@@ -18,22 +18,22 @@ def get_env_from_name(name, ENV_SEED=None):  # FIXME: Naming
     Returns:
         gym.Env: The gym environment.
     """
-    if name == "oscillator":
+    if name.lower() == "oscillator":
         from envs.oscillator import oscillator as env
 
         env = env()
         env = env.unwrapped
-    elif name == "Ex3_EKF_gyro":
+    elif name.lower() == "ex3_ekf_gyro":
         from envs.Ex3_EKF_gyro import Ex3_EKF_gyro as env
 
         env = env()
         env = env.unwrapped
-    elif name == "Ex3_EKF_gyro_dt":
+    elif name.lower() == "ex3_ekf_gyro_dt":
         from envs.Ex3_EKF_gyro_dt import Ex3_EKF_gyro as env
 
         env = env()
         env = env.unwrapped
-    elif name == "Ex3_EKF_gyro_dt_real":
+    elif name.lower() == "ex3_ekf_gyro_dt_real":
         from envs.Ex3_EKF_gyro_dt_real import Ex3_EKF_gyro as env
 
         env = env()
