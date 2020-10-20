@@ -298,7 +298,7 @@ class LAC(object):
 
             # Calculate current value and target lyapunov multiplier value
             lya_a_, _, _ = self.ga(bs_)
-            l_ = self.lc(bs_, lya_a_)
+            lya_l_ = self.lc(bs_, lya_a_)
         else:
             # Retrieve the Q values from the two networks
             q1 = self.q_1(bs, ba)
@@ -309,7 +309,7 @@ class LAC(object):
 
         # Calculate Lyapunov constraint function
         if self.use_lyapunov:
-            self.l_delta = torch.mean(l_ - l.detach() + (ALG_PARAMS["alpha3"]) * br)
+            self.l_delta = torch.mean(lya_l_ - l.detach() + ALG_PARAMS["alpha3"] * br)
 
             # Zero gradients on labda
             self.lambda_train.zero_grad()

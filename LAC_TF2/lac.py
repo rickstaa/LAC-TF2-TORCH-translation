@@ -357,7 +357,7 @@ class LAC(tf.Module):
                 lya_l_ = self.lc([bs_, lya_a_])
 
                 # Calculate Lyapunov constraint function
-                self.l_delta = tf.reduce_mean(lya_l_ - l + (ALG_PARAMS["alpha3"]) * br)
+                self.l_delta = tf.reduce_mean(lya_l_ - l + ALG_PARAMS["alpha3"] * br)
             else:
 
                 # Retrieve the Q values from the two networks
