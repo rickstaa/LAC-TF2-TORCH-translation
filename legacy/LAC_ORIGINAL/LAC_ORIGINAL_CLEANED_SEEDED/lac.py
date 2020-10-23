@@ -187,10 +187,9 @@ class LAC(object):
             )
 
             # Create Networks for the (fixed) lyapunov temperature boundary
-            # Note: This Network has the same parameters as the original gaussian actor
-            # but now it receives the next state. This was needed as the target network
-            # uses exponential moving average.
-            # NOTE: Used as a minimum lambda constraint boundary
+            # NOTE (rickstaa): This Network has the same parameters as the original
+            # Gaussian Actor but it now receives the next state. This was needed because
+            # of the way we define graphs in TF1.x.
             lya_a_, _, _ = self._build_a(self.S_, reuse=True, seeds=self.ga_seeds)
             self.l_ = self._build_l(self.S_, lya_a_, reuse=True, seed=self.lc_seed)
 
@@ -223,8 +222,8 @@ class LAC(object):
             )
 
             # Create Lyapunov Critic loss function and optimizer
-            # NOTE: The control dependency makes sure the target networks are updated \
-            # first
+            # NOTE (rickstaa): We use a control dependency to make sure the target
+            # networks are updated first.
             with tf.control_dependencies(target_update):
 
                 # Lyapunov candidate constraint function graph
@@ -529,7 +528,8 @@ class LAC(object):
         """
 
         # Retrieve relative path
-        # NOTE: Needed since tf saves the path in the checkpoint file
+        # NOTE (rickstaa): We nee to do this since tf saves the used path in the
+        # checkpoint file.
         save_path_rel = os.path.relpath(path + "/policy/model.ckpt", start=os.curdir)
 
         # Save model

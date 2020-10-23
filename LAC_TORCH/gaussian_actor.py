@@ -1,9 +1,6 @@
-"""Contains the pytorch actor. I first tried to create this as a
-sequential model using the
-`torch.nn.Sequential class <https://pytorch.org/docs/stable/generated/torch.nn.Sequential.html>`_
-but the network unfortunately is to difficult since it has multiple outputs.
+"""Contains the Gaussian actor class.
 """
-# NOTE: THIS SQUASHED GAUSSIAN ACTOR IS NOT CLAMPED!
+# IMPROVEMENT: Squash gaussian actor here
 
 import numpy as np
 import torch
@@ -13,6 +10,13 @@ import torch.nn.functional as F
 from torch.distributions.normal import Normal
 
 from utils import mlp
+
+# TODO: Add output activation function
+# FIXME: Check weight initialization
+
+# Script parameters
+LOG_STD_MIN = -20
+LOG_STD_MAX = 2
 
 
 class SquashedGaussianMLPActor(nn.Module):
@@ -32,14 +36,9 @@ class SquashedGaussianMLPActor(nn.Module):
             the network.
     """
 
+    # TODO: UPDATE DOCSTRING
     def __init__(
-        self,
-        obs_dim,
-        act_dim,
-        hidden_sizes,
-        activation=nn.ReLU,
-        log_std_min=-20,
-        log_std_max=2.0,
+        self, obs_dim, act_dim, hidden_sizes, activation=nn.ReLU,
     ):
         """Constructs all the necessary attributes for the Squashed Gaussian Actor
         object.
@@ -56,19 +55,11 @@ class SquashedGaussianMLPActor(nn.Module):
             act_limits (dict): The "high" and "low" action bounds of the environment.
                 Used for rescaling the actions that comes out of network from (-1, 1)
                 to (low, high).
-
-            log_std_min (int, optional): The minimum log standard deviation. Defaults
-                to -20.
-
-            log_std_max (float, optional): The maximum log standard deviation. Defaults
-                to 2.0.
         """
         super().__init__()
         self.net = mlp([obs_dim] + list(hidden_sizes), activation, activation)
         self.mu = nn.Linear(hidden_sizes[-1], act_dim)
         self.log_sigma = nn.Linear(hidden_sizes[-1], act_dim)
-        self._log_std_min = log_std_min
-        self._log_std_max = log_std_max
 
     def forward(self, obs, deterministic=False, with_logprob=True):
         """Perform forward pass through the network.
@@ -93,7 +84,7 @@ class SquashedGaussianMLPActor(nn.Module):
         net_out = self.net(obs)
         mu = self.mu(net_out)
         log_std = self.log_sigma(net_out)
-        log_std = torch.clamp(log_std, self._log_std_min, self._log_std_max)
+        log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
         std = torch.exp(log_std)
 
         # Check summing axis

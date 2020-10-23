@@ -1,4 +1,4 @@
-"""Minimal working version of the LAC algorithm script."""
+"""LAC algorithm class."""
 
 import time
 from collections import deque
@@ -9,25 +9,18 @@ import os.path as osp
 import itertools
 
 import torch
-
-# from torch import nn
 from torch.optim import Adam
 import torch.nn.functional as F
-
-# from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 
 from gaussian_actor import SquashedGaussianMLPActor
 from lyapunov_critic import MLPLyapunovCritic
 from q_critic import QCritic
-
 from utils import evaluate_training_rollouts, get_env_from_name, training_evaluation
-import logger
 from pool import Pool
+import logger
 
-###############################################
-# Script settings #############################
-###############################################
+# Script settings
 from variant import (
     USE_GPU,
     ENV_NAME,
@@ -36,16 +29,15 @@ from variant import (
     TRAIN_PARAMS,
     ALG_PARAMS,
     ENV_PARAMS,
-    LOG_SIGMA_MIN_MAX,
     SCALE_lambda_MIN_MAX,
-    # DEBUG_PARAMS,
 )
 
-# Change cudnn backend
-# Note: Might speed up your training
-# (see: https://discuss.pytorch.org/t/what-does-torch-backends-cudnn-benchmark-do/5936)
-torch.backends.cudnn.benchmark = True
-torch.backends.cudnn.fastest = True
+# # Change torch backend backend (GPU: Speed improvement)
+# # Note (rickstaa): To speed up training, when you are using GPU, you can uncomment
+# # one of the following lines to change the torch backend (see:
+# # https://discuss.pytorch.org/t/what-does-torch-backends-cudnn-benchmark-do/5936)
+# torch.backends.cudnn.benchmark = True
+# torch.backends.cudnn.fastest = True
 
 # Set random seed to get comparable results for each run
 if RANDOM_SEED is not None:
@@ -55,31 +47,44 @@ if RANDOM_SEED is not None:
     random.seed(RANDOM_SEED)
 
 # TODO: Check if adding variables as tensors speeds up computation
+# TODO: Put losses in their own function (See if possible)
+# TODO: Validate weight seeding.
 
 
-# ###############################################
-# # Helper classes and functions  ###############
-# ###############################################
-# class actor_critic_trace(nn.Module):
-#     def __init__(self, ga, lc):
-#         super().__init__()
-#         self.ga = ga
-#         self.lc = lc
-
-#     def forward(self, obs):
-#         a, _, _ = self.ga(obs)
-#         l = self.lc(obs, a)
-#         return l
-
-
-###############################################
-# LAC algorithm class #########################
-###############################################
 class LAC(object):
     """The lyapunov actor critic.
-    """
 
-    def __init__(self, a_dim, s_dim, log_dir="."):
+    Attributes:
+        ga (torch.nn.modules.container.Sequential): The input/hidden layers of the
+            network.
+
+        ga_ (torch.nn.modules.linear.Linear): The output layer which returns the mean of
+            the actions.
+
+        lc (torch.nn.modules.linear.Linear): The output layer which returns
+            the log standard deviation of the actions.
+
+        lc_ (torch.nn.modules.linear.Linear): The output layer which returns
+            the log standard deviation of the actions.
+
+        q_1 (torch.nn.modules.linear.Linear): The output layer which returns
+            the log standard deviation of the actions.
+
+        q_2 (torch.nn.modules.linear.Linear): The output layer which returns
+            the log standard deviation of the actions.
+
+        q_2_ (torch.nn.modules.linear.Linear): The output layer which returns
+            the log standard deviation of the actions.
+
+        q_2_ (torch.nn.modules.linear.Linear): The output layer which returns
+            the log standard deviation of the actions.
+    """  # TODO: Update docstring
+
+    # TODO: Create warning when someby tries to acces a network that does not exist
+
+    # TODO: Add properties
+
+    def __init__(self, a_dim, s_dim):
         """Initiate object state.
 
         Args:
@@ -87,8 +92,8 @@ class LAC(object):
             s_dim (int): Observation space dimension.
         """
 
-        # Check if GPU is requested and available
-        self.device = (
+        # Check if GPU is requested and available and set the device
+        self._device = (
             torch.device("cuda")
             if (torch.cuda.is_available() and USE_GPU)
             else torch.device("cpu")
@@ -98,67 +103,85 @@ class LAC(object):
                 "GPU computing was enabled but the GPU can not be reached. "
                 "Reverting back to using CPU."
             )
-        device_str = "GPU" if str(self.device) == "cuda" else str(self.device)
+        device_str = "GPU" if str(self._device) == "cuda" else str(self._device)
         print(f"INFO: Torch is using the {device_str}")
 
         # Save action and observation space as members
-        self.a_dim = a_dim
-        self.s_dim = s_dim
+        self._a_dim = a_dim
+        self._s_dim = s_dim
 
-        # Set algorithm parameters as class objects
-        self.network_structure = ALG_PARAMS["network_structure"]
-        self.polyak = 1 - ALG_PARAMS["tau"]
-        self.use_lyapunov = ALG_PARAMS["use_lyapunov"]
+        # Save algorithm parameters as class objects
+        self._network_structure = ALG_PARAMS["network_structure"]
+        self._use_lyapunov = ALG_PARAMS["use_lyapunov"]
+        self._polyak = 1 - ALG_PARAMS["tau"]
 
         # Determine target entropy
+        # NOTE (rickstaa): If not defined we use the Lower bound of the policy entropy
         if ALG_PARAMS["target_entropy"] is None:
-            self.target_entropy = -self.a_dim  # lower bound of the policy entropy
+            self._target_entropy = -self._a_dim
         else:
-            self.target_entropy = ALG_PARAMS["target_entropy"]
+            self._target_entropy = ALG_PARAMS["target_entropy"]
 
         # Create Learning rate placeholders
+        # TODO: Check if we want this to be public
+        # TODO: Why needed?
         self.LR_A = torch.tensor(ALG_PARAMS["lr_a"], dtype=torch.float32)
-        if self.use_lyapunov:
+        if self._use_lyapunov:
             self.LR_lag = torch.tensor(ALG_PARAMS["lr_a"], dtype=torch.float32)
             self.LR_L = torch.tensor(ALG_PARAMS["lr_l"], dtype=torch.float32)
         else:
             self.LR_C = torch.tensor(ALG_PARAMS["lr_c"], dtype=torch.float32)
 
-        # Create lagrance multiplier placeholders
+        # Create variables for the Lagrance multipliers
+        # TODO: Make private!
         self.log_alpha = torch.tensor(ALG_PARAMS["alpha"], dtype=torch.float32).log()
-        self.log_alpha.requires_grad = True  # Enable gradient computation
-        if self.use_lyapunov:
+        self.log_alpha.requires_grad = True
+        if self._use_lyapunov:
             self.log_labda = torch.tensor(
                 ALG_PARAMS["labda"], dtype=torch.float32
             ).log()
-            self.log_labda.requires_grad = True  # Enable gradient computation
+            self.log_labda.requires_grad = True
 
-        ###########################################
-        # Create Networks #########################
-        ###########################################
-
-        # Create Gaussian Actor (GA) and Lyapunov critic (LC) Networks
-        self.ga = self._build_a().to(self.device)
-        if self.use_lyapunov:
-            self.lc = self._build_l().to(self.device)
+        # Create Gaussian Actor (GA) and Lyapunov critic (LC) or Q-Critic (QC) networks
+        self.ga = SquashedGaussianMLPActor(
+            obs_dim=self._s_dim,
+            act_dim=self._a_dim,
+            hidden_sizes=self._network_structure["actor"],
+        ).to(self._device)
+        if self._use_lyapunov:
+            self.lc = MLPLyapunovCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["critic"],
+            ).to(self._device)
         else:
-            self.q_1 = self._build_c().to(self.device)
-            self.q_2 = self._build_c().to(self.device)
+            # NOTE (rickstaa): We create two Q-critics so we can use the Clipped
+            # double-Q trick.
+            self.q_1 = QCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["q_critic"],
+            ).to(self._device)
+            self.q_2 = QCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["q_critic"],
+            ).to(self._device)
 
-        # Create GA and LC target networks
+        # Create GA, LC and QC target networks
         # Don't get optimized but get updated according to the EMA of the main
         # networks
-        self.ga_ = deepcopy(self.ga).to(self.device)
-        if self.use_lyapunov:
-            self.lc_ = deepcopy(self.lc).to(self.device)
+        self.ga_ = deepcopy(self.ga).to(self._device)
+        if self._use_lyapunov:
+            self.lc_ = deepcopy(self.lc).to(self._device)
         else:
-            self.q_1_ = self._build_c().to(self.device)
-            self.q_2_ = self._build_c().to(self.device)
+            self.q_1_ = deepcopy(self.q_1).to(self._device)
+            self.q_2_ = deepcopy(self.q_2).to(self._device)
 
         # Freeze target networks
         for p in self.ga_.parameters():
             p.requires_grad = False
-        if self.use_lyapunov:
+        if self._use_lyapunov:
             for p in self.lc_.parameters():
                 p.requires_grad = False
         else:
@@ -167,39 +190,20 @@ class LAC(object):
             for p in self.q_2_.parameters():
                 p.requires_grad = False
 
-        # # Create summary writer
-        # if DEBUG_PARAMS["use_tb"]:
-        #     self.step = 0
-        #     self.tb_writer = SummaryWriter(log_dir=log_dir)
-
-        if not self.use_lyapunov:
+        # Create optimizers
+        # NOTE (rickstaa): We here optimize for log_alpha and log_labda instead of
+        # alpha and labda because it is more numerically stable (see:
+        # https://github.com/rail-berkeley/softlearning/issues/136)
+        self._alpha_train = Adam([self.log_alpha], lr=self.LR_A)
+        self._a_train = Adam(self.ga.parameters(), lr=self.LR_A)
+        if self._use_lyapunov:
+            self._lambda_train = Adam([self.log_labda], lr=self.LR_lag)
+            self._l_train = Adam(self.lc.parameters(), lr=self.LR_L)
+        else:
             q_params = itertools.chain(
                 self.q_1.parameters(), self.q_2.parameters()
-            )  # Chain parameter iterators so we can pass them to the optimizer
-
-        ###########################################
-        # Create optimizers #######################
-        ###########################################
-        self.alpha_train = Adam([self.log_alpha], lr=self.LR_A)
-        self.a_train = Adam(self.ga.parameters(), lr=self.LR_A)
-        if self.use_lyapunov:
-            self.lambda_train = Adam([self.log_labda], lr=self.LR_lag)
-            self.l_train = Adam(self.lc.parameters(), lr=self.LR_L)
-        else:
-            self.q_train = Adam(q_params, lr=self.LR_C)
-
-        # ###########################################
-        # # Trace networks (DEBUGGING) ##############
-        # ###########################################
-        # if DEBUG_PARAMS["use_tb"]:
-        #     if DEBUG_PARAMS["trace_net"]:
-
-        #         # Create dummy input
-        #         obs = torch.rand((ALG_PARAMS["batch_size"], self.s_dim))
-
-        #         # Write trace to tensorboard
-        #         with torch.no_grad():
-        #             self.tb_writer.add_graph(actor_critic_trace(self.ga, self.lc), obs)
+            )  # Chain parameters of the two Q-critics
+            self._q_train = Adam(q_params, lr=self.LR_C)
 
     def choose_action(self, s, evaluation=False):
         """Returns the current action of the policy.
@@ -215,7 +219,7 @@ class LAC(object):
         # TODO: Check return types
 
         # Convert s to tensor if not yet the case
-        s = torch.as_tensor(s, dtype=torch.float32).to(self.device)
+        s = torch.as_tensor(s, dtype=torch.float32).to(self._device)
 
         # Get current best action
         if evaluation is True:
@@ -248,17 +252,17 @@ class LAC(object):
         """
 
         # Adjust optimizer learning rates (decay)
-        for param_group in self.a_train.param_groups:
+        for param_group in self._a_train.param_groups:
             param_group["lr"] = LR_A
-        for param_group in self.alpha_train.param_groups:
+        for param_group in self._alpha_train.param_groups:
             param_group["lr"] = LR_A
-        if self.use_lyapunov:
-            for param_group in self.l_train.param_groups:
+        if self._use_lyapunov:
+            for param_group in self._l_train.param_groups:
                 param_group["lr"] = LR_L
-            for param_group in self.lambda_train.param_groups:
+            for param_group in self._lambda_train.param_groups:
                 param_group["lr"] = LR_lag
         else:
-            for param_group in self.q_train.param_groups:
+            for param_group in self._q_train.param_groups:
                 param_group["lr"] = LR_C
 
         # Retrieve state, action and reward from the batch
@@ -268,12 +272,9 @@ class LAC(object):
         bterminal = batch["terminal"]
         bs_ = batch["s_"]  # next state
 
-        # Update target networks
-        self.update_target()
-
         # Calculate variables from which we do not require the gradients
         with torch.no_grad():
-            if self.use_lyapunov:
+            if self._use_lyapunov:
                 a_, _, _ = self.ga_(bs_)
                 l_ = self.lc_(bs_, a_)
                 l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * l_.detach()
@@ -282,10 +283,12 @@ class LAC(object):
                 a2, _, logp_a2 = self.ga(bs_)
 
                 # Target Q-values
+                # FIXME: Wrong actor used!
                 q1_pi_targ = self.q_1_(bs_, a2)
                 q2_pi_targ = self.q_2_(bs_, a2)
-                q_pi_targ = torch.min(
-                    q1_pi_targ, q2_pi_targ
+                q_pi_targ = torch.max(
+                    q1_pi_targ,
+                    q2_pi_targ,  # TEST: Test if max is now workign add argument to switch?
                 )  # Use min clipping to prevent overestimation bias (Replaced V by E(Q-H))
                 # TODO: Replace log_alpha.exp() with alpha --> Make alpha property
                 backup = br + ALG_PARAMS["gamma"] * (1 - bterminal) * (
@@ -293,7 +296,7 @@ class LAC(object):
                 )
 
         # Calculate current lyapunov Q values
-        if self.use_lyapunov:
+        if self._use_lyapunov:
             l = self.lc(bs, ba)
 
             # Calculate current value and target lyapunov multiplier value
@@ -308,89 +311,95 @@ class LAC(object):
         pi, _, log_pis = self.ga(bs)
 
         # Calculate Lyapunov constraint function
-        if self.use_lyapunov:
+        if self._use_lyapunov:
             self.l_delta = torch.mean(lya_l_ - l.detach() + ALG_PARAMS["alpha3"] * br)
 
             # Zero gradients on labda
-            self.lambda_train.zero_grad()
+            self._lambda_train.zero_grad()
 
             # Lagrance multiplier loss functions and optimizers graphs
-            labda_loss = -torch.mean(self.log_labda * self.l_delta.detach())
+            # FIXME: Validate if using self.labda gives the same result.
+            labda_loss = -torch.mean(self.labda * self.l_delta.detach())
 
             # Apply gradients to log_lambda
             labda_loss.backward()
-            self.lambda_train.step()
+            self._lambda_train.step()
         else:
+
             # Retrieve the current Q values for the action given by the current policy
             q1_pi = self.q_1(bs, pi)
             q2_pi = self.q_2(bs, pi)
-            q_pi = torch.min(q1_pi, q2_pi)
+            q_pi = torch.max(q1_pi, q2_pi)  # Add change parameter
 
         # Zero gradients on alpha
-        self.alpha_train.zero_grad()
+        self._alpha_train.zero_grad()
 
         # Calculate alpha loss
-        alpha_loss = -torch.mean(
-            self.log_alpha * log_pis.detach() + self.target_entropy
-        )
+        alpha_loss = -torch.mean(self.alpha * log_pis.detach() + self._target_entropy)
 
         # Apply gradients
         alpha_loss.backward()
-        self.alpha_train.step()
+        self._alpha_train.step()
 
         # Zero gradients on the actor
-        self.a_train.zero_grad()
+        self._a_train.zero_grad()
 
         # Calculate actor loss
-        if self.use_lyapunov:
-            # a_loss = self.labda * self.l_delta + self.alpha * torch.mean(log_pis)
+        if self._use_lyapunov:
             a_loss = self.labda.detach() * self.l_delta + self.alpha.detach() * torch.mean(
                 log_pis
             )
         else:
-            a_loss = (self.log_alpha * log_pis - q_pi).mean()
+            a_loss = (self.alpha * log_pis - q_pi).mean()
 
         # Apply gradients
         a_loss.backward()
-        self.a_train.step()
+        self._a_train.step()
 
         # Optimize critic
-        if self.use_lyapunov:
+        if self._use_lyapunov:
             # Zero gradients on the critic
-            self.l_train.zero_grad()
+            self._l_train.zero_grad()
 
             # Calculate L_backup
             l_error = F.mse_loss(l_target, l)
 
             # Apply gradients
             l_error.backward()
-            self.l_train.step()
+            self._l_train.step()
         else:
 
             # Zero gradients on q critic
-            self.q_train.zero_grad()
+            self._q_train.zero_grad()
 
             # MSE loss against Bellman backup
-            loss_q1 = ((q1 - backup) ** 2).mean()
-            loss_q2 = ((q2 - backup) ** 2).mean()
+            # TODO: REplace with loss squared error.
+            # NOTE (rickstaa): The 0.5 multiplication factor was added to make the
+            # derivation cleaner and can be safely removed without influencing the
+            # minimization. We kept it here for consistency.
+            loss_q1 = 0.5 * ((q1 - backup) ** 2).mean()
+            loss_q2 = 0.5 * ((q2 - backup) ** 2).mean()
             loss_q = loss_q1 + loss_q2
 
             # Apply gradients
             loss_q.backward()
-            self.q_train.step()
+            self._q_train.step()
+
+        # Update target networks
+        self.update_target()
 
         # Return results
-        # TODO: return to CPU
         # IMPROVE: Check if this it the right location to do this
-        # NOTE: Not needed in SPINNINGUP version as the analysis is alreadyu GPU compatible
-        if self.use_lyapunov:
+        # NOTE (rickstaa): Not needed when porting to machine learning control as the
+        # analysis is alreadyu GPU compatible
+        if self._use_lyapunov:
             return (
                 # self.labda.detach(),
                 # self.alpha.detach(),
                 # l_error.detach(),
                 # torch.mean(-log_pis.detach()),
                 # a_loss.detach(),
-                self.labda.cpu().detach(),  # IMPROVE: Not needed in spinning up since the logger can handle GPU data
+                self.labda.cpu().detach(),
                 self.alpha.cpu().detach(),
                 l_error.cpu().detach(),
                 torch.mean(-log_pis.cpu().detach()),
@@ -408,57 +417,6 @@ class LAC(object):
                 torch.mean(-log_pis.cpu().detach()),
                 a_loss.cpu().detach(),
             )
-
-    def _build_a(self, name="gaussian_actor"):
-        """Setup SquashedGaussianActor Graph.
-
-        Args:
-            name (str, optional): Network name. Defaults to "gaussian_actor".
-
-        Returns:
-            tuple: Tuple with network output tensors.
-        """
-        # Return GA
-        return SquashedGaussianMLPActor(
-            obs_dim=self.s_dim,
-            act_dim=self.a_dim,
-            hidden_sizes=self.network_structure["actor"],
-            log_std_min=LOG_SIGMA_MIN_MAX[0],
-            log_std_max=LOG_SIGMA_MIN_MAX[1],
-        )
-
-    def _build_l(self, name="lyapunov_critic"):
-        # TODO: Update docstring
-        """Setup lyapunov critic graph.
-
-        Args:
-            name (str, optional): Network name. Defaults to "lyapunov_critic".
-
-        Returns:
-            tuple: Tuple with network output tensors.
-        """
-        # Return Lc
-        return MLPLyapunovCritic(
-            obs_dim=self.s_dim,
-            act_dim=self.a_dim,
-            hidden_sizes=self.network_structure["critic"],
-        )
-
-    def _build_c(self, name="q_critic"):
-        """Setup q critic .
-
-        Args:
-            name (str, optional): Network name. Defaults to "q_critic".
-
-        Returns:
-            tuple: Tuple with network output tensors.
-        """
-        # Return Lc
-        return QCritic(
-            obs_dim=self.s_dim,
-            act_dim=self.a_dim,
-            hidden_sizes=self.network_structure["q_critic"],
-        )
 
     def save_result(self, path):
         """Save current policy.
@@ -480,7 +438,7 @@ class LAC(object):
             os.makedirs(os.path.dirname(save_path))
 
         # Create models state dict and save
-        if self.use_lyapunov:
+        if self._use_lyapunov:
             models_state_save_dict = {
                 "ga_state_dict": self.ga.state_dict(),
                 "lc_state_dict": self.lc.state_dict(),
@@ -525,7 +483,7 @@ class LAC(object):
 
         # Restore network parameters
         # Question: Do I restore everything correctly?-
-        if self.use_lyapunov:  # TODO: RePLACE byu object
+        if self._use_lyapunov:  # TODO: RePLACE byu object
             self.ga.load_state_dict(models_state_dict["ga_state_dict"])
             self.lc.load_state_dict(models_state_dict["lc_state_dict"])
             self.ga_.load_state_dict(models_state_dict["ga_targ_state_dict"])
@@ -559,25 +517,25 @@ class LAC(object):
         # TODO: CHECK IF NEEDED ON THE GPU?
         with torch.no_grad():
             for pi_main, pi_targ in zip(self.ga.parameters(), self.ga_.parameters()):
-                pi_targ.data.mul_(self.polyak)
-                pi_targ.data.add_((1 - self.polyak) * pi_main.data)
-            if self.use_lyapunov:
+                pi_targ.data.mul_(self._polyak)
+                pi_targ.data.add_((1 - self._polyak) * pi_main.data)
+            if self._use_lyapunov:
                 for pi_main, pi_targ in zip(
                     self.lc.parameters(), self.lc_.parameters()
                 ):
-                    pi_targ.data.mul_(self.polyak)
-                    pi_targ.data.add_((1 - self.polyak) * pi_main.data)
+                    pi_targ.data.mul_(self._polyak)
+                    pi_targ.data.add_((1 - self._polyak) * pi_main.data)
             else:
                 for pi_main, pi_targ in zip(
                     self.q_1.parameters(), self.q_1_.parameters()
                 ):
-                    pi_targ.data.mul_(self.polyak)
-                    pi_targ.data.add_((1 - self.polyak) * pi_main.data)
+                    pi_targ.data.mul_(self._polyak)
+                    pi_targ.data.add_((1 - self._polyak) * pi_main.data)
                 for pi_main, pi_targ in zip(
                     self.q_2.parameters(), self.q_2_.parameters()
                 ):
-                    pi_targ.data.mul_(self.polyak)
-                    pi_targ.data.add_((1 - self.polyak) * pi_main.data)
+                    pi_targ.data.mul_(self._polyak)
+                    pi_targ.data.add_((1 - self._polyak) * pi_main.data)
 
 
 def train(log_dir):
@@ -610,7 +568,7 @@ def train(log_dir):
     a_lowerbound = env.action_space.low
 
     # Create the Lyapunov Actor Critic agent
-    policy = LAC(a_dim, s_dim, log_dir=log_dir)
+    policy = LAC(a_dim, s_dim)
 
     # TODO: Fix retrining
     # # Load model if retraining is selected
@@ -671,14 +629,6 @@ def train(log_dir):
         device=policy.device,
     )
 
-    # # Log initial values to tensorboard
-    # if DEBUG_PARAMS["use_tb"]:
-    #     policy.tb_writer.add_scalar("lr_a", lr_a_now, global_step=0)
-    #     policy.tb_writer.add_scalar("lr_l", lr_l_now, global_step=0)
-    #     policy.tb_writer.add_scalar("lr_lag", lr_a, global_step=0)
-    #     policy.tb_writer.add_scalar("alpha", policy.alpha, global_step=0)
-    #     policy.tb_writer.add_scalar("lambda", policy.labda, global_step=0)
-
     # Training setting
     t1 = time.time()
     global_step = 0
@@ -722,13 +672,6 @@ def train(log_dir):
                 "a_loss": [],
             }
 
-        # # Stop training if max number of steps has been reached
-        # # FIXME: OLD_VERSION This makes no sense since the global steps will never be
-        # # the set global steps in this case.
-        # if global_step > ENV_PARAMS["max_global_steps"]:
-        #     print(f"Training stopped after {global_step} steps.")
-        #     break
-
         # Reset environment
         s = env.reset()
 
@@ -752,7 +695,6 @@ def train(log_dir):
                     policy.save_result(checkpoint_save_path)
 
             # Break out of loop if global steps have been reached
-            # FIXME: NEW Here makes sense
             if global_step > ENV_PARAMS["max_global_steps"]:
 
                 # Print step count, save model and stop the program
@@ -910,192 +852,6 @@ def train(log_dir):
                 # Store paths
                 if training_started:
                     last_training_paths.appendleft(current_path)
-
-                    # # Get current model performance for tb
-                    # if DEBUG_PARAMS["use_tb"]:
-                    #     training_diagnostics = evaluate_training_rollouts(
-                    #         last_training_paths
-                    #     )
-
-                # # Log tb variables
-                # if DEBUG_PARAMS["use_tb"]:
-                #     if i % DEBUG_PARAMS["tb_freq"] == 0:
-
-                #         # Log learning rate to tb
-                #         policy.tb_writer.add_scalar(
-                #             "lr_a", lr_a_now, global_step=policy.step
-                #         )
-                #         policy.tb_writer.add_scalar(
-                #             "lr_l", lr_l_now, global_step=policy.step
-                #         )
-                #         policy.tb_writer.add_scalar(
-                #             "lr_lag", lr_a, global_step=policy.step
-                #         )
-                #         policy.tb_writer.add_scalar(
-                #             "alpha", policy.alpha, global_step=policy.step
-                #         )
-                #         policy.tb_writer.add_scalar(
-                #             "lambda", policy.labda, global_step=policy.step
-                #         )
-
-                #         # Update and log other training vars to tensorboard
-                #         if training_started:
-                #             policy.tb_writer.add_scalar(
-                #                 "ep_ret",
-                #                 training_diagnostics["return"],
-                #                 global_step=policy.step,
-                #             )
-                #             policy.tb_writer.add_scalar(
-                #                 "ep_length",
-                #                 training_diagnostics["length"],
-                #                 global_step=policy.step,
-                #             )
-                #             policy.tb_writer.add_scalar(
-                #                 "a_loss",
-                #                 training_diagnostics["a_loss"],
-                #                 global_step=policy.step,
-                #             )
-                #             policy.tb_writer.add_scalar(
-                #                 "lyapunov_error",
-                #                 training_diagnostics["lyapunov_error"],
-                #                 global_step=policy.step,
-                #             )
-                #             policy.tb_writer.add_scalar(
-                #                 "entropy",
-                #                 training_diagnostics["entropy"],
-                #                 global_step=policy.step,
-                #             )
-
-                #             # Log network weights
-                #             if DEBUG_PARAMS["write_w_b"]:
-
-                #                 # GaussianActor weights/biases
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga/l1/weights",
-                #                     policy.ga.net[0].weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga/l1/bias",
-                #                     policy.ga.net[0].bias,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga/l2/weights",
-                #                     policy.ga.net[2].weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga/l2/bias",
-                #                     policy.ga.net[2].bias,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga/mu/weights",
-                #                     policy.ga.mu.weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga/mu/bias",
-                #                     policy.ga.mu.bias,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga/log_sigma/weights",
-                #                     policy.ga.log_sigma.weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga/log_sigma/bias",
-                #                     policy.ga.log_sigma.bias,
-                #                     global_step=policy.step,
-                #                 )
-
-                #                 # Target GaussianActor weights/biases
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga_/l1/weights",
-                #                     policy.ga_.net[0].weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga_/l1/bias",
-                #                     policy.ga_.net[0].bias,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga_/l2/weights",
-                #                     policy.ga_.net[2].weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga_/l2/bias",
-                #                     policy.ga_.net[2].bias,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga_/mu/weights",
-                #                     policy.ga_.mu.weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga_/mu/bias",
-                #                     policy.ga_.mu.bias,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga_/log_sigma/weights",
-                #                     policy.ga_.log_sigma.weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Ga_/log_sigma/bias",
-                #                     policy.ga_.log_sigma.bias,
-                #                     global_step=policy.step,
-                #                 )
-
-                #                 # Lyapunov critic weights/biases
-                #                 policy.tb_writer.add_histogram(
-                #                     "Lc/net/l1/weights",
-                #                     policy.lc.l[0].weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Lc/net/l1/bias",
-                #                     policy.lc.l[0].bias,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Lc/net/l2/weights",
-                #                     policy.lc.l[2].weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Lc/net/l2/bias",
-                #                     policy.lc.l[2].bias,
-                #                     global_step=policy.step,
-                #                 )
-
-                #                 # Target Lyapunov critic weights/biases
-                #                 policy.tb_writer.add_histogram(
-                #                     "Lc_/net/l1/weights",
-                #                     policy.lc_.l[0].weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Lc_/net/l1/bias",
-                #                     policy.lc_.l[0].bias,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Lc_/net/l2/weights",
-                #                     policy.lc_.l[2].weight,
-                #                     global_step=policy.step,
-                #                 )
-                #                 policy.tb_writer.add_histogram(
-                #                     "Lc_/net/l2/bias",
-                #                     policy.lc_.l[2].bias,
-                #                     global_step=policy.step,
-                #                 )
 
                 # Decay learning rates
                 frac = 1.0 - (global_step - 1.0) / ENV_PARAMS["max_global_steps"]

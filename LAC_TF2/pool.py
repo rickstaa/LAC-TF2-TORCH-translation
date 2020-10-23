@@ -70,7 +70,7 @@ class Pool(object):
                 )
         if terminal == 1.0:
             # FIXME: DIFFERENCE WITH SPINNINGUP
-            # NOTE: WHY the hell only update when Paths are terminal? Done because
+            # Question (rickstaa): WHY the hell only update when Paths are terminal? Done because
             # evaluation is on path basis?
             for key in self.current_path.keys():
                 self.memory[key] = np.concatenate(

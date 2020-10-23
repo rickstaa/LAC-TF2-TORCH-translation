@@ -73,16 +73,6 @@ if DEBUG_PARAMS["debug"] and not (
     )
     tf.config.experimental_run_functions_eagerly(True)
 
-# Check for numeric errors
-# tf.debugging.enable_check_numerics()
-
-# # Enable tf2 tb debugger
-# NOTE: I did not yet get this to work in eager mode
-# tf.debugging.experimental.enable_dump_debug_info(
-#     LOG_PATH, tensor_debug_mode="FULL_HEALTH", circular_buffer_size=-1
-# )
-
-
 # Print LAC/SAC message
 if ALG_PARAMS["use_lyapunov"]:
     print("You are training the LAC algorithm.")
@@ -747,12 +737,6 @@ def train(log_dir):
             if j == ENV_PARAMS["max_ep_steps"] - 1:
                 done = True
             terminal = 1.0 if done else 0.0
-
-            # # Increment tensorboard step counter
-            # # NOTE: This was done differently from the global_step counter since
-            # # otherwise there were inconsistencies in the tb log.
-            # if DEBUG_PARAMS["use_tb"]:
-            #     policy.step += 1
 
             # Store experience in replay buffer
             pool.store(s, a, r, terminal, s_)
