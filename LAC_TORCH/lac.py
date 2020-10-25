@@ -283,7 +283,6 @@ class LAC(object):
                 a2, _, logp_a2 = self.ga(bs_)
 
                 # Target Q-values
-                # FIXME: Wrong actor used!
                 q1_pi_targ = self.q_1_(bs_, a2)
                 q2_pi_targ = self.q_2_(bs_, a2)
                 q_pi_targ = torch.max(
