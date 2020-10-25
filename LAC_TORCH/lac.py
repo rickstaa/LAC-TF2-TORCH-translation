@@ -101,6 +101,12 @@ class LAC(object):
         device_str = "GPU" if str(self.device) == "cuda" else str(self.device)
         print(f"INFO: Torch is using the {device_str}")
 
+        # Print LAC/SAC message
+        if ALG_PARAMS["use_lyapunov"]:
+            print("You are training the LAC algorithm.")
+        else:
+            print("You are training the SAC algorithm.")
+
         # Save action and observation space as members
         self.a_dim = a_dim
         self.s_dim = s_dim

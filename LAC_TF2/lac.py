@@ -769,7 +769,7 @@ def train(log_dir):
                     batch = pool.sample(ALG_PARAMS["batch_size"])
                     if policy.use_lyapunov:
                         labda, alpha, l_loss, entropy, a_loss = policy.learn(
-                            lr_a_now, lr_l_now, lr_a, batch
+                            lr_a_now, lr_l_now, lr_a, lr_c_now, batch
                         )
                     else:
                         alpha, loss_q, entropy, a_loss = policy.learn(
