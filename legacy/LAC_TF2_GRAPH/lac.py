@@ -60,8 +60,8 @@ if RANDOM_SEED is not None:
 print("==Train settings==")
 
 # Disable GPU if requested
-if not USE_GPU:  # NOTE: This works in both TF115 and tf2
-    # tf.config.set_visible_devices([], "GPU")
+# NOTE (rickstaa): Done to support both tf1.x and tf2.x.
+if not USE_GPU:
     if version.parse(tf.__version__) > version.parse("1.15.4"):
         tf.config.set_visible_devices([], "GPU")
     else:
@@ -310,8 +310,8 @@ class LAC(object):
             )
 
             # Create Lyapunov Critic loss function and optimizer
-            # NOTE: The control dependency makes sure the target networks are updated \
-            # first
+            # NOTE (rickstaa): We use a control dependency to make sure the target
+            # networks are updated first.
             next_log_pis = a_dist_.log_prob(a_)
             with tf.control_dependencies(target_update):
 
@@ -579,14 +579,13 @@ class LAC(object):
             # Calculate log probability standard deviation
             sigma = tf.exp(log_sigma)
 
-            # Create bijectors (Used in the reparameterization trick)
+            # Create bijectors (Used in the parameterization trick)
+            # NOTE (rickstaa): Done to support both tf1.x and tf2.x.
             squash_bijector = SquashBijector()
             if TF_115:
                 affine_bijector = tfp.bijectors.Affine(shift=mu, scale_diag=sigma)
             else:
-                affine_bijector = tfp.bijectors.Shift(mu)(
-                    tfp.bijectors.Scale(sigma)
-                )  # NOTE: Not available in tf1.15
+                affine_bijector = tfp.bijectors.Shift(mu)(tfp.bijectors.Scale(sigma))
 
             # Sample from the normal distribution and calculate the action
             batch_size = tf.shape(input=s)[0]
@@ -789,7 +788,8 @@ class LAC(object):
         """
 
         # Retrieve relative path
-        # NOTE: Needed since tf saves the path in the checkpoint file
+        # NOTE (rickstaa): We nee to do this since tf saves the used path in the
+        # checkpoint file.
         save_path_rel = os.path.relpath(path + "/policy/model.ckpt", start=os.curdir)
 
         # Save model

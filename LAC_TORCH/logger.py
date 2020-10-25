@@ -1,4 +1,6 @@
-"""Logger that logs to performance of the current policy to the stdout and file.
+"""Simple logger used to log the performance of the current policy to the
+stdout and file. This loger was based on
+https://github.com/openai/baselines/blob/master/baselines/logger.py.
 """
 
 import os
@@ -12,12 +14,12 @@ import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 
-# os.environ['OPENAI_LOGDIR'] = './log'
+
+# Script parameters
 DEBUG = 10
 INFO = 20
 WARN = 30
 ERROR = 40
-
 DISABLED = 50
 
 

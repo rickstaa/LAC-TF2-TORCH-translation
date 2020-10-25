@@ -1,12 +1,12 @@
-"""Contains the Q-critic.
-"""
+"""Contains the Q-critic class."""
 
 import torch
 from torch import nn
 from utils import mlp
 
+# FIXME: Seeding not used
 
-# TODO: Update docstring
+
 class QCritic(nn.Module):
     """Soft Q critic network.
 
@@ -14,7 +14,6 @@ class QCritic(nn.Module):
         q (torch.nn.modules.container.Sequential): The layers of the network.
     """
 
-    # TODO: ADD SEEDING:
     def __init__(
         self, obs_dim, act_dim, hidden_sizes, activation=nn.ReLU, use_fixed_seed=False
     ):
@@ -26,6 +25,7 @@ class QCritic(nn.Module):
             hidden_sizes (list): Sizes of the hidden layers.
             activation (torch.nn.modules.activation): The activation function.
         """
+        # TODO: UPDATE DOCSTRING
         super().__init__()
         self.q = mlp([obs_dim + act_dim] + list(hidden_sizes) + [1], activation)
 

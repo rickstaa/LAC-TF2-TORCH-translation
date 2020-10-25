@@ -36,10 +36,10 @@ if __name__ == "__main__":
         help="The name of the env you want to evaluate.",
     )
     parser.add_argument(
-        "--plot-r",
+        "--plot-s",
         type=bool,
-        default=EVAL_PARAMS["plot_ref"],
-        help="Whether want to plot the states of reference.",
+        default=EVAL_PARAMS["plot_sio"],
+        help="Whether want to plot the states of interest.",
     )
     parser.add_argument(
         "--plot-o",

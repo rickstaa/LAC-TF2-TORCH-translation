@@ -1,3 +1,6 @@
+"""A set of common utilities used within the algorithm code.
+"""
+
 from collections import OrderedDict
 
 import numpy as np
@@ -9,7 +12,21 @@ from variant import (
     ENV_PARAMS,
 )
 
+# Script parameters
+color2num = dict(
+    gray=30,
+    red=31,
+    green=32,
+    yellow=33,
+    blue=34,
+    magenta=35,
+    cyan=36,
+    white=37,
+    crimson=38,
+)
+
 # FIXME: Might be faster to replace numpy with torch!
+# IMPROVE: Put ENVIRONMENTS IN CONFIGURATION FILE
 
 
 def get_env_from_name(name, ENV_SEED):
@@ -42,7 +59,14 @@ def get_env_from_name(name, ENV_SEED):
 
 
 def evaluate_training_rollouts(paths):
-    """Evaluate the performance of the policy in the training rollouts."""
+    """Evaluate the performance of the policy in the training rollouts.
+
+    Args:
+       paths (collections.deque): The training paths.
+
+    Returns:
+        collections.OrderedDict: Dictionary with performance statistics.
+    """
     data = copy.deepcopy(paths)
     if len(data) < 1:
         return None
@@ -59,7 +83,6 @@ def evaluate_training_rollouts(paths):
     for key in data[0].keys():
         result = [np.mean(path[key]) for path in data]
         diagnostics.update({key: np.mean(result)})
-
     return diagnostics
 
 
@@ -72,8 +95,9 @@ def training_evaluation(env, policy):
         policy (object): The current policy.
 
     Returns:
-        [type]: [description]
+        collections.OrderedDict: Dictionary with performance statistics.
     """
+
     # Retrieve action space bounds from env
     a_upperbound = env.action_space.high
     a_lowerbound = env.action_space.low
@@ -138,3 +162,37 @@ def mlp(sizes, activation, output_activation=nn.Identity):
         act = activation if j < len(sizes) - 2 else output_activation
         layers += [nn.Linear(sizes[j], sizes[j + 1]), act()]
     return nn.Sequential(*layers)
+
+
+def colorize(string, color, bold=False, highlight=False):
+    """Return string surrounded by appropriate terminal color codes to
+    print colorized text.
+
+    Args:
+        string (str): The string you want to print.
+
+        color (str): The color you want the string to have. Valid colors: gray, red,
+            green, yellow, blue, magenta, cyan, white, crimson.
+
+        bold (bool): Whether you want to use bold characters for the string.
+
+        highlight (bool): Whether you want to highlight the text.
+
+    Returns:
+        str: The colorized string.
+    """
+
+    # Import six here so that `utils` has no import-time dependencies.
+    # We want this since we use `utils` during our import-time sanity checks
+    # that verify that our dependencies (including six) are actually present.
+    import six
+
+    attr = []
+    num = color2num[color]
+    if highlight:
+        num += 10
+    attr.append(six.u(str(num)))
+    if bold:
+        attr.append(six.u("1"))
+    attrs = six.u(";").join(attr)
+    return six.u("\x1b[%sm%s\x1b[0m") % (attrs, string)
