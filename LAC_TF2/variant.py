@@ -2,7 +2,7 @@
 """
 
 import sys
-import os
+import os.path as osp
 import time
 
 # Script parameters
@@ -54,9 +54,9 @@ if REL_PATH:
         ["./log", ENV_NAME.lower(), alg_prefix + time.strftime("%Y%m%d_%H%M")]
     )
 else:
-    dirname = os.path.dirname(__file__)
-    LOG_PATH = os.path.abspath(
-        os.path.join(
+    dirname = osp.dirname(__file__)
+    LOG_PATH = osp.abspath(
+        osp.join(
             dirname,
             "./log/" + ENV_NAME.lower(),
             alg_prefix + time.strftime("%Y%m%d_%H%M"),

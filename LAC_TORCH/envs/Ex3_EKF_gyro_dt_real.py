@@ -7,6 +7,7 @@ Created on Thu Sep 10 21:09:14 2020
 
 
 import os
+import os.path as osp
 import csv
 
 import math
@@ -18,9 +19,9 @@ from scipy.stats import truncnorm
 import matplotlib.pyplot as plt
 
 # Get real data path
-DIRNAME = os.path.dirname(__file__)
-DATA_PATH = os.path.abspath(
-    os.path.join(DIRNAME, "../data/ex3_ekf_gyro_dt_real", "trainingData.csv")
+DIRNAME = osp.dirname(__file__)
+DATA_PATH = osp.abspath(
+    osp.join(DIRNAME, "../data/ex3_ekf_gyro_dt_real", "trainingData.csv")
 )
 # DATA_PATH = r'/Users/weipan/weipan/MLC/LAC_TF2_TORCH_REWRITE/LAC_TF115/trainingData.csv'
 

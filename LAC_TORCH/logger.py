@@ -14,7 +14,6 @@ import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 
-
 # Script parameters
 DEBUG = 10
 INFO = 20
@@ -471,7 +470,7 @@ def _demo():
     set_level(DEBUG)
     debug("should appear")
     dir = "/tmp/testlogging"
-    if os.path.exists(dir):
+    if osp.exists(dir):
         shutil.rmtree(dir)
     configure(dir=dir)
     logkv("a", 3)

@@ -19,6 +19,11 @@ class Pool(object):
 
         min_memory_size (np.float32): The minimum memory size before we start to sample
             from the memory buffer.
+
+        memory_pointer (): The number of experiences that are currently stored in the
+            replay buffer.
+
+        device (str): The device the sampled experiences are placed on (CPU or GPU).
     """
 
     def __init__(
@@ -30,7 +35,7 @@ class Pool(object):
         min_memory_size,
         device="cpu",
     ):
-        """Initialize memory buffer object.
+        """Initializes memory buffer object.
 
         Args:
             s_dim (int): The observation space dimension.
@@ -50,16 +55,16 @@ class Pool(object):
         self.memory_capacity = memory_capacity
         self.paths = deque(maxlen=store_last_n_paths)  # TODO: Why is this used?
         self.reset()
-        self._device = device
+        self.device = device
         self.memory = {
-            "s": torch.zeros([1, s_dim], dtype=torch.float32).to(self._device),
-            "a": torch.zeros([1, a_dim], dtype=torch.float32).to(self._device),
-            "r": torch.zeros([1, 1], dtype=torch.float32).to(self._device),
-            "terminal": torch.zeros([1, 1], dtype=torch.float32).to(self._device),
-            "s_": torch.zeros([1, s_dim], dtype=torch.float32).to(self._device),
+            "s": torch.zeros([1, s_dim], dtype=torch.float32).to(self.device),
+            "a": torch.zeros([1, a_dim], dtype=torch.float32).to(self.device),
+            "r": torch.zeros([1, 1], dtype=torch.float32).to(self.device),
+            "terminal": torch.zeros([1, 1], dtype=torch.float32).to(self.device),
+            "s_": torch.zeros([1, s_dim], dtype=torch.float32).to(self.device),
         }
-        self._memory_pointer = 0
         self.min_memory_size = min_memory_size
+        self.memory_pointer = 0
 
     def reset(self):
         """Reset memory buffer.
@@ -73,7 +78,7 @@ class Pool(object):
         }
 
     def store(self, s, a, r, terminal, s_):
-        """Store experience tuple.
+        """Stores experience tuple.
 
         Args:
             s (numpy.ndarray): State.
@@ -88,13 +93,13 @@ class Pool(object):
 
         # Store experience in memory buffer
         transition = {
-            "s": torch.as_tensor(s, dtype=torch.float32).to(self._device),
-            "a": torch.as_tensor(a, dtype=torch.float32).to(self._device),
-            "r": torch.as_tensor([r], dtype=torch.float32).to(self._device),
+            "s": torch.as_tensor(s, dtype=torch.float32).to(self.device),
+            "a": torch.as_tensor(a, dtype=torch.float32).to(self.device),
+            "r": torch.as_tensor([r], dtype=torch.float32).to(self.device),
             "terminal": torch.as_tensor([terminal], dtype=torch.float32).to(
-                self._device
+                self.device
             ),
-            "s_": torch.as_tensor(s_, dtype=torch.float32).to(self._device),
+            "s_": torch.as_tensor(s_, dtype=torch.float32).to(self.device),
         }
         if len(self.current_path["s"]) < 1:
             for key in transition.keys():
@@ -113,13 +118,13 @@ class Pool(object):
                 )
             self.paths.appendleft(self.current_path)
             self.reset()
-            self._memory_pointer = len(self.memory["s"])
+            self.memory_pointer = len(self.memory["s"])
 
         # Return current memory buffer size
-        return self._memory_pointer
+        return self.memory_pointer
 
     def sample(self, batch_size):
-        """Sample from memory buffer.
+        """Samples from memory buffer.
 
         Args:
             batch_size (int): The memory buffer sample size.
@@ -127,16 +132,16 @@ class Pool(object):
         Returns:
             numpy.ndarray: The batch of experiences.
         """
-        if self._memory_pointer < self.min_memory_size:
+        if self.memory_pointer < self.min_memory_size:
             return None
         else:
 
             # Sample a random batch of experiences
             indices = np.random.choice(
-                min(self._memory_pointer, self.memory_capacity) - 1,
+                min(self.memory_pointer, self.memory_capacity) - 1,
                 size=batch_size,
                 replace=False,
-            ) + max(1, 1 + self._memory_pointer - self.memory_capacity) * np.ones(
+            ) + max(1, 1 + self.memory_pointer - self.memory_capacity) * np.ones(
                 [batch_size], np.int
             )
             batch = {}
