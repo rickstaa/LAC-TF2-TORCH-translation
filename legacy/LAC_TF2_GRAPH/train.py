@@ -6,7 +6,12 @@ from variant import (
     LOG_PATH,
     TRAIN_PARAMS,
 )
-from lac import train
+
+# from lac import train
+
+from dlac import train
+
+# from lsac import train
 
 if __name__ == "__main__":
 
