@@ -2,6 +2,8 @@
 agent."""
 
 import os
+import os.path as osp
+
 import sys
 from itertools import cycle
 import math
@@ -16,6 +18,7 @@ from utils import get_env_from_name, colorize
 from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
 
 # IMPROVEMENT: Add render evaluation option -> inference_type=["render", "plot"]
+# TEST: New inference titles
 
 
 def validate_req_sio(req_sio, soi_mean_path, ref_mean_path):
@@ -158,8 +161,14 @@ if __name__ == "__main__":
     if EVAL_PARAMS["fig_file_type"] not in sup_file_types:
         file_Type = EVAL_PARAMS["fig_file_type"]
         print(
-            f"The requested figure save file type {file_Type} "
-            "is not supported file types are {sup_file_types}."
+            colorize(
+                (
+                    f"ERROR: The requested figure save file type {file_Type} "
+                    "is not supported file types are {sup_file_types}."
+                ),
+                "red",
+                bold=True,
+            )
         )
         sys.exit(0)
 
@@ -183,11 +192,11 @@ if __name__ == "__main__":
             LOG_PATH = "/".join([MODEL_PATH, "figure"])
             os.makedirs(LOG_PATH, exist_ok=True)
         else:
-            dirname = os.path.dirname(__file__)
-            MODEL_PATH = os.path.abspath(
-                os.path.join(dirname, "./log/" + args.env_name.lower() + "/" + name)
+            dirname = osp.dirname(__file__)
+            MODEL_PATH = osp.abspath(
+                osp.join(dirname, "./log/" + args.env_name.lower() + "/" + name)
             )
-            LOG_PATH = os.path.abspath(os.path.join(MODEL_PATH, "figure"))
+            LOG_PATH = osp.abspath(osp.join(MODEL_PATH, "figure"))
             os.makedirs(LOG_PATH, exist_ok=True)
         print("\n====Evaluation agent " + name + "====")
         print(f"Using model folder: {MODEL_PATH}")
@@ -197,7 +206,7 @@ if __name__ == "__main__":
         env = get_env_from_name(args.env_name, ENV_SEED)
 
         # Check if specified agent exists
-        if not os.path.exists(MODEL_PATH):
+        if not osp.exists(MODEL_PATH):
             warning_str = (
                 f"WARN: Inference could not be run for agent `{name}` as it was not "
                 f"found for the `{args.env_name}` environment."
@@ -212,7 +221,9 @@ if __name__ == "__main__":
         a_dim = env.action_space.shape[0]
 
         # Initiate the LAC policy
-        policy = LAC(a_dim, s_dim)
+        policy = LAC(
+            a_dim, s_dim, act_limits={"low": a_lowerbound, "high": a_upperbound}
+        )
 
         # Retrieve all trained policies (rollouts) for a given agent
         print("Looking for policies (rollouts)...")
@@ -220,8 +231,8 @@ if __name__ == "__main__":
         rollout_list = [
             rollout_name
             for rollout_name in rollout_list
-            if os.path.exists(
-                os.path.abspath(MODEL_PATH + "/" + rollout_name + "/policy/model.pth")
+            if osp.exists(
+                osp.abspath(MODEL_PATH + "/" + rollout_name + "/policy/model.pth")
             )
         ]
         rollout_list = [int(item) for item in rollout_list if item.isnumeric()]
@@ -249,9 +260,15 @@ if __name__ == "__main__":
         # right format.
         if any([not isinstance(x, (int, float)) for x in rollouts_input]):
             print(
-                "Please provide a valid list of rollouts in the "
-                "`which_policy_for_inference` variable of the variant file "
-                " (example: [1, 2, 3])."
+                colorize(
+                    (
+                        "ERROR: Please provide a valid list of rollouts in the "
+                        "`which_policy_for_inference` variable of the variant file "
+                        " (example: [1, 2, 3])."
+                    ),
+                    "red",
+                    bold=True,
+                )
             )
             sys.exit(0)
         rollouts_input = [int(item) for item in rollouts_input]
@@ -261,9 +278,15 @@ if __name__ == "__main__":
         if len(invalid_input_rollouts) != 0:
             rollout_str = "Rollout" if sum(invalid_input_rollouts) <= 1 else "Rollouts"
             print(
-                f"Please re-check the list you supplied in the "
-                "`which_policy_for_inference` variable of the variant file. "
-                f"{rollout_str} {invalid_input_rollouts} do not exist."
+                colorize(
+                    (
+                        f"ERROR: Please re-check the list you supplied in the "
+                        "`which_policy_for_inference` variable of the variant file. "
+                        f"{rollout_str} {invalid_input_rollouts} do not exist."
+                    ),
+                    "red",
+                    bold=True,
+                )
             )
             sys.exit(0)
         rollouts_input = [str(item) for item in rollouts_input]
@@ -289,9 +312,7 @@ if __name__ == "__main__":
             }
 
             # Load current rollout policy
-            retval = policy.restore(
-                os.path.abspath(MODEL_PATH + "/" + rollout + "/policy")
-            )
+            retval = policy.restore(osp.abspath(MODEL_PATH + "/" + rollout + "/policy"))
             if not retval:
                 print(
                     f"Policy {rollout} could not be loaded. Continuing to the next "
@@ -325,12 +346,13 @@ if __name__ == "__main__":
                 # Retrieve path
                 for j in range(ENVS_PARAMS[args.env_name]["max_ep_steps"]):
 
-                    # Perform action in the environment
+                    # Retrieve (scaled) action based on the current policy
+                    # NOTE (rickstaa): The scaling operation is already performed inside
+                    # the policy based on the `act_limits` you supplied.
                     a = policy.choose_action(s, True)
-                    action = (
-                        a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
-                    )
-                    s_, r, done, info = env.step(action)
+
+                    # Perform action in the environment
+                    s_, r, done, info = env.step(a)
 
                     # Store observations in path
                     episode_path["s"].append(s)
@@ -558,7 +580,12 @@ if __name__ == "__main__":
                                 label=f"state_of_interest_{i+1}_mean",
                             )
                             if not EVAL_PARAMS["sio_merged"]:
-                                ax.set_title(f"States of interest and reference {i+1}")
+                                ax_title = (
+                                    EVAL_PARAMS["soi_title"]
+                                    if isinstance(EVAL_PARAMS["soi_title"], str)
+                                    else "True and Estimated Quatonian"
+                                )
+                                ax.set_title(f"{ax_title} {i+1}")
                             ax.fill_between(
                                 t,
                                 soi_mean_path[i] - soi_std_path[i],
@@ -594,7 +621,12 @@ if __name__ == "__main__":
 
                     # Add figure legend and title (merged figure)
                     if EVAL_PARAMS["sio_merged"]:
-                        ax.set_title("True and Estimated Quatonian")
+                        ax_title = (
+                            EVAL_PARAMS["soi_title"]
+                            if isinstance(EVAL_PARAMS["soi_title"], str)
+                            else "True and Estimated Quatonian"
+                        )
+                        ax.set_title(f"{ax_title}")
                         handles, labels = ax.get_legend_handles_labels()
                         ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
             else:
@@ -674,7 +706,12 @@ if __name__ == "__main__":
                             label=(f"s_{i+1}"),
                         )
                         if not EVAL_PARAMS["obs_merged"]:
-                            ax2.set_title(f"Observation {i+1}")
+                            ax2_title = (
+                                EVAL_PARAMS["obs_title"]
+                                if isinstance(EVAL_PARAMS["obs_title"], str)
+                                else "Observation"
+                            )
+                            ax2.set_title(f"{ax2_title} {i+1}")
                         ax2.fill_between(
                             t,
                             obs_mean_path[i] - obs_std_path[i],
@@ -693,7 +730,12 @@ if __name__ == "__main__":
 
                     # Add figure legend and title (merged figure)
                     if EVAL_PARAMS["obs_merged"]:
-                        ax2.set_title("Observations")
+                        ax2_title = (
+                            EVAL_PARAMS["obs_title"]
+                            if isinstance(EVAL_PARAMS["obs_title"], str)
+                            else "Observations"
+                        )
+                        ax2.set_title(f"{ax2_title}")
                         handles2, labels2 = ax2.get_legend_handles_labels()
                         ax2.legend(
                             handles2, labels2, loc=2, fancybox=False, shadow=False
@@ -744,7 +786,12 @@ if __name__ == "__main__":
                 alpha=0.3,
                 label=("mean cost std"),
             )
-            ax3.set_title("Mean cost")
+            ax3_title = (
+                EVAL_PARAMS["cost_title"]
+                if isinstance(EVAL_PARAMS["cost_title"], str)
+                else "Mean cost"
+            )
+            ax3.set_title(f"{ax3_title}")
             handles3, labels3 = ax3.get_legend_handles_labels()
             ax3.legend(handles3, labels3, loc=2, fancybox=False, shadow=False)
 
@@ -757,7 +804,7 @@ if __name__ == "__main__":
         if args.save_figs:
             for index, fig in enumerate(figs["states_of_interest"]):
                 save_path = (
-                    os.path.join(
+                    osp.join(
                         LOG_PATH,
                         "Quatonian_"
                         + str(index + 1)
@@ -765,7 +812,7 @@ if __name__ == "__main__":
                         + EVAL_PARAMS["fig_file_type"],
                     )
                     if not EVAL_PARAMS["sio_merged"]
-                    else os.path.join(
+                    else osp.join(
                         LOG_PATH, "Quatonians" + "." + EVAL_PARAMS["fig_file_type"],
                     )
                 )
@@ -774,12 +821,12 @@ if __name__ == "__main__":
                 )
             for index, fig in enumerate(figs["states"]):
                 save_path = (
-                    os.path.join(
+                    osp.join(
                         LOG_PATH,
                         "State_" + str(index + 1) + "." + EVAL_PARAMS["fig_file_type"],
                     )
                     if not EVAL_PARAMS["obs_merged"]
-                    else os.path.join(
+                    else osp.join(
                         LOG_PATH, "States" + "." + EVAL_PARAMS["fig_file_type"],
                     )
                 )
@@ -788,8 +835,6 @@ if __name__ == "__main__":
                 )
             for index, fig in enumerate(figs["costs"]):
                 fig.savefig(
-                    os.path.join(
-                        LOG_PATH, "Cost" + "." + EVAL_PARAMS["fig_file_type"],
-                    ),
+                    osp.join(LOG_PATH, "Cost" + "." + EVAL_PARAMS["fig_file_type"],),
                     bbox_inches="tight",
                 )

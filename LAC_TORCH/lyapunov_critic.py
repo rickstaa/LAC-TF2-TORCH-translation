@@ -7,6 +7,7 @@ import torch.nn as nn
 from utils import mlp
 
 # FIXME: Check weight initialization based on main random seed
+# Create square Lyapunov activation function.
 
 
 class MLPLyapunovCritic(nn.Module):
@@ -16,7 +17,14 @@ class MLPLyapunovCritic(nn.Module):
         l (torch.nn.modules.container.Sequential): The layers of the network.
     """
 
-    def __init__(self, obs_dim, act_dim, hidden_sizes, activation=nn.ReLU):
+    def __init__(
+        self,
+        obs_dim,
+        act_dim,
+        hidden_sizes,
+        activation=nn.ReLU,
+        output_activation=torch.nn.Identity,
+    ):
         """Constructs all the necessary attributes for the Soft Q critic object.
 
         Args:
@@ -26,14 +34,19 @@ class MLPLyapunovCritic(nn.Module):
 
             hidden_sizes (list): Sizes of the hidden layers.
 
-            activation (torch.nn.modules.activation): The activation function.
+            activation (torch.nn.modules.activation): The hidden layer activation
+                function.
+
+            output_activation (torch.nn.modules.activation, optional): The activation
+                function used for the output layers. Defaults to torch.nn.Identity.
         """
-        # TODO: UPDATE DOCSTRING
         super().__init__()
-        self.l = mlp([obs_dim + act_dim] + list(hidden_sizes), activation, activation)
+        self.l = mlp(
+            [obs_dim + act_dim] + list(hidden_sizes), activation, output_activation
+        )
 
     def forward(self, obs, act):
-        """Perform forward pass through the network.
+        """Performs forward pass through the network.
 
         Args:
             obs (torch.Tensor): The tensor of observations.

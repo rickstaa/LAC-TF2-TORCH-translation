@@ -1,6 +1,7 @@
 """Simple script used to test the performance of a trained model."""
 
 import os
+import os.path as osp
 import sys
 from itertools import cycle
 import math
@@ -91,11 +92,11 @@ if __name__ == "__main__":
             LOG_PATH = "/".join([MODEL_PATH, "figure"])
             os.makedirs(LOG_PATH, exist_ok=True)
         else:
-            dirname = os.path.dirname(__file__)
-            MODEL_PATH = os.path.abspath(
-                os.path.join(dirname, "./log/" + args.env_name + "/" + name)
+            dirname = osp.dirname(__file__)
+            MODEL_PATH = osp.abspath(
+                osp.join(dirname, "./log/" + args.env_name + "/" + name)
             )  # TODO: Make log paths env name lowercase
-            LOG_PATH = os.path.abspath(os.path.join(MODEL_PATH, "figure"))
+            LOG_PATH = osp.abspath(osp.join(MODEL_PATH, "figure"))
             os.makedirs(LOG_PATH, exist_ok=True)
 
         print("evaluating " + name)
@@ -110,7 +111,7 @@ if __name__ == "__main__":
         env = get_env_from_name(args.env_name, ENV_SEED)
 
         # Check if model exists
-        if not os.path.exists(MODEL_PATH):
+        if not osp.exists(MODEL_PATH):
             print(
                 f"Shutting down robustness eval since model `{args.model_name}` was "
                 f"not found for the `{args.env_name}` environment."
@@ -132,8 +133,8 @@ if __name__ == "__main__":
         rollout_list = [
             rollout_name
             for rollout_name in rollout_list
-            if os.path.exists(
-                os.path.abspath(MODEL_PATH + "/" + rollout_name + "/policy/checkpoint")
+            if osp.exists(
+                osp.abspath(MODEL_PATH + "/" + rollout_name + "/policy/checkpoint")
             )
         ]
         rollout_list = [int(item) for item in rollout_list if item.isnumeric()]
@@ -202,7 +203,7 @@ if __name__ == "__main__":
 
             # Load current rollout agent
             LAC = policy.restore(
-                os.path.abspath(MODEL_PATH + "/" + rollout + "/policy")
+                osp.abspath(MODEL_PATH + "/" + rollout + "/policy")
             )
             if not LAC:
                 print(
@@ -559,14 +560,14 @@ if __name__ == "__main__":
         # Save figures to pdf if requested
         if args.save_figs:
             fig_1.savefig(
-                os.path.join(LOG_PATH, "Quatonian." + args.fig_file_type),
+                osp.join(LOG_PATH, "Quatonian." + args.fig_file_type),
                 bbox_inches="tight",
             )
             fig_2.savefig(
-                os.path.join(LOG_PATH, "State." + args.fig_file_type),
+                osp.join(LOG_PATH, "State." + args.fig_file_type),
                 bbox_inches="tight",
             )
             fig_3.savefig(
-                os.path.join(LOG_PATH, "Cost." + args.fig_file_type),
+                osp.join(LOG_PATH, "Cost." + args.fig_file_type),
                 bbox_inches="tight",
             )

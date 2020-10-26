@@ -21,8 +21,11 @@ class QCritic(nn.Module):
 
         Args:
             obs_dim (int): Dimension of the observation space.
+
             act_dim (int): Dimension of the action space.
+
             hidden_sizes (list): Sizes of the hidden layers.
+
             activation (torch.nn.modules.activation): The activation function.
         """
         # TODO: UPDATE DOCSTRING
@@ -30,7 +33,7 @@ class QCritic(nn.Module):
         self.q = mlp([obs_dim + act_dim] + list(hidden_sizes) + [1], activation)
 
     def forward(self, obs, act):
-        """Perform forward pass through the network.
+        """Performs forward pass through the network.
 
         Args:
             obs (torch.Tensor): The tensor of observations.

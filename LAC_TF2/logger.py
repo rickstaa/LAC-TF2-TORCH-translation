@@ -469,7 +469,7 @@ def _demo():
     set_level(DEBUG)
     debug("should appear")
     dir = "/tmp/testlogging"
-    if os.path.exists(dir):
+    if osp.exists(dir):
         shutil.rmtree(dir)
     configure(dir=dir)
     logkv("a", 3)

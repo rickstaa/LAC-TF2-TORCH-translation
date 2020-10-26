@@ -1,6 +1,5 @@
 """Contains the Gaussian actor class.
 """
-# IMPROVEMENT: Squash gaussian actor here
 
 import numpy as np
 import torch
@@ -9,9 +8,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions.normal import Normal
 
-from utils import mlp
+from utils import mlp, clamp
 
-# TODO: Add output activation function
 # FIXME: Check weight initialization
 
 # Script parameters
@@ -32,13 +30,19 @@ class SquashedGaussianMLPActor(nn.Module):
         log_sigma (torch.nn.modules.linear.Linear): The output layer which returns
             the log standard deviation of the actions.
 
-        act_limit (np.float32): Scaling factor used for the actions that come out of
-            the network.
+        act_limits (dict, optional): The "high" and "low" action bounds of the
+            environment. Used for rescaling the actions that comes out of network
+            from (-1, 1) to (low, high).
     """
 
-    # TODO: UPDATE DOCSTRING
     def __init__(
-        self, obs_dim, act_dim, hidden_sizes, activation=nn.ReLU,
+        self,
+        obs_dim,
+        act_dim,
+        hidden_sizes,
+        act_limits=None,
+        activation=nn.ReLU,
+        output_activation=torch.nn.Identity,
     ):
         """Constructs all the necessary attributes for the Squashed Gaussian Actor
         object.
@@ -50,19 +54,24 @@ class SquashedGaussianMLPActor(nn.Module):
 
             hidden_sizes (list): Sizes of the hidden layers.
 
-            activation (torch.nn.modules.activation): The activation function.
+            activation (torch.nn.modules.activation): The hidden layer activation
+                function.
 
-            act_limits (dict): The "high" and "low" action bounds of the environment.
-                Used for rescaling the actions that comes out of network from (-1, 1)
-                to (low, high).
+            output_activation (torch.nn.modules.activation, optional): The activation
+                function used for the output layers. Defaults to torch.nn.Identity.
+
+            act_limits (dict or , optional): The "high" and "low" action bounds of the
+                environment. Used for rescaling the actions that comes out of network
+                from (-1, 1) to (low, high). Defaults to (-1, 1).
         """
         super().__init__()
-        self.net = mlp([obs_dim] + list(hidden_sizes), activation, activation)
+        self.net = mlp([obs_dim] + list(hidden_sizes), activation, output_activation)
         self.mu = nn.Linear(hidden_sizes[-1], act_dim)
         self.log_sigma = nn.Linear(hidden_sizes[-1], act_dim)
+        self.act_limits = act_limits
 
     def forward(self, obs, deterministic=False, with_logprob=True):
-        """Perform forward pass through the network.
+        """Performs forward pass through the network.
 
         Args:
             obs (torch.Tensor): The tensor of observations.
@@ -117,6 +126,14 @@ class SquashedGaussianMLPActor(nn.Module):
 
         # Calculate scaled action and return the action and its log probability
         pi_action = torch.tanh(pi_action)  # Squash gaussian to be between -1 and 1
+
+        #  Clamp the actions such that they are in range of the environment
+        if self.act_limits:
+            pi_action = clamp(
+                pi_action,
+                min_bound=self.act_limits["low"],
+                max_bound=self.act_limits["high"],
+            )
 
         # Return action and log likelihood
         return pi_action, pi_action, logp_pi

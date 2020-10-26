@@ -1,8 +1,19 @@
-"""LAC algorithm class."""
+"""LAC algorithm class
+
+This module contains a Pytorch implementation of the Lyapunov Actor Critic (LAC)
+Reinforcement learning algorithm of
+[Han et al. 2019](https://arxiv.org/pdf/2004.14288.pdf).
+
+.. note::
+    Code Conventions:
+        In the code we use a `_` suffix to distinguish the target network from the main
+        network.
+"""
 
 import time
 from collections import deque
 import os
+import sys
 import random
 from copy import deepcopy
 import os.path as osp
@@ -10,13 +21,18 @@ import itertools
 
 import torch
 from torch.optim import Adam
-import torch.nn.functional as F
 import numpy as np
 
 from gaussian_actor import SquashedGaussianMLPActor
 from lyapunov_critic import MLPLyapunovCritic
 from q_critic import QCritic
-from utils import evaluate_training_rollouts, get_env_from_name, training_evaluation
+from utils import (
+    evaluate_training_rollouts,
+    get_env_from_name,
+    training_evaluation,
+    colorize,
+    save_config,
+)
 from pool import Pool
 import logger
 
@@ -49,51 +65,56 @@ if RANDOM_SEED is not None:
 # TODO: Check if adding variables as tensors speeds up computation
 # TODO: Put losses in their own function (See if possible)
 # TODO: Validate weight seeding.
+# TODO: Change pytorch env to lower
 
 
 class LAC(object):
     """The lyapunov actor critic.
 
     Attributes:
-        ga (torch.nn.modules.container.Sequential): The input/hidden layers of the
-            network.
+        ga (torch.nn.Module): The Squashed Gaussian Actor network.
 
-        ga_ (torch.nn.modules.linear.Linear): The output layer which returns the mean of
-            the actions.
+        ga_ (torch.nn.Module): The Squashed Gaussian Actor target network.
 
-        lc (torch.nn.modules.linear.Linear): The output layer which returns
-            the log standard deviation of the actions.
+        lc (torch.nn.Module): The Lyapunov Critic network.
 
-        lc_ (torch.nn.modules.linear.Linear): The output layer which returns
-            the log standard deviation of the actions.
+        lc_ (torch.nn.Module): The Lyapunov Critic target network.
 
-        q_1 (torch.nn.modules.linear.Linear): The output layer which returns
-            the log standard deviation of the actions.
+        q_1 (torch.nn.Module): The first Q-Critic network.
 
-        q_2 (torch.nn.modules.linear.Linear): The output layer which returns
-            the log standard deviation of the actions.
+        q_2 (torch.nn.Module): The second Q-Critic network.
 
-        q_2_ (torch.nn.modules.linear.Linear): The output layer which returns
-            the log standard deviation of the actions.
+        q_2_ (torch.nn.Module): The first Q-Critic target network.
 
-        q_2_ (torch.nn.modules.linear.Linear): The output layer which returns
-            the log standard deviation of the actions.
-    """  # TODO: Update docstring
+        q_2_ (torch.nn.Module): The second Q-Crictic target network.
 
-    # TODO: Create warning when someby tries to acces a network that does not exist
+        log_alpha (torch.Tensor): The temperature lagrance multiplier.
 
-    # TODO: Add properties
+        log_labda (torch.Tensor): The lyapunov lagrance multiplier.
 
-    def __init__(self, a_dim, s_dim):
-        """Initiate object state.
+        target_entropy (int): The target entropy.
+
+        device (str): The device the networks are placed on (CPU or GPU).
+
+        use_lyapunov (bool): Whether the Lyapunov Critic is used (use_lyapunov=True) or
+            the regular Q-critic (use_lyapunov=false).
+    """
+
+    def __init__(self, a_dim, s_dim, act_limits=None):
+        """Initiates object state.
 
         Args:
             a_dim (int): Action space dimension.
+
             s_dim (int): Observation space dimension.
+
+            act_limits (dict, optional): The "high" and "low" action bounds of the
+                environment. Used for rescaling the actions that comes out of network
+                from (-1, 1) to (low, high). Defaults to (-1, 1).
         """
 
         # Check if GPU is requested and available and set the device
-        self._device = (
+        self.device = (
             torch.device("cuda")
             if (torch.cuda.is_available() and USE_GPU)
             else torch.device("cpu")
@@ -103,46 +124,54 @@ class LAC(object):
                 "GPU computing was enabled but the GPU can not be reached. "
                 "Reverting back to using CPU."
             )
-        device_str = "GPU" if str(self._device) == "cuda" else str(self._device)
-        print(f"INFO: Torch is using the {device_str}")
+        device_str = "GPU" if str(self.device) == "cuda" else str(self.device)
+        print(colorize(f"INFO: Torch is using the {device_str}.", "cyan", bold=True))
 
-        # Print LAC/SAC message
+        # Display information about the algorithm being used (LAC or SAC)
         if ALG_PARAMS["use_lyapunov"]:
-            print("You are training the LAC algorithm.")
+            print(
+                colorize(
+                    ":INFO: You are training the LAC algorithm.", "cyan", bold=True
+                )
+            )
         else:
-            print("You are training the SAC algorithm.")
+            print(
+                colorize(
+                    "WARN: You are training the SAC algorithm.", "yellow", bold=True
+                )
+            )
 
         # Save action and observation space as members
         self._a_dim = a_dim
         self._s_dim = s_dim
+        self._act_limits = act_limits
 
         # Save algorithm parameters as class objects
+        self.use_lyapunov = ALG_PARAMS["use_lyapunov"]
         self._network_structure = ALG_PARAMS["network_structure"]
-        self._use_lyapunov = ALG_PARAMS["use_lyapunov"]
         self._polyak = 1 - ALG_PARAMS["tau"]
+        self._gamma = ALG_PARAMS["gamma"]
+        self._alpha_3 = ALG_PARAMS["alpha3"]
 
         # Determine target entropy
         # NOTE (rickstaa): If not defined we use the Lower bound of the policy entropy
         if ALG_PARAMS["target_entropy"] is None:
-            self._target_entropy = -self._a_dim
+            self.target_entropy = -self._a_dim
         else:
-            self._target_entropy = ALG_PARAMS["target_entropy"]
+            self.target_entropy = ALG_PARAMS["target_entropy"]
 
         # Create Learning rate placeholders
-        # TODO: Check if we want this to be public
-        # TODO: Why needed?
-        self.LR_A = torch.tensor(ALG_PARAMS["lr_a"], dtype=torch.float32)
-        if self._use_lyapunov:
-            self.LR_lag = torch.tensor(ALG_PARAMS["lr_a"], dtype=torch.float32)
-            self.LR_L = torch.tensor(ALG_PARAMS["lr_l"], dtype=torch.float32)
+        self._lr_a = ALG_PARAMS["lr_a"]
+        if self.use_lyapunov:
+            self._lr_lag = ALG_PARAMS["lr_a"]
+            self._lr_l = ALG_PARAMS["lr_l"]
         else:
-            self.LR_C = torch.tensor(ALG_PARAMS["lr_c"], dtype=torch.float32)
+            self._lr_c = ALG_PARAMS["lr_c"]
 
         # Create variables for the Lagrance multipliers
-        # TODO: Make private!
         self.log_alpha = torch.tensor(ALG_PARAMS["alpha"], dtype=torch.float32).log()
         self.log_alpha.requires_grad = True
-        if self._use_lyapunov:
+        if self.use_lyapunov:
             self.log_labda = torch.tensor(
                 ALG_PARAMS["labda"], dtype=torch.float32
             ).log()
@@ -153,13 +182,14 @@ class LAC(object):
             obs_dim=self._s_dim,
             act_dim=self._a_dim,
             hidden_sizes=self._network_structure["actor"],
-        ).to(self._device)
-        if self._use_lyapunov:
+            act_limits=self.act_limits,
+        ).to(self.device)
+        if self.use_lyapunov:
             self.lc = MLPLyapunovCritic(
                 obs_dim=self._s_dim,
                 act_dim=self._a_dim,
                 hidden_sizes=self._network_structure["critic"],
-            ).to(self._device)
+            ).to(self.device)
         else:
             # NOTE (rickstaa): We create two Q-critics so we can use the Clipped
             # double-Q trick.
@@ -167,27 +197,27 @@ class LAC(object):
                 obs_dim=self._s_dim,
                 act_dim=self._a_dim,
                 hidden_sizes=self._network_structure["q_critic"],
-            ).to(self._device)
+            ).to(self.device)
             self.q_2 = QCritic(
                 obs_dim=self._s_dim,
                 act_dim=self._a_dim,
                 hidden_sizes=self._network_structure["q_critic"],
-            ).to(self._device)
+            ).to(self.device)
 
         # Create GA, LC and QC target networks
         # Don't get optimized but get updated according to the EMA of the main
         # networks
-        self.ga_ = deepcopy(self.ga).to(self._device)
-        if self._use_lyapunov:
-            self.lc_ = deepcopy(self.lc).to(self._device)
+        self.ga_ = deepcopy(self.ga).to(self.device)
+        if self.use_lyapunov:
+            self.lc_ = deepcopy(self.lc).to(self.device)
         else:
-            self.q_1_ = deepcopy(self.q_1).to(self._device)
-            self.q_2_ = deepcopy(self.q_2).to(self._device)
+            self.q_1_ = deepcopy(self.q_1).to(self.device)
+            self.q_2_ = deepcopy(self.q_2).to(self.device)
 
         # Freeze target networks
         for p in self.ga_.parameters():
             p.requires_grad = False
-        if self._use_lyapunov:
+        if self.use_lyapunov:
             for p in self.lc_.parameters():
                 p.requires_grad = False
         else:
@@ -200,16 +230,16 @@ class LAC(object):
         # NOTE (rickstaa): We here optimize for log_alpha and log_labda instead of
         # alpha and labda because it is more numerically stable (see:
         # https://github.com/rail-berkeley/softlearning/issues/136)
-        self._alpha_train = Adam([self.log_alpha], lr=self.LR_A)
-        self._a_train = Adam(self.ga.parameters(), lr=self.LR_A)
-        if self._use_lyapunov:
-            self._lambda_train = Adam([self.log_labda], lr=self.LR_lag)
-            self._l_train = Adam(self.lc.parameters(), lr=self.LR_L)
+        self._alpha_train = Adam([self.log_alpha], lr=self._lr_a)
+        self._a_train = Adam(self.ga.parameters(), lr=self._lr_a)
+        if self.use_lyapunov:
+            self._lambda_train = Adam([self.log_labda], lr=self._lr_lag)
+            self._l_train = Adam(self.lc.parameters(), lr=self._lr_l)
         else:
             q_params = itertools.chain(
                 self.q_1.parameters(), self.q_2.parameters()
             )  # Chain parameters of the two Q-critics
-            self._q_train = Adam(q_params, lr=self.LR_C)
+            self._q_train = Adam(q_params, lr=self._lr_c)
 
     def choose_action(self, s, evaluation=False):
         """Returns the current action of the policy.
@@ -222,10 +252,9 @@ class LAC(object):
         Returns:
             np.numpy: The current action.
         """
-        # TODO: Check return types
 
         # Convert s to tensor if not yet the case
-        s = torch.as_tensor(s, dtype=torch.float32).to(self._device)
+        s = torch.as_tensor(s, dtype=torch.float32).to(self.device)
 
         # Get current best action
         if evaluation is True:
@@ -244,80 +273,77 @@ class LAC(object):
                     a[0].cpu().numpy()
                 )  # IMPROVE: Check if this is the fastest method
 
-    def learn(self, LR_A, LR_L, LR_C, LR_lag, batch):
+    def learn(self, lr_a, lr_l, lr_c, lr_lag, batch):
         """Runs the SGD to update all the optimize parameters.
 
         Args:
-            LR_A (float): Current actor learning rate.
-            LR_L (float): Lyapunov critic learning rate.
-            LR_lag (float): Lyapunov constraint langrance multiplier learning rate.
+            lr_a (float): Current actor learning rate.
+
+            lr_l (float): Lyapunov critic learning rate.
+
+            lr_c (float): Q-Critic learning rate.
+
+            lr_lag (float): Lyapunov constraint langrance multiplier learning rate.
+
             batch (numpy.ndarray): The batch of experiences.
 
         Returns:
-            [type]: [description]
+            tuple: Tuple with some diagnostics about the training.
         """
 
         # Adjust optimizer learning rates (decay)
-        for param_group in self._a_train.param_groups:
-            param_group["lr"] = LR_A
-        for param_group in self._alpha_train.param_groups:
-            param_group["lr"] = LR_A
-        if self._use_lyapunov:
-            for param_group in self._l_train.param_groups:
-                param_group["lr"] = LR_L
-            for param_group in self._lambda_train.param_groups:
-                param_group["lr"] = LR_lag
-        else:
-            for param_group in self._q_train.param_groups:
-                param_group["lr"] = LR_C
+        self._set_learning_rates(
+            lr_a=lr_a, lr_alpha=lr_a, lr_l=lr_l, lr_labda=lr_lag, lr_c=lr_c
+        )
 
-        # Retrieve state, action and reward from the batch
-        bs = batch["s"]  # state
-        ba = batch["a"]  # action
-        br = batch["r"]  # reward
-        bterminal = batch["terminal"]
-        bs_ = batch["s_"]  # next state
+        # Unpack states from the replay buffer batch
+        b_s, b_a, b_r, b_terminal, b_s_ = (
+            batch["s"],  # State
+            batch["a"],  # Action
+            batch["r"],  # Reward
+            batch["terminal"],  # Done
+            batch["s_"],  # Next state
+        )
 
         # Calculate variables from which we do not require the gradients
         with torch.no_grad():
-            if self._use_lyapunov:
-                a_, _, _ = self.ga_(bs_)
-                l_ = self.lc_(bs_, a_)
-                l_target = br + ALG_PARAMS["gamma"] * (1 - bterminal) * l_.detach()
+            if self.use_lyapunov:
+                a_, _, _ = self.ga_(b_s_)
+                l_ = self.lc_(b_s_, a_)
+                l_target = b_r + self._gamma * (1 - b_terminal) * l_.detach()
             else:
                 # Target actions come from *current* policy
-                a2, _, logp_a2 = self.ga(bs_)
+                a2, _, logp_a2 = self.ga(b_s_)
 
                 # Target Q-values
-                q1_pi_targ = self.q_1_(bs_, a2)
-                q2_pi_targ = self.q_2_(bs_, a2)
+                q1_pi_targ = self.q_1_(b_s_, a2)
+                q2_pi_targ = self.q_2_(b_s_, a2)
                 q_pi_targ = torch.max(
                     q1_pi_targ,
-                    q2_pi_targ,  # TEST: Test if max is now workign add argument to switch?
-                )  # Use min clipping to prevent overestimation bias (Replaced V by E(Q-H))
-                # TODO: Replace log_alpha.exp() with alpha --> Make alpha property
-                backup = br + ALG_PARAMS["gamma"] * (1 - bterminal) * (
-                    q_pi_targ - self.log_alpha.exp() * logp_a2
+                    q2_pi_targ,  # IMPROVE: Test if max is now workign add argument to switch?
+                )  # Use min clipping to prevent overestimation bias
+                backup = b_r + self._gamma * (1 - b_terminal) * (
+                    q_pi_targ - self.alpha * logp_a2
                 )
 
         # Calculate current lyapunov Q values
-        if self._use_lyapunov:
-            l = self.lc(bs, ba)
+        if self.use_lyapunov:
+            l = self.lc(b_s, b_a)
 
             # Calculate current value and target lyapunov multiplier value
-            lya_a_, _, _ = self.ga(bs_)
-            lya_l_ = self.lc(bs_, lya_a_)
+            lya_a_, _, _ = self.ga(b_s_)
+            lya_l_ = self.lc(b_s_, lya_a_)
         else:
             # Retrieve the Q values from the two networks
-            q1 = self.q_1(bs, ba)
-            q2 = self.q_2(bs, ba)
+            q1 = self.q_1(b_s, b_a)
+            q2 = self.q_2(b_s, b_a)
 
         # Calculate log probability of a_input based on current policy
-        pi, _, log_pis = self.ga(bs)
+        pi, _, log_pis = self.ga(b_s)
 
         # Calculate Lyapunov constraint function
-        if self._use_lyapunov:
-            self.l_delta = torch.mean(lya_l_ - l.detach() + ALG_PARAMS["alpha3"] * br)
+        if self.use_lyapunov:
+            self.l_delta = torch.mean(lya_l_ - l.detach() + self._alpha_3 * b_r)
 
             # Zero gradients on labda
             self._lambda_train.zero_grad()
@@ -332,15 +358,15 @@ class LAC(object):
         else:
 
             # Retrieve the current Q values for the action given by the current policy
-            q1_pi = self.q_1(bs, pi)
-            q2_pi = self.q_2(bs, pi)
+            q1_pi = self.q_1(b_s, pi)
+            q2_pi = self.q_2(b_s, pi)
             q_pi = torch.max(q1_pi, q2_pi)  # Add change parameter
 
         # Zero gradients on alpha
         self._alpha_train.zero_grad()
 
         # Calculate alpha loss
-        alpha_loss = -torch.mean(self.alpha * log_pis.detach() + self._target_entropy)
+        alpha_loss = -torch.mean(self.alpha * log_pis.detach() + self.target_entropy)
 
         # Apply gradients
         alpha_loss.backward()
@@ -350,9 +376,9 @@ class LAC(object):
         self._a_train.zero_grad()
 
         # Calculate actor loss
-        if self._use_lyapunov:
-            a_loss = self.labda.detach() * self.l_delta + self.alpha.detach() * torch.mean(
-                log_pis
+        if self.use_lyapunov:
+            a_loss = (self.labda.detach() * self.l_delta) + (
+                self.alpha.detach() * torch.mean(log_pis)
             )
         else:
             a_loss = (self.alpha * log_pis - q_pi).mean()
@@ -362,12 +388,14 @@ class LAC(object):
         self._a_train.step()
 
         # Optimize critic
-        if self._use_lyapunov:
+        if self.use_lyapunov:
             # Zero gradients on the critic
             self._l_train.zero_grad()
 
             # Calculate L_backup
-            l_error = F.mse_loss(l_target, l)
+            # NOTE (rickstaa): I used manual implementation as it is 2 times than F.MSE
+            # Change to F.mse_loss when TorchScript is used.
+            l_error = ((l_target - l) ** 2).mean()
 
             # Apply gradients
             l_error.backward()
@@ -378,10 +406,11 @@ class LAC(object):
             self._q_train.zero_grad()
 
             # MSE loss against Bellman backup
-            # TODO: REplace with loss squared error.
             # NOTE (rickstaa): The 0.5 multiplication factor was added to make the
             # derivation cleaner and can be safely removed without influencing the
             # minimization. We kept it here for consistency.
+            # NOTE (rickstaa): I used manual implementation as it is 2 times than F.MSE
+            # Change to F.mse_loss when TorchScript is used.
             loss_q1 = 0.5 * ((q1 - backup) ** 2).mean()
             loss_q2 = 0.5 * ((q2 - backup) ** 2).mean()
             loss_q = loss_q1 + loss_q2
@@ -391,13 +420,13 @@ class LAC(object):
             self._q_train.step()
 
         # Update target networks
-        self.update_target()
+        self._update_targets()
 
         # Return results
         # IMPROVE: Check if this it the right location to do this
         # NOTE (rickstaa): Not needed when porting to machine learning control as the
         # analysis is alreadyu GPU compatible
-        if self._use_lyapunov:
+        if self.use_lyapunov:
             return (
                 # self.labda.detach(),
                 # self.alpha.detach(),
@@ -424,27 +453,34 @@ class LAC(object):
             )
 
     def save_result(self, path):
-        """Save current policy.
+        """Saves current policy.
 
         Args:
             path (str): The path where you want to save the policy.
         """
 
         # Save all models/tensors in the _save_dict
-        save_path = os.path.abspath(path + "/policy/model.pth")
+        save_path = osp.abspath(path + "/policy/model.pth")
 
         # Create folder if not exist
-        if osp.exists(os.path.dirname(save_path)):
+        if osp.exists(osp.dirname(save_path)):
             print(
-                "Warning: Log dir %s already exists! Storing info there anyway."
-                % os.path.dirname(save_path)
+                colorize(
+                    (
+                        "WARN: Log dir %s already exists! Storing info there anyway."
+                        % osp.dirname(save_path)
+                    ),
+                    "red",
+                    bold=True,
+                )
             )
         else:
-            os.makedirs(os.path.dirname(save_path))
+            os.makedirs(osp.dirname(save_path))
 
-        # Create models state dict and save
-        if self._use_lyapunov:
+        # Create models state dictionary
+        if self.use_lyapunov:
             models_state_save_dict = {
+                "use_lyapunov": self.use_lyapunov,
                 "ga_state_dict": self.ga.state_dict(),
                 "lc_state_dict": self.lc.state_dict(),
                 "ga_targ_state_dict": self.ga_.state_dict(),
@@ -454,6 +490,7 @@ class LAC(object):
             }
         else:
             models_state_save_dict = {
+                "use_lyapunov": self.use_lyapunov,
                 "ga_state_dict": self.ga.state_dict(),
                 "ga_targ_state_dict": self.ga_.state_dict(),
                 "q1_state_dict": self.q_1.state_dict(),
@@ -462,22 +499,26 @@ class LAC(object):
                 "q2_targ_state_dict": self.q_2_.state_dict(),
                 "log_alpha": self.log_alpha,
             }
-        torch.save(models_state_save_dict, save_path)
-        print("Save to path: ", save_path)
 
-    def restore(self, path):
-        # TODO: ADD object which remembers if LAC or SAC was trained!
-        """Restore policy.
+        # Save model state dictionary
+        torch.save(models_state_save_dict, save_path)
+        print(colorize(f"INFO: Save to path: {save_path}", "cyan", bold=True))
+
+    def restore(self, path, restore_lagrance_multipliers=True):
+        """Restores policy.
 
         Args:
             path (str): The path where you want to save the policy.
+
+            restore_lagrance_multipliers (bool, optional): Whether you want to restore
+                the lagrance multipliers.
 
         Returns:
             bool: Boolean specifying whether the policy was loaded successfully.
         """
 
         # Create load path
-        load_path = os.path.abspath(path + "/model.pth")
+        load_path = osp.abspath(path + "/model.pth")
 
         # Load the model state
         try:
@@ -487,44 +528,39 @@ class LAC(object):
             return success_load
 
         # Restore network parameters
-        # Question: Do I restore everything correctly?-
-        if self._use_lyapunov:  # TODO: RePLACE byu object
+        if models_state_dict["use_lyapunov"]:
+            self.use_lyapunov = models_state_dict["use_lyapunov"]
             self.ga.load_state_dict(models_state_dict["ga_state_dict"])
             self.lc.load_state_dict(models_state_dict["lc_state_dict"])
             self.ga_.load_state_dict(models_state_dict["ga_targ_state_dict"])
             self.lc_.load_state_dict(models_state_dict["lc_targ_state_dict"])
-            self.log_alpha = models_state_dict["log_alpha"]
-            self.log_labda = models_state_dict["log_labda"]
+            if restore_lagrance_multipliers:
+                self.log_alpha = models_state_dict["log_alpha"]
+                self.log_labda = models_state_dict["log_labda"]
         else:
+            self.use_lyapunov = models_state_dict["use_lyapunov"]
             self.ga.load_state_dict(models_state_dict["ga_state_dict"])
             self.ga_.load_state_dict(models_state_dict["ga_targ_state_dict"])
             self.q_1.load_state_dict(models_state_dict["q1_state_dict"])
             self.q_2.load_state_dict(models_state_dict["q2_state_dict"])
             self.q_1_.load_state_dict(models_state_dict["q1_targ_state_dict"])
             self.q_2_.load_state_dict(models_state_dict["q2_targ_state_dict"])
-            self.log_alpha = models_state_dict["log_alpha"]
+            if restore_lagrance_multipliers:
+                self.log_alpha = models_state_dict["log_alpha"]
 
         # Return result
         success_load = True
         return success_load
 
-    @property
-    def alpha(self):
-        return self.log_alpha.exp()
-
-    @property
-    def labda(self):
-        return torch.clamp(self.log_labda.exp(), *SCALE_lambda_MIN_MAX)
-
-    def update_target(self):
+    def _update_targets(self):
+        """Updates the target networks based on a Exponential moving average.
+        """
         # Polyak averaging for target variables
-        # TODO: Change name
-        # TODO: CHECK IF NEEDED ON THE GPU?
         with torch.no_grad():
             for pi_main, pi_targ in zip(self.ga.parameters(), self.ga_.parameters()):
                 pi_targ.data.mul_(self._polyak)
                 pi_targ.data.add_((1 - self._polyak) * pi_main.data)
-            if self._use_lyapunov:
+            if self.use_lyapunov:
                 for pi_main, pi_targ in zip(
                     self.lc.parameters(), self.lc_.parameters()
                 ):
@@ -542,17 +578,101 @@ class LAC(object):
                     pi_targ.data.mul_(self._polyak)
                     pi_targ.data.add_((1 - self._polyak) * pi_main.data)
 
+    def _set_learning_rates(
+        self, lr_a=None, lr_alpha=None, lr_l=None, lr_labda=None, lr_c=None
+    ):
+        """Adjusts the learning rates of the optimizers.
+
+        Args:
+            lr_a (float, optional): The learning rate of the actor optimizer. Defaults
+                to None.
+
+            lr_alpha (float, optional): The learning rate of the temperature optimizer.
+                Defaults to None.
+
+            lr_l (float, optional): The learning rate of the Lyapunov critic. Defaults
+                to None.
+
+            lr_labda (float, optional): The learning rate of the Lyapunov Lagrance
+                multiplier optimizer. Defaults to None.
+
+            lr_c (float, optional): The learning rate of the Q-Critic optimizer.
+                Defaults to None.
+        """
+        if lr_a:
+            for param_group in self._a_train.param_groups:
+                param_group["lr"] = lr_a
+        if lr_alpha:
+            for param_group in self._alpha_train.param_groups:
+                param_group["lr"] = lr_alpha
+        if self.use_lyapunov:
+            if lr_l:
+                for param_group in self._l_train.param_groups:
+                    param_group["lr"] = lr_l
+                for param_group in self._lambda_train.param_groups:
+                    param_group["lr"] = lr_labda
+        else:
+            if lr_c:
+                for param_group in self._q_train.param_groups:
+                    param_group["lr"] = lr_c
+
+    @property
+    def alpha(self):
+        return self.log_alpha.exp()
+
+    @property
+    def labda(self):
+        return torch.clamp(self.log_labda.exp(), *SCALE_lambda_MIN_MAX)
+
+    @property
+    def act_limits(self):
+        return self._act_limits
+
+    @act_limits.setter
+    def act_limits(self, act_limits):
+        """Sets the action limits that are used for scaling the actions that are
+        returned from the gaussian policy.
+        """
+
+        # Validate input
+        missing_keys = [key for key in ["low", "high"] if key not in act_limits.keys()]
+        if missing_keys:
+            warn_string = "WARN: act_limits could not be set as {} not found.".format(
+                f"keys {missing_keys} were"
+                if len(missing_keys) > 1
+                else f"key {missing_keys} was"
+            )
+            print(colorize(warn_string, "yellow"))
+        invalid_length = [
+            key for key, val in act_limits.items() if len(val) != self._a_dim
+        ]
+        if invalid_length:
+            warn_string = (
+                f"WARN: act_limits could not be set as the length of {invalid_length} "
+                + "{}".format("were" if len(invalid_length) > 1 else "was")
+                + f" unequal to the dimension of the action space (dim={self._a_dim})."
+            )
+            print(colorize(warn_string, "yellow"))
+
+        # Set action limits
+        self._act_limits = {"low": act_limits["low"], "high": act_limits["high"]}
+        self.ga.act_limits = self._act_limits
+
 
 def train(log_dir):
-    """Performs the agent traning.
+    """Performs the agent training.
 
     Args:
         log_dir (str): The directory in which the final model (policy) and the
-        log data is saved.
+            log data is saved.
     """
 
-    # Create environment
-    print(f"Your training in the {ENV_NAME} environment.\n")
+    # Create train and test environments
+    print(
+        colorize(
+            f"INFO: You are training in the {ENV_NAME} environment.", "cyan", bold=True,
+        )
+    )
     env = get_env_from_name(ENV_NAME, ENV_SEED)
     test_env = get_env_from_name(ENV_NAME, ENV_SEED)
 
@@ -572,57 +692,66 @@ def train(log_dir):
     a_upperbound = env.action_space.high
     a_lowerbound = env.action_space.low
 
-    # Create the Lyapunov Actor Critic agent
-    policy = LAC(a_dim, s_dim)
+    # Create the Agent
+    policy = LAC(a_dim, s_dim, act_limits={"low": a_lowerbound, "high": a_upperbound})
 
-    # TODO: Fix retrining
-    # # Load model if retraining is selected
-    # if TRAIN_PARAMS["continue_training"]:
+    # Load model if retraining is selected
+    if TRAIN_PARAMS["continue_training"]:
 
-    #     # Create retrain path
-    #     retrain_model_folder = TRAIN_PARAMS["continue_model_folder"]
-    #     retrain_model_path = os.path.abspath(
-    #         os.path.join(log_dir, "../../" + TRAIN_PARAMS["continue_model_folder"])
-    #     )
+        # Create retrain model path
+        retrain_model_folder = TRAIN_PARAMS["continue_model_folder"]
+        retrain_model_path = osp.abspath(
+            osp.join(log_dir, "../../" + TRAIN_PARAMS["continue_model_folder"])
+        )
 
-    #     # Check if retrain model exists if not throw error
-    #     if not os.path.exists(retrain_model_path):
-    #         print(
-    #             "Shutting down training since the model you specified in the "
-    #             f"`continue_model_folder` `{retrain_model_folder}` "
-    #             f"argument was not found for the `{ENV_NAME}` environment."
-    #         )
-    #         sys.exit(0)
+        # Check if retrain model exists if not throw error
+        if not osp.exists(retrain_model_path):
+            print(
+                colorize(
+                    (
+                        "ERROR: Shutting down training since the model you specified "
+                        f"in the `continue_model_folder` `{retrain_model_folder}` "
+                        f"argument was not found for the `{ENV_NAME}` environment."
+                    ),
+                    "red",
+                    bold=True,
+                )
+            )
+            sys.exit(0)
 
-    #     # Load retrain model
-    #     print(f"Restoring model `{retrain_model_path}`")
-    #     result = policy.restore(os.path.abspath(retrain_model_path + "/policy"))
-    #     if not result:
-    #         print(
-    #             "Shuting down training as something went wrong while loading "
-    #             f"model `{retrain_model_folder}`."
-    #         )
-    #         sys.exit(0)
+        # Load old model
+        print(
+            colorize(
+                f"INFO: Restoring model `{retrain_model_path}`.", "cyan", bold=True
+            )
+        )
+        result = policy.restore(
+            osp.abspath(retrain_model_path + "/policy"),
+            restore_lagrance_multipliers=(not ALG_PARAMS["reset_lagrance_multipliers"]),
+        )
+        if not result:
+            print(
+                colorize(
+                    "ERROR: Shuting down training as something went wrong while "
+                    "loading "
+                    f"model `{retrain_model_folder}`.",
+                    "red",
+                    bold=True,
+                )
+            )
+            sys.exit(0)
 
-    #     # Create new storage folder
-    #     log_dir_split = log_dir.split("/")
-    #     log_dir_split[-2] = (
-    #         "_".join(TRAIN_PARAMS["continue_model_folder"].split("/"))
-    #         + "_finetune"
-    #         # + "_retrained_"
-    #         # + log_dir_split[-2]
-    #     )
-    #     log_dir = "/".join(log_dir_split)
+        # Create new storage folder
+        log_dir_split = log_dir.split("/")
+        log_dir_split[-2] = (
+            "_".join(TRAIN_PARAMS["continue_model_folder"].split("/")) + "_finetune"
+        )
+        log_dir = "/".join(log_dir_split)
+    else:
+        print(colorize(f"INFO: Train new model `{log_dir}`", "cyan", bold=True))
 
-    #     # Reset lagrance multipliers if requested
-    #     if ALG_PARAMS["reset_lagrance_multipliers"]:
-    #         policy.sess.run(policy.log_alpha.assign(tf.math.log(ALG_PARAMS["alpha"])))
-    #         policy.sess.run(policy.log_labda.assign(tf.math.log(ALG_PARAMS["labda"])))
-    # else:
-    #     print(f"Train new model `{log_dir}`")
-
-    # Print logging folder
-    print(f"Logging results to `{log_dir}`.")
+    # Print logging folder path
+    print(colorize(f"INFO: Logging results to `{log_dir}`.", "cyan", bold=True))
 
     # Create replay memory buffer
     pool = Pool(
@@ -634,20 +763,26 @@ def train(log_dir):
         device=policy.device,
     )
 
-    # Training setting
-    t1 = time.time()
-    global_step = 0
-    last_training_paths = deque(maxlen=TRAIN_PARAMS["num_of_training_paths"])
-    training_started = False
-
-    # Setup logger and log hyperparameters
+    # Setup logger and store/log hyperparameters
     logger.configure(dir=log_dir, format_strs=["csv"])
     logger.logkv("tau", ALG_PARAMS["tau"])
     logger.logkv("alpha3", ALG_PARAMS["alpha3"])
     logger.logkv("batch_size", ALG_PARAMS["batch_size"])
     logger.logkv("target_entropy", policy.target_entropy)
+    save_config(locals(), log_dir)
 
-    # Training loop
+    ####################################################
+    # Training loop ####################################
+    ####################################################
+
+    # Setup training loop parameters
+    t1 = time.time()
+    global_step = 0
+    last_training_paths = deque(maxlen=TRAIN_PARAMS["num_of_training_paths"])
+    training_started = False
+
+    # Train the agent in the environment until max_episodes has been reached
+    print(colorize("INFO: Training...\n", "cyan", bold=True))
     for i in range(ENV_PARAMS["max_episodes"]):
 
         # Create variable to store information about the current path
@@ -691,8 +826,8 @@ def train(log_dir):
                 ):
 
                     # Create intermediate result checkpoint folder
-                    checkpoint_save_path = os.path.abspath(
-                        os.path.join(log_dir, "checkpoints", "step_" + str(j))
+                    checkpoint_save_path = osp.abspath(
+                        osp.join(log_dir, "checkpoints", "step_" + str(j))
                     )
                     os.makedirs(checkpoint_save_path, exist_ok=True)
 
@@ -703,11 +838,11 @@ def train(log_dir):
             if global_step > ENV_PARAMS["max_global_steps"]:
 
                 # Print step count, save model and stop the program
-                print(f"Training stopped after {global_step} steps.")
-                print("Running time: ", time.time() - t1)
-                print("Saving Model")
+                print(f"\nINFO: Training stopped after {global_step} steps.")
+                print("INFO: Running time: ", time.time() - t1)
+                print("INFO: Saving Model")
                 policy.save_result(log_dir)
-                print("Running time: ", time.time() - t1)
+                print("INFO: Running time: ", time.time() - t1)
                 return
 
             # Render environment if requested
@@ -715,11 +850,12 @@ def train(log_dir):
                 env.render()
 
             # Retrieve (scaled) action based on the current policy
+            # NOTE (rickstaa): The scaling operation is already performed inside the
+            # policy based on the `act_limits` you supplied.
             a = policy.choose_action(s)
-            action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
 
             # Perform action in env
-            s_, r, done, _ = env.step(action)
+            s_, r, done, _ = env.step(a)
 
             # Increment global step count
             if training_started:
@@ -733,7 +869,7 @@ def train(log_dir):
             # Store experience in replay buffer
             pool.store(s, a, r, terminal, s_)
 
-            # Optimize weights and parameters using STG
+            # Optimize network weights and lagrance multipliers
             if (
                 pool.memory_pointer > ALG_PARAMS["min_memory_size"]
                 and global_step % ALG_PARAMS["steps_per_cycle"] == 0
@@ -752,7 +888,7 @@ def train(log_dir):
                             lr_a_now, lr_l_now, lr_a, lr_c_now, batch
                         )
 
-            # Save path results
+            # Store current path results
             if training_started:
                 if policy.use_lyapunov:
                     current_path["rewards"].append(r)
@@ -790,7 +926,7 @@ def train(log_dir):
                         a_loss.numpy()
                     )  # Improve: Check if this is the fastest way
 
-            # Evalute the current performance and log results
+            # Evalute the current policy performance and log the results
             if (
                 training_started
                 and global_step % TRAIN_PARAMS["evaluation_frequency"] == 0
@@ -845,13 +981,20 @@ def train(log_dir):
                     #     )
                     #     for key in training_diagnostics.keys()
                     # ]
-                    print("".join(string_to_print))
+                    prefix = (
+                        colorize("LAC|", "green")
+                        if ALG_PARAMS["use_lyapunov"]
+                        else colorize("SAC|", "yellow")
+                    )
+                    print(
+                        colorize(prefix, "yellow", bold=True) + "".join(string_to_print)
+                    )
                 logger.dumpkvs()
 
             # Update state
             s = s_
 
-            # Decay learning rate
+            # Check if episode is done (continue to next episode)
             if done:
 
                 # Store paths
@@ -863,4 +1006,4 @@ def train(log_dir):
                 lr_a_now = lr_a * frac  # learning rate for actor, lambda, alpha
                 lr_l_now = lr_l * frac  # learning rate for lyapunov critic
                 lr_c_now = lr_c * frac  # learning rate for q critic
-                break  # FIXME: Redundant
+                break  # Continue to next episode

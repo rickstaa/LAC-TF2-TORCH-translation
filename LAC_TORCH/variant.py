@@ -2,50 +2,47 @@
 """
 
 import sys
-import os
+import os.path as osp
 import time
 
-# Script parameters
-REL_PATH = False  # Whether to use a relative path for storign and loading models
-# REL_PATH = True  # Whether to use a relative path for storign and loading models
-# USE_GPU = True
-USE_GPU = False
+from utils import colorize
 
-# Debug Parameters
-DEBUG_PARAMS = {
-    "trace_net": False,  # Whether we want to trace the network.
-    "use_tb": False,  # Whether you want to log to tensorboard
-    "tb_freq": 4,  # After how many episode we want to log to tensorboard
-    "write_w_b": False,  # Whether you want to log the model weights and biases
-}
+########################################################
+# Main parameters ######################################
+########################################################
 
-# Training settings
-episodes = int(1.1e4)
-# episodes = int(1e5)  # DEBUG
-num_of_policies = 1
-# num_of_policies = 5  # DEBUG
-num_of_paths_for_eval = 10
-eval_list = ["LAC20201020_1552", "LAC20201004_2339"]
-use_lyapunov = True
-# use_lyapunov = False
-which_policy_for_inference = [
-    0
-]  # If this is empty, it means all the policies are evaluated;
+# General parameters
+REL_PATH = False  # Use relative paths
+USE_GPU = False  # Use GPU
+ENV_SEED = 0  # The environment seed
+RANDOM_SEED = 0  # The script random seed
+
+# Environment parameters
+ENV_NAME = "oscillator"  # The environment used for training
+
+# Training parameters
+episodes = int(1.1e4)  # Max episodes
+num_of_policies = 1  # Number of randomly seeded trained agents
+use_lyapunov = False  # Use LAC (If false SAC is used)
 continue_training = (
-    False  # Whether we want to continue training an already trained model
+    True  # Whether we want to continue training an already trained model
 )
-continue_model_folder = "LAC20201004_2130/0"  # The path of the model for which you want to continue the training
-reset_lagrance_multipliers = False  # Whether you want the lagrance multipliers to be reset when you continue training an old model
+continue_model_folder = "SAC20201026_1010/0"  # Which model you want to use
+reset_lagrance_multipliers = False  # Reset lagrance multipliers before retraining
 save_checkpoints = False  # Store intermediate models
 checkpoint_save_freq = 10000  # Intermediate model save frequency
 
-# Environment parameters
-# ENV_NAME = "Ex3_EKF_gyro_dt_real"  # The gym environment you want to train in
-# ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
-# ENV_NAME = "Ex3_EKF_gyro_dt"  # The gym environment you want to train in
-ENV_NAME = "oscillator"  # The gym environment you want to train in
-ENV_SEED = 0  # The environment seed
-RANDOM_SEED = 0  # The numpy random seed
+# Evaluation parameters
+eval_list = ["SAC20201026_1010"]
+which_policy_for_inference = [
+    0
+]  # If this is empty, it means all the policies are evaluated;
+num_of_paths_for_eval = 10  # How many paths you want to perform for each policy
+
+
+########################################################
+# Other parameters #####################################
+########################################################
 
 # Setup log path and time string
 alg_prefix = "LAC" if use_lyapunov else "SAC"
@@ -54,9 +51,9 @@ if REL_PATH:
         ["./log", ENV_NAME.lower(), alg_prefix + time.strftime("%Y%m%d_%H%M")]
     )
 else:
-    dirname = os.path.dirname(__file__)
-    LOG_PATH = os.path.abspath(
-        os.path.join(
+    dirname = osp.dirname(__file__)
+    LOG_PATH = osp.abspath(
+        osp.join(
             dirname,
             "./log/" + ENV_NAME.lower(),
             alg_prefix + time.strftime("%Y%m%d_%H%M"),
@@ -64,42 +61,46 @@ else:
     )
 timestr = time.strftime("%Y%m%d_%H%M")
 
-# Main training loop parameters
+# Training parameters
 TRAIN_PARAMS = {
-    "episodes": episodes,  # The number of episodes you want to perform
-    "num_of_training_paths": 100,  # Number of training rollouts stored for analysis
+    "episodes": episodes,
+    "num_of_policies": num_of_policies,
+    "continue_training": continue_training,
+    "continue_model_folder": continue_model_folder,
+    "save_checkpoints": save_checkpoints,
+    "checkpoint_save_freq": checkpoint_save_freq,
+    "num_of_training_paths": 100,  # Number of episodes used in the performance analysis
     "evaluation_frequency": 4000,  # After how many steps the performance is evaluated
-    "num_of_evaluation_paths": 20,  # number of rollouts for evaluation
-    "num_of_trials": num_of_policies,  # number of randomly seeded trained agents  # TODO: CHANGE NAME to NUM_OF_ROLLOUTS
+    "num_of_evaluation_paths": 20,  # Rollouts use for test performance analysis
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
-    "continue_training": continue_training,  # Whether we want to continue training an already trained model
-    "continue_model_folder": continue_model_folder,  # The path of the model for which you want to continue the training
-    "save_checkpoints": save_checkpoints,  # Store intermediate models
-    "checkpoint_save_freq": checkpoint_save_freq,  # Intermediate model save frequency
 }
 
-# Main evaluation parameters
+# Inference parameters
 EVAL_PARAMS = {
-    "which_policy_for_inference": which_policy_for_inference,  # Which policies you want to use for the inference
+    "which_policy_for_inference": which_policy_for_inference,
     "eval_list": eval_list,
     "additional_description": timestr,
-    "num_of_paths": num_of_paths_for_eval,  # number of path for evaluation
+    "num_of_paths": num_of_paths_for_eval,
     "plot_average": True,
     "directly_show": True,
-    "plot_soi": True,  # Whether you also want to plot the states of interest and the corresponding references.
-    "sio_merged": True,  # Whether you want to display all the states of interest in one fig.
-    "soi": [],  # Which state of interest you want to plot (empty means all states of interest).
-    "plot_obs": True,  # Whether you also want to plot the observations.
-    "obs_merged": True,  # Whether you want to display all the obserations in one fig.
+    "plot_soi": True,  # Plot the states of interest and the corresponding references.
+    "sio_merged": True,  # Display all the states of interest in one figure.
+    "soi": [],  # Which state of interest you want to plot (empty means all sio).
+    "soi_title": "True and Estimated Quatonian",  # SOI figure title.
+    "plot_obs": True,  # Plot the observations.
+    "obs_merged": True,  # Display all the obserations in one figure.
     "obs": [],  # Which observations you want to plot (empty means all obs).
-    "plot_cost": True,  # Whether you also want to plot the cost.
-    "save_figs": True,  # Whether you want to save the figures to pdf.
+    "obs_title": "Observations",  # Obs figure title.
+    "plot_cost": True,  # Plot the cost.
+    "cost_title": "Mean cost",  # TCost figure title.
+    "save_figs": True,  # Save the figures to pdf.
     "fig_file_type": "pdf",  # The file type you want to use for saving the figures.
 }
 
 # Learning algorithm parameters
 ALG_PARAMS = {
-    "use_lyapunov": use_lyapunov,  # If false the SAC algorithm will be used
+    "use_lyapunov": use_lyapunov,
+    "reset_lagrance_multipliers": reset_lagrance_multipliers,
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
@@ -116,11 +117,10 @@ ALG_PARAMS = {
     "adaptive_alpha": True,  # Enables automatic entropy temperature tuning
     "target_entropy": None,  # Set alpha target entropy, when None == -(action_dim)
     "network_structure": {
-        "critic": [128, 64, 32],  # LAC
-        "actor": [128, 64, 32],
-        "q_critic": [128, 64, 32],  # SAC
+        "critic": [128, 64, 32],  # Lyapunov Critic
+        "actor": [128, 64, 32],  # Gaussian actor
+        "q_critic": [128, 64, 32],  # Q-Critic
     },  # The network structure of the agent.
-    "reset_lagrance_multipliers": reset_lagrance_multipliers,  # Reset lagrance multipliers when continue training an old model
 }
 
 # Environment parameters
@@ -151,15 +151,21 @@ ENVS_PARAMS = {
     },
 }
 
+# Other paramters
+SCALE_lambda_MIN_MAX = (0, 1)  # Range of lambda lagrance multiplier
+
 # Check if specified environment is valid
 if ENV_NAME in ENVS_PARAMS.keys():
     ENV_PARAMS = ENVS_PARAMS[ENV_NAME]
 else:
     print(
-        f"Environmen {ENV_NAME} does not exist yet. Please specify a valid environment "
-        "and try again."
+        colorize(
+            (
+                f"ERROR: Environmen {ENV_NAME} does not exist yet. Please specify a "
+                "valid environment and try again."
+            ),
+            "red",
+            bold=True,
+        )
     )
     sys.exit(0)
-
-# Other paramters
-SCALE_lambda_MIN_MAX = (0, 1)  # Range of lambda lagrance multiplier
