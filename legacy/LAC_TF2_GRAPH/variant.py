@@ -15,7 +15,7 @@ USE_GPU = False
 episodes = int(1e5)
 num_of_policies = 5
 num_of_paths_for_eval = 100
-eval_list = ["LAC20201004_2339"]
+eval_list = ["LAC20201026_1815_minus_sigma"]
 use_lyapunov = True
 # use_lyapunov = False
 which_policy_for_inference = [
@@ -34,6 +34,7 @@ checkpoint_save_freq = 10000  # Intermediate model save frequency
 # ENV_NAME = "Ex3_EKF_gyro"  # The gym environment you want to train in
 # ENV_NAME = "Ex3_EKF_gyro_dt"  # The gym environment you want to train in
 ENV_NAME = "oscillator"  # The gym environment you want to train in
+ENV_NAME = "oscillator_double_cost"  # The gym environment you want to train in
 ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The numpy random seed
 
@@ -91,6 +92,7 @@ ALG_PARAMS = {
     "labda": 1.0,  # Initial value for the lyapunov constraint lagrance multiplier
     "alpha": 1.0,  # The initial value for the entropy lagrance multiplier
     "alpha3": 0.1,  # The value of the stability condition multiplier
+    "sigma": 1.0,  # The value for the Q value condition multiplier
     "tau": 5e-3,  # Decay rate used in the polyak averaging
     "lr_a": 1e-4,  # The actor learning rate
     "lr_l": 3e-4,  # The lyapunov critic
@@ -111,6 +113,12 @@ ALG_PARAMS = {
 # Environment parameters
 ENVS_PARAMS = {
     "oscillator": {
+        "max_ep_steps": 800,
+        "max_global_steps": TRAIN_PARAMS["episodes"],
+        "max_episodes": int(1e6),
+        "eval_render": False,
+    },
+    "oscillator_double_cost": {
         "max_ep_steps": 800,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
@@ -141,7 +149,7 @@ if ENV_NAME in ENVS_PARAMS.keys():
     ENV_PARAMS = ENVS_PARAMS[ENV_NAME]
 else:
     print(
-        f"Environmen {ENV_NAME} does not exist yet. Please specify a valid environment "
+        f"Environment {ENV_NAME} does not exist yet. Please specify a valid environment "
         "and try again."
     )
     sys.exit(0)

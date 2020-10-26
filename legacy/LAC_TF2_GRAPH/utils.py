@@ -23,6 +23,11 @@ def get_env_from_name(name, ENV_SEED=None):  # FIXME: Naming
 
         env = env()
         env = env.unwrapped
+    if name == "oscillator_double_cost":
+        from envs.oscillator_double_cost import oscillator as env
+
+        env = env()
+        env = env.unwrapped
     elif name == "Ex3_EKF_gyro":
         from envs.Ex3_EKF_gyro import Ex3_EKF_gyro as env
 
@@ -49,15 +54,18 @@ def evaluate_training_rollouts(paths):
     if len(data) < 1:
         return None
     try:
+        # FIXME: QD fix for getting two rewards This will break things!
         diagnostics = OrderedDict(
             (
-                ("return", np.mean([np.sum(path["rewards"]) for path in data])),
-                ("length", np.mean([len(p["rewards"]) for p in data])),
+                ("return_1", np.mean([np.sum(path["reward_1"]) for path in data])),
+                ("return_2", np.mean([np.sum(path["reward_2"]) for path in data])),
+                ("length", np.mean([len(p["reward_1"]) for p in data])),
             )
         )
-    except KeyError:
+    except KeyError:  # FIXME: Bad practice
         return
-    [path.pop("rewards") for path in data]
+    [path.pop("reward_1") for path in data]
+    [path.pop("reward_2") for path in data]
     for key in data[0].keys():
         result = [np.mean(path[key]) for path in data]
         diagnostics.update({key: np.mean(result)})
@@ -76,19 +84,23 @@ def training_evaluation(env, policy):
     Returns:
         [type]: [description]
     """
+    # FIXME: QD way to support two costs
     # Retrieve action space bounds from env
     a_upperbound = env.action_space.high
     a_lowerbound = env.action_space.low
 
     # Training setting
-    total_cost = []
+    total_cost_1 = []
+    total_cost_2 = []
     episode_length = []
     die_count = 0
-    seed_average_cost = []
+    seed_average_cost_1 = []
+    seed_average_cost_2 = []
 
     # Perform roolouts to evaluate performance
     for i in range(TRAIN_PARAMS["num_of_evaluation_paths"]):
-        cost = 0
+        cost_1 = 0
+        cost_2 = 0
         if env.__class__.__name__.lower() == "ex3_ekf_gyro":
             s = env.reset(eval=True)
         else:
@@ -99,25 +111,30 @@ def training_evaluation(env, policy):
             a = policy.choose_action(s, True)
             action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
             s_, r, done, _ = env.step(action)
-            cost += r
+            cost_1 += r[0]
+            cost_2 += r[1]
             if j == ENV_PARAMS["max_ep_steps"] - 1:
                 done = True
             s = s_
             if done:
-                seed_average_cost.append(cost)
+                seed_average_cost_1.append(cost_1)
+                seed_average_cost_2.append(cost_2)
                 episode_length.append(j)
                 if j < ENV_PARAMS["max_ep_steps"] - 1:
                     die_count += 1
                 break
 
     # Save evaluation results
-    total_cost.append(np.mean(seed_average_cost))
-    total_cost_mean = np.average(total_cost)
+    total_cost_1.append(np.mean(seed_average_cost_1))
+    total_cost_2.append(np.mean(seed_average_cost_2))
+    total_cost_mean_1 = np.average(total_cost_1)
+    total_cost_mean_2 = np.average(total_cost_2)
     average_length = np.average(episode_length)
 
     # Return evaluation results
     diagnostic = {
-        "return": total_cost_mean,
-        "average_length": average_length,
+        "test_return_1": total_cost_mean_1,
+        "test_return_2": total_cost_mean_2,
+        "test_average_length": average_length,
     }
     return diagnostic
