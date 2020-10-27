@@ -10,8 +10,6 @@ from torch.distributions.normal import Normal
 
 from utils import mlp, clamp
 
-# FIXME: Check weight initialization
-
 # Script parameters
 LOG_STD_MIN = -20
 LOG_STD_MAX = 2

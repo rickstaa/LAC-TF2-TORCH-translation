@@ -94,7 +94,9 @@ python <LAC_VERSION_NAME>/inference_eval.py
 
 ## Add new environments
 
-New environments should be added in the [<LAC_VERSION_NAME>/envs](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/tree/master/LAC_TF2_GRAPH/envs) folder. After you added a new environment
+[//]: TODO "This may be the most platform independent comment"
+
+New environments should be added in the [&lt;LAC_VERSION_NAME>/envs](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/tree/master/LAC_TF2_GRAPH/envs) folder. After you added a new environment
 to this folder, you have to add it to the available environments in the [utils.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2/utils.py) file. The currently
 available environments are found in the [get_env_from_name](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/66f97571f5273508967c3b19102fa127927147f1/LAC_TF2/utils.py#L12) function. If you did this successfully, you could
 train the LAC/SAC agent in your environment by setting it as the `ENV_NAME` in the [variant.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2/variant.py) file.

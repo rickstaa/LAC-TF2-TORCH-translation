@@ -40,12 +40,16 @@ RANDOM_SEED = 0  # The numpy random seed
 # Setup log path and time string
 alg_prefix = "LAC" if use_lyapunov else "SAC"
 if REL_PATH:
-    LOG_PATH = "/".join(["./log", ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M")])
+    LOG_PATH = "/".join(
+        ["./log", ENV_NAME.lower(), alg_prefix + time.strftime("%Y%m%d_%H%M")]
+    )
 else:
     dirname = os.path.dirname(__file__)
     LOG_PATH = os.path.abspath(
         os.path.join(
-            dirname, "./log/" + ENV_NAME, alg_prefix + time.strftime("%Y%m%d_%H%M")
+            dirname,
+            "./log/" + ENV_NAME.lower(),
+            alg_prefix + time.strftime("%Y%m%d_%H%M"),
         )
     )
 timestr = time.strftime("%Y%m%d_%H%M")

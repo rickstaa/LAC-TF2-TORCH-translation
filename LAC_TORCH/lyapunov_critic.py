@@ -6,8 +6,7 @@ import torch.nn as nn
 
 from utils import mlp
 
-# FIXME: Check weight initialization based on main random seed
-# Create square Lyapunov activation function.
+# IMPROVE: Create square Lyapunov activation function.
 
 
 class MLPLyapunovCritic(nn.Module):

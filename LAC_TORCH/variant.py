@@ -1,11 +1,7 @@
 """File containing the algorithm parameters.
 """
 
-import sys
-import os.path as osp
-import time
-
-from utils import colorize
+# IMPROVEMENT: Replace with yaml config file
 
 ########################################################
 # Main parameters ######################################
@@ -21,54 +17,37 @@ RANDOM_SEED = 0  # The script random seed
 ENV_NAME = "oscillator"  # The environment used for training
 
 # Training parameters
-episodes = int(1.1e4)  # Max episodes
-num_of_policies = 1  # Number of randomly seeded trained agents
-use_lyapunov = False  # Use LAC (If false SAC is used)
-continue_training = (
-    True  # Whether we want to continue training an already trained model
+EPISODES = int(1e5)  # Max episodes
+NUM_OF_POLICIES = 1  # Number of randomly seeded trained agents
+USE_LYAPUNOV = True  # Use LAC (If false SAC is used)
+CONTINUE_TRAINING = (
+    False  # Whether we want to continue training an already trained model
 )
-continue_model_folder = "SAC20201026_1010/0"  # Which model you want to use
-reset_lagrance_multipliers = False  # Reset lagrance multipliers before retraining
-save_checkpoints = False  # Store intermediate models
-checkpoint_save_freq = 10000  # Intermediate model save frequency
+CONTINUE_MODEL_FOLDER = "SAC20201026_1010/0"  # Which model you want to use
+RESET_LAGRANCE_MULTIPLIERS = False  # Reset lagrance multipliers before retraining
+SAVE_CHECKPOINTS = False  # Store intermediate models
+CHECKPOINT_SAVE_FREQ = 10000  # Intermediate model save frequency
 
 # Evaluation parameters
-eval_list = ["SAC20201026_1010"]
-which_policy_for_inference = [
+EVAL_LIST = ["LAC20201027_1311"]
+WHICH_POLICY_FOR_INFERENCE = [
     0
 ]  # If this is empty, it means all the policies are evaluated;
-num_of_paths_for_eval = 10  # How many paths you want to perform for each policy
+NUM_OF_PATHS_FOR_EVAL = 10  # How many paths you want to perform for each policy
 
 
 ########################################################
 # Other parameters #####################################
 ########################################################
 
-# Setup log path and time string
-alg_prefix = "LAC" if use_lyapunov else "SAC"
-if REL_PATH:
-    LOG_PATH = "/".join(
-        ["./log", ENV_NAME.lower(), alg_prefix + time.strftime("%Y%m%d_%H%M")]
-    )
-else:
-    dirname = osp.dirname(__file__)
-    LOG_PATH = osp.abspath(
-        osp.join(
-            dirname,
-            "./log/" + ENV_NAME.lower(),
-            alg_prefix + time.strftime("%Y%m%d_%H%M"),
-        )
-    )
-timestr = time.strftime("%Y%m%d_%H%M")
-
 # Training parameters
 TRAIN_PARAMS = {
-    "episodes": episodes,
-    "num_of_policies": num_of_policies,
-    "continue_training": continue_training,
-    "continue_model_folder": continue_model_folder,
-    "save_checkpoints": save_checkpoints,
-    "checkpoint_save_freq": checkpoint_save_freq,
+    "episodes": EPISODES,
+    "num_of_policies": NUM_OF_POLICIES,
+    "continue_training": CONTINUE_TRAINING,
+    "continue_model_folder": CONTINUE_MODEL_FOLDER,
+    "save_checkpoints": SAVE_CHECKPOINTS,
+    "checkpoint_save_freq": CHECKPOINT_SAVE_FREQ,
     "num_of_training_paths": 100,  # Number of episodes used in the performance analysis
     "evaluation_frequency": 4000,  # After how many steps the performance is evaluated
     "num_of_evaluation_paths": 20,  # Rollouts use for test performance analysis
@@ -77,18 +56,17 @@ TRAIN_PARAMS = {
 
 # Inference parameters
 EVAL_PARAMS = {
-    "which_policy_for_inference": which_policy_for_inference,
-    "eval_list": eval_list,
-    "additional_description": timestr,
-    "num_of_paths": num_of_paths_for_eval,
+    "which_policy_for_inference": WHICH_POLICY_FOR_INFERENCE,
+    "eval_list": EVAL_LIST,
+    "num_of_paths": NUM_OF_PATHS_FOR_EVAL,
     "plot_average": True,
     "directly_show": True,
     "plot_soi": True,  # Plot the states of interest and the corresponding references.
-    "sio_merged": True,  # Display all the states of interest in one figure.
+    "sio_merged": False,  # Display all the states of interest in one figure.
     "soi": [],  # Which state of interest you want to plot (empty means all sio).
     "soi_title": "True and Estimated Quatonian",  # SOI figure title.
     "plot_obs": True,  # Plot the observations.
-    "obs_merged": True,  # Display all the obserations in one figure.
+    "obs_merged": False,  # Display all the obserations in one figure.
     "obs": [],  # Which observations you want to plot (empty means all obs).
     "obs_title": "Observations",  # Obs figure title.
     "plot_cost": True,  # Plot the cost.
@@ -99,8 +77,8 @@ EVAL_PARAMS = {
 
 # Learning algorithm parameters
 ALG_PARAMS = {
-    "use_lyapunov": use_lyapunov,
-    "reset_lagrance_multipliers": reset_lagrance_multipliers,
+    "use_lyapunov": USE_LYAPUNOV,
+    "reset_lagrance_multipliers": RESET_LAGRANCE_MULTIPLIERS,
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
@@ -124,26 +102,35 @@ ALG_PARAMS = {
 }
 
 # Environment parameters
+# IMPROVEMENT: Place in its own configuration file
 ENVS_PARAMS = {
     "oscillator": {
+        "module_name": "envs.oscillator",
+        "class_name": "oscillator",
         "max_ep_steps": 800,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,
     },
-    "Ex3_EKF_gyro": {
+    "ex3_ekf_gyro": {
+        "module_name": "envs.Ex3_EKF_gyro",
+        "class_name": "Ex3_EKF_gyro",
         "max_ep_steps": 800,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,
     },
-    "Ex3_EKF_gyro_dt": {
+    "ex3_ekf_gyro_dt": {
+        "module_name": "envs.ex3_ekf_gyro_dt",
+        "class_name": "Ex3_EKF_gyro",
         "max_ep_steps": 120,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,
     },
-    "Ex3_EKF_gyro_dt_real": {
+    "ex3_ekf_gyro_dt_real": {
+        "module_name": "envs.ex3_ekf_gyro_dt_real",
+        "class_name": "Ex3_EKF_gyro",
         "max_ep_steps": 1000,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
@@ -155,17 +142,6 @@ ENVS_PARAMS = {
 SCALE_lambda_MIN_MAX = (0, 1)  # Range of lambda lagrance multiplier
 
 # Check if specified environment is valid
-if ENV_NAME in ENVS_PARAMS.keys():
-    ENV_PARAMS = ENVS_PARAMS[ENV_NAME]
-else:
-    print(
-        colorize(
-            (
-                f"ERROR: Environmen {ENV_NAME} does not exist yet. Please specify a "
-                "valid environment and try again."
-            ),
-            "red",
-            bold=True,
-        )
-    )
-    sys.exit(0)
+ENVS_PARAMS = {
+    key.lower(): val for key, val in ENVS_PARAMS.items()
+}  # Make keys lowercase to prevent typing errors

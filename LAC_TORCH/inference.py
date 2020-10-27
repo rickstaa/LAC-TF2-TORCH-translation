@@ -14,11 +14,12 @@ import itertools
 
 from lac import LAC
 
-from utils import get_env_from_name, colorize
+from utils import get_env_from_name, colorize, get_log_path
 from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
-
+-
 # IMPROVEMENT: Add render evaluation option -> inference_type=["render", "plot"]
-# TEST: New inference titles
+# TODO: Add rollout input argument
+# TODO: Add option to print multiple costs
 
 
 def validate_req_sio(req_sio, soi_mean_path, ref_mean_path):
@@ -187,26 +188,24 @@ if __name__ == "__main__":
     for name in eval_agents:
 
         # Create agent policy and log paths
+
         if REL_PATH:
-            MODEL_PATH = "/".join(["./log", args.env_name.lower(), name])
-            LOG_PATH = "/".join([MODEL_PATH, "figure"])
-            os.makedirs(LOG_PATH, exist_ok=True)
+            model_path = get_log_path(env_name=args.env_name, agent_name=name)
+            log_path = "/".join([model_path, "figure"])
+            os.makedirs(log_path, exist_ok=True)
         else:
-            dirname = osp.dirname(__file__)
-            MODEL_PATH = osp.abspath(
-                osp.join(dirname, "./log/" + args.env_name.lower() + "/" + name)
-            )
-            LOG_PATH = osp.abspath(osp.join(MODEL_PATH, "figure"))
-            os.makedirs(LOG_PATH, exist_ok=True)
+            model_path = get_log_path(env_name=args.env_name, agent_name=name)
+            log_path = osp.abspath(osp.join(model_path, "figure"))
+            os.makedirs(log_path, exist_ok=True)
         print("\n====Evaluation agent " + name + "====")
-        print(f"Using model folder: {MODEL_PATH}")
+        print(colorize(f"INFO: Using model folder: {model_path}", "cyan", bold=True))
 
         # Create environment
-        print(f"In environment: {args.env_name}")
+        print(colorize(f"INFO: In environment: {args.env_name}", "cyan", bold=True))
         env = get_env_from_name(args.env_name, ENV_SEED)
 
         # Check if specified agent exists
-        if not osp.exists(MODEL_PATH):
+        if not osp.exists(model_path):
             warning_str = (
                 f"WARN: Inference could not be run for agent `{name}` as it was not "
                 f"found for the `{args.env_name}` environment."
@@ -227,12 +226,12 @@ if __name__ == "__main__":
 
         # Retrieve all trained policies (rollouts) for a given agent
         print("Looking for policies (rollouts)...")
-        rollout_list = os.listdir(MODEL_PATH)
+        rollout_list = os.listdir(model_path)
         rollout_list = [
             rollout_name
             for rollout_name in rollout_list
             if osp.exists(
-                osp.abspath(MODEL_PATH + "/" + rollout_name + "/policy/model.pth")
+                osp.abspath(model_path + "/" + rollout_name + "/policy/model.pth")
             )
         ]
         rollout_list = [int(item) for item in rollout_list if item.isnumeric()]
@@ -312,7 +311,7 @@ if __name__ == "__main__":
             }
 
             # Load current rollout policy
-            retval = policy.restore(osp.abspath(MODEL_PATH + "/" + rollout + "/policy"))
+            retval = policy.restore(osp.abspath(model_path + "/" + rollout + "/policy"))
             if not retval:
                 print(
                     f"Policy {rollout} could not be loaded. Continuing to the next "
@@ -337,7 +336,7 @@ if __name__ == "__main__":
                 # Reset environment
                 # NOTE (rickstaa): This check was added since some of the supported
                 # environments have a different reset when running the inference.
-                # TODO: Add these environments in a config file!
+                # IMPROVEMENT: Add these environments in a config file!
                 if env.__class__.__name__.lower() == "ex3_ekf_gyro":
                     s = env.reset(eval=True)
                 else:
@@ -446,18 +445,21 @@ if __name__ == "__main__":
         ############################################
         # Display performance figures ##############
         ############################################
+        print("\n==Rollouts inference plots==")
+
+        # Create figure storage dictionary and time axis
+        figs = {
+            "states_of_interest": [],
+            "states": [],
+            "costs": [],
+        }  # Store all figers (Needed for save)
+        t = range(max(eval_paths["episode_length"]))
 
         ####################################
         # Plot mean path and std for #######
         # states of interest and ###########
         # references. ######################
         ####################################
-        print("\n==Rollouts inference plots==")
-        figs = {
-            "states_of_interest": [],
-            "states": [],
-            "costs": [],
-        }  # Store all figers (Needed for save)
         if args.plot_s:
             print("Plotting states of interest mean path and standard deviation...")
 
@@ -568,7 +570,6 @@ if __name__ == "__main__":
                             )  # Store figure reference
                         else:
                             color1 = color2 = next(cycol)
-                        t = range(max(eval_paths["episode_length"]))
 
                         # Plot states of interest
                         if i <= (len(soi_mean_path) - 1):
@@ -579,13 +580,6 @@ if __name__ == "__main__":
                                 linestyle="dashed",
                                 label=f"state_of_interest_{i+1}_mean",
                             )
-                            if not EVAL_PARAMS["sio_merged"]:
-                                ax_title = (
-                                    EVAL_PARAMS["soi_title"]
-                                    if isinstance(EVAL_PARAMS["soi_title"], str)
-                                    else "True and Estimated Quatonian"
-                                )
-                                ax.set_title(f"{ax_title} {i+1}")
                             ax.fill_between(
                                 t,
                                 soi_mean_path[i] - soi_std_path[i],
@@ -612,23 +606,29 @@ if __name__ == "__main__":
                             #     label=f"reference_{i+1}_std",
                             # )  # Should be zero
 
-                        # Add figure legend (Separate figures)
+                        # Add figure legend and title (Separate figures)
                         if not EVAL_PARAMS["sio_merged"]:
+                            ax_title = (
+                                EVAL_PARAMS["soi_title"]
+                                if isinstance(EVAL_PARAMS["soi_title"], str)
+                                else "True and Estimated Quatonian"
+                            )
+                            ax.set_title(f"{ax_title} {i+1}")
                             handles, labels = ax.get_legend_handles_labels()
                             ax.legend(
                                 handles, labels, loc=2, fancybox=False, shadow=False
                             )
 
-                    # Add figure legend and title (merged figure)
-                    if EVAL_PARAMS["sio_merged"]:
-                        ax_title = (
-                            EVAL_PARAMS["soi_title"]
-                            if isinstance(EVAL_PARAMS["soi_title"], str)
-                            else "True and Estimated Quatonian"
-                        )
-                        ax.set_title(f"{ax_title}")
-                        handles, labels = ax.get_legend_handles_labels()
-                        ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
+                # Add figure legend and title (Merged figure)
+                if EVAL_PARAMS["sio_merged"]:
+                    ax_title = (
+                        EVAL_PARAMS["soi_title"]
+                        if isinstance(EVAL_PARAMS["soi_title"], str)
+                        else "True and Estimated Quatonian"
+                    )
+                    ax.set_title(f"{ax_title}")
+                    handles, labels = ax.get_legend_handles_labels()
+                    ax.legend(handles, labels, loc=2, fancybox=False, shadow=False)
             else:
                 print(
                     colorize(
@@ -659,7 +659,6 @@ if __name__ == "__main__":
             obs_std_path = np.transpose(
                 np.squeeze(np.std(np.array(obs_trimmed), axis=0))
             )
-            t = range(max(eval_paths["episode_length"]))
 
             # Check if USER requested observation exists
             valid_obs = validate_req_obs(req_obs, obs_mean_path)
@@ -683,7 +682,7 @@ if __name__ == "__main__":
                     if (i + 1) in req_obs or not req_obs:
                         if not EVAL_PARAMS[
                             "obs_merged"
-                        ]:  # Create separate figs for each sio
+                        ]:  # Create separate figs for each obs
                             fig = plt.figure(
                                 figsize=(9, 6),
                                 num=(
@@ -698,6 +697,8 @@ if __name__ == "__main__":
                             figs["states"].append(fig)  # Store figure reference
                         else:
                             color = next(cycol)
+
+                        # Plot observations
                         ax2.plot(
                             t,
                             obs_mean_path[i],
@@ -705,13 +706,6 @@ if __name__ == "__main__":
                             linestyle="dashed",
                             label=(f"s_{i+1}"),
                         )
-                        if not EVAL_PARAMS["obs_merged"]:
-                            ax2_title = (
-                                EVAL_PARAMS["obs_title"]
-                                if isinstance(EVAL_PARAMS["obs_title"], str)
-                                else "Observation"
-                            )
-                            ax2.set_title(f"{ax2_title} {i+1}")
                         ax2.fill_between(
                             t,
                             obs_mean_path[i] - obs_std_path[i],
@@ -721,25 +715,29 @@ if __name__ == "__main__":
                             label=(f"s_{i+1}_std"),
                         )
 
-                        # Add figure legend (Separate figures)
+                        # Add figure legend and title (Separate figures)
                         if not EVAL_PARAMS["obs_merged"]:
+                            ax2_title = (
+                                EVAL_PARAMS["obs_title"]
+                                if isinstance(EVAL_PARAMS["obs_title"], str)
+                                else "Observation"
+                            )
+                            ax2.set_title(f"{ax2_title} {i+1}")
                             handles2, labels2 = ax2.get_legend_handles_labels()
                             ax2.legend(
                                 handles2, labels2, loc=2, fancybox=False, shadow=False
                             )
 
-                    # Add figure legend and title (merged figure)
-                    if EVAL_PARAMS["obs_merged"]:
-                        ax2_title = (
-                            EVAL_PARAMS["obs_title"]
-                            if isinstance(EVAL_PARAMS["obs_title"], str)
-                            else "Observations"
-                        )
-                        ax2.set_title(f"{ax2_title}")
-                        handles2, labels2 = ax2.get_legend_handles_labels()
-                        ax2.legend(
-                            handles2, labels2, loc=2, fancybox=False, shadow=False
-                        )
+                # Add figure legend and title (merged figure)
+                if EVAL_PARAMS["obs_merged"]:
+                    ax2_title = (
+                        EVAL_PARAMS["obs_title"]
+                        if isinstance(EVAL_PARAMS["obs_title"], str)
+                        else "Observations"
+                    )
+                    ax2.set_title(f"{ax2_title}")
+                    handles2, labels2 = ax2.get_legend_handles_labels()
+                    ax2.legend(handles2, labels2, loc=2, fancybox=False, shadow=False)
             else:
                 print(colorize("WARN: No observations were found.", "yellow"))
 
@@ -800,12 +798,12 @@ if __name__ == "__main__":
 
         # Save figures if requested
         print("Saving plots...")
-        print(f"Save path: {LOG_PATH}")
+        print(colorize(f"INFO: Save path: {log_path}", "cyan", bold=True))
         if args.save_figs:
             for index, fig in enumerate(figs["states_of_interest"]):
                 save_path = (
                     osp.join(
-                        LOG_PATH,
+                        log_path,
                         "Quatonian_"
                         + str(index + 1)
                         + "."
@@ -813,7 +811,7 @@ if __name__ == "__main__":
                     )
                     if not EVAL_PARAMS["sio_merged"]
                     else osp.join(
-                        LOG_PATH, "Quatonians" + "." + EVAL_PARAMS["fig_file_type"],
+                        log_path, "Quatonians" + "." + EVAL_PARAMS["fig_file_type"],
                     )
                 )
                 fig.savefig(
@@ -822,12 +820,12 @@ if __name__ == "__main__":
             for index, fig in enumerate(figs["states"]):
                 save_path = (
                     osp.join(
-                        LOG_PATH,
+                        log_path,
                         "State_" + str(index + 1) + "." + EVAL_PARAMS["fig_file_type"],
                     )
                     if not EVAL_PARAMS["obs_merged"]
                     else osp.join(
-                        LOG_PATH, "States" + "." + EVAL_PARAMS["fig_file_type"],
+                        log_path, "States" + "." + EVAL_PARAMS["fig_file_type"],
                     )
                 )
                 fig.savefig(
@@ -835,6 +833,6 @@ if __name__ == "__main__":
                 )
             for index, fig in enumerate(figs["costs"]):
                 fig.savefig(
-                    osp.join(LOG_PATH, "Cost" + "." + EVAL_PARAMS["fig_file_type"],),
+                    osp.join(log_path, "Cost" + "." + EVAL_PARAMS["fig_file_type"],),
                     bbox_inches="tight",
                 )

@@ -4,8 +4,6 @@ import torch
 from torch import nn
 from utils import mlp
 
-# FIXME: Seeding not used
-
 
 class QCritic(nn.Module):
     """Soft Q critic network.
@@ -15,7 +13,12 @@ class QCritic(nn.Module):
     """
 
     def __init__(
-        self, obs_dim, act_dim, hidden_sizes, activation=nn.ReLU, use_fixed_seed=False
+        self,
+        obs_dim,
+        act_dim,
+        hidden_sizes,
+        activation=nn.ReLU,
+        output_activation=nn.Identity,
     ):
         """Constructs all the necessary attributes for the Soft Q critic object.
 
@@ -26,11 +29,15 @@ class QCritic(nn.Module):
 
             hidden_sizes (list): Sizes of the hidden layers.
 
-            activation (torch.nn.modules.activation): The activation function.
+            output_activation (torch.nn.modules.activation, optional): The activation
+                function used for the output layers. Defaults to torch.nn.Identity.
         """
-        # TODO: UPDATE DOCSTRING
         super().__init__()
-        self.q = mlp([obs_dim + act_dim] + list(hidden_sizes) + [1], activation)
+        self.q = mlp(
+            [obs_dim + act_dim] + list(hidden_sizes) + [1],
+            activation,
+            output_activation,
+        )
 
     def forward(self, obs, act):
         """Performs forward pass through the network.
