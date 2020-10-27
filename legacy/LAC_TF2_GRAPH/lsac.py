@@ -295,8 +295,9 @@ class LAC(object):
 
             # Actor loss and optimizer graph
             if self.use_lyapunov:
-                a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(
-                    input_tensor=log_pis
+                # Test input tensor
+                a_loss = self.labda * self.l_delta + tf.reduce_mean(
+                    self.alpha * log_pis + min_Q_target
                 )
             else:
                 a_loss = tf.reduce_mean(self.alpha * log_pis + min_Q_target)
@@ -363,6 +364,8 @@ class LAC(object):
                     alpha_loss,
                     labda_loss,
                     self.l_error,
+                    self.td_error_1,
+                    self.td_error_2,
                 ]
             else:
                 self.diagnostics = [
@@ -376,7 +379,12 @@ class LAC(object):
 
             # Create optimizer array
             if self.use_lyapunov:
-                self.opt = [self.l_train, self.lambda_train]
+                self.opt = [
+                    self.l_train,
+                    self.lambda_train,
+                    self.qc_train_1,
+                    self.qc_train_2,
+                ]
             else:
                 self.opt = [self.qc_train_1, self.qc_train_2]
             self.opt.append(self.a_train)
@@ -462,10 +470,12 @@ class LAC(object):
                 alpha_loss,
                 labda_loss,
                 l_error,
+                q1_error,
+                q2_error,
             ) = self.sess.run(self.diagnostics, feed_dict)
 
             # Return optimization results
-            return labda, alpha, l_error, entropy, a_loss
+            return labda, alpha, q1_error, q2_error, l_error, entropy, a_loss
         else:
             entropy, alpha, a_loss, alpha_loss, q1_error, q2_error = self.sess.run(
                 self.diagnostics, feed_dict
@@ -920,6 +930,7 @@ def train(log_dir):
             current_path = {
                 "rewards": [],
                 "lyapunov_error": [],
+                "critic_error": [],
                 "alpha": [],
                 "lambda": [],
                 "entropy": [],
@@ -1009,9 +1020,15 @@ def train(log_dir):
                 for _ in range(ALG_PARAMS["train_per_cycle"]):
                     batch = pool.sample(ALG_PARAMS["batch_size"])
                     if policy.use_lyapunov:
-                        labda, alpha, l_loss, entropy, a_loss = policy.learn(
-                            lr_a_now, lr_l_now, lr_a, lr_c_now, batch
-                        )
+                        (
+                            labda,
+                            alpha,
+                            q1_error,
+                            q2_error,
+                            l_loss,
+                            entropy,
+                            a_loss,
+                        ) = policy.learn(lr_a_now, lr_l_now, lr_a, lr_c_now, batch)
                     else:
                         (alpha, q1_error, q2_error, entropy, a_loss,) = policy.learn(
                             lr_a_now, lr_l_now, lr_a, lr_c_now, batch
@@ -1022,13 +1039,14 @@ def train(log_dir):
                 if policy.use_lyapunov:
                     current_path["rewards"].append(r)
                     current_path["lyapunov_error"].append(l_loss)
+                    current_path["critic_error"].append(max(q1_error, q2_error))
                     current_path["alpha"].append(alpha)
                     current_path["lambda"].append(labda)
                     current_path["entropy"].append(entropy)
                     current_path["a_loss"].append(a_loss)
                 else:
                     current_path["rewards"].append(r)
-                    current_path["critic_error"].append(min(q1_error, q2_error))
+                    current_path["critic_error"].append(max(q1_error, q2_error))
                     current_path["alpha"].append(alpha)
                     current_path["entropy"].append(entropy)
                     current_path["a_loss"].append(a_loss)
