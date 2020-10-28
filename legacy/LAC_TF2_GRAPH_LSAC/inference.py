@@ -518,12 +518,17 @@ if __name__ == "__main__":
             ax2.legend(handles2, labels2, loc=2, fancybox=False, shadow=False)
 
         # Plot mean cost and std
+        # FIXME: Qick fix to allow 2 rewards
         if args.plot_c:
             print("Plotting cost...")
             print("Plotting mean path and standard deviation...")
 
-            # Create figure
+            # # Create figure
+            # fig_3 = plt.figure(figsize=(9, 6), num="LAC_TF115_3")
+            # ax3 = fig_3.add_subplot(111)
             fig_3 = plt.figure(figsize=(9, 6), num="LAC_TF115_3")
+            colors = "bgrcmk"
+            cycol = cycle(colors)
             ax3 = fig_3.add_subplot(111)
 
             # Calculate mean observation path and std
@@ -540,21 +545,43 @@ if __name__ == "__main__":
             )
             t = range(max(eval_paths["episode_length"]))
 
-            # Plot state paths and std
-            ax3.plot(
-                t, cost_mean_path, color="g", linestyle="dashed", label=("mean cost"),
-            )
-            ax3.fill_between(
-                t,
-                cost_mean_path - cost_std_path,
-                cost_mean_path + cost_std_path,
-                color="g",
-                alpha=0.3,
-                label=("mean cost std"),
-            )
-            ax3.set_title("Mean cost")
+            # Plot multiple costs
+            for i in range(0, cost_mean_path.shape[0]):
+                color = next(cycol)
+                ax3.plot(
+                    t,
+                    cost_mean_path[i],
+                    color=color,
+                    linestyle="dashed",
+                    label=(f"s_{i+1}"),
+                )
+                ax3.fill_between(
+                    t,
+                    cost_mean_path[i] - cost_std_path[i],
+                    cost_mean_path[i] + cost_std_path[i],
+                    color=color,
+                    alpha=0.3,
+                    label=(f"c_{i+1}_std"),
+                )
+            ax3.set_title("Costs")
             handles3, labels3 = ax3.get_legend_handles_labels()
             ax3.legend(handles3, labels3, loc=2, fancybox=False, shadow=False)
+
+            # # Plot state paths and std
+            # ax3.plot(
+            #     t, cost_mean_path, color="g", linestyle="dashed", label=("mean cost"),
+            # )
+            # ax3.fill_between(
+            #     t,
+            #     cost_mean_path - cost_std_path,
+            #     cost_mean_path + cost_std_path,
+            #     color="g",
+            #     alpha=0.3,
+            #     label=("mean cost std"),
+            # )
+            # ax3.set_title("Mean cost")
+            # handles3, labels3 = ax3.get_legend_handles_labels()
+            # ax3.legend(handles3, labels3, loc=2, fancybox=False, shadow=False)
 
         # Show figures
         plt.show()

@@ -6,7 +6,13 @@ class Pool(object):
     """Memory buffer class."""
 
     def __init__(
-        self, s_dim, a_dim, memory_capacity, store_last_n_paths, min_memory_size,
+        self,
+        s_dim,
+        a_dim,
+        memory_capacity,
+        store_last_n_paths,
+        min_memory_size,
+        r_dim=1,
     ):
         """Initialize memory buffer object.
 
@@ -14,13 +20,14 @@ class Pool(object):
             variant (dict): Dictionary containing all the required memory buffer
             parameters.
         """
+        # IMPROVE: Let pool determine size
         self.memory_capacity = memory_capacity
         self.paths = deque(maxlen=store_last_n_paths)
         self.reset()
         self.memory = {
             "s": np.zeros([1, s_dim]),
             "a": np.zeros([1, a_dim]),
-            "r": np.zeros([1, 1]),
+            "r": np.zeros([1, r_dim]),
             "terminal": np.zeros([1, 1]),
             "s_": np.zeros([1, s_dim]),
         }
@@ -53,10 +60,11 @@ class Pool(object):
         """
 
         # Store experience in memory buffer
+        # FIXME: QD way to change reward dimension might introduce errors
         transition = {
             "s": s,
             "a": a,
-            "r": np.array([r]),
+            "r": r,
             "terminal": np.array([terminal]),
             "s_": s_,
         }

@@ -9,9 +9,9 @@ from variant import (
 
 # from lac import train
 
-from dlac import train
+# from dlac import train
 
-# from lsac import train
+from lsac import train
 
 if __name__ == "__main__":
 

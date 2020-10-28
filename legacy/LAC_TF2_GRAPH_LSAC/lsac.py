@@ -152,7 +152,8 @@ class LAC(object):
             self.a_input_ = tf.compat.v1.placeholder(
                 tf.float32, [None, self.a_dim], "a_input_"
             )
-            self.R = tf.compat.v1.placeholder(tf.float32, [None, 1], "r")
+            self.R1 = tf.compat.v1.placeholder(tf.float32, [None, 1], "r1")
+            self.R2 = tf.compat.v1.placeholder(tf.float32, [None, 1], "r2")
             self.terminal = tf.compat.v1.placeholder(tf.float32, [None, 1], "terminal")
 
             # Create Learning rate placeholders
@@ -174,8 +175,15 @@ class LAC(object):
                 tf.float32,
                 initializer=tf.math.log(ALG_PARAMS["alpha"]),
             )
+            self.log_sigma = tf.compat.v1.get_variable(
+                "log_sigma",
+                None,
+                tf.float32,
+                initializer=tf.math.log(ALG_PARAMS["sigma"]),
+            )
             self.labda = tf.clip_by_value(tf.exp(self.log_labda), *SCALE_lambda_MIN_MAX)
             self.alpha = tf.exp(self.log_alpha)
+            self.sigma = tf.exp(self.log_sigma)
 
             ###########################################
             # Create Networks #########################
@@ -273,7 +281,7 @@ class LAC(object):
 
             # Lyapunov constraint function
             self.l_delta = tf.reduce_mean(
-                input_tensor=(self.l_ - self.l + (ALG_PARAMS["alpha3"]) * self.R)
+                input_tensor=(self.l_ - self.l + (ALG_PARAMS["alpha3"]) * self.R1)
             )
 
             # Lagrance multiplier loss functions and optimizers graphs
@@ -293,12 +301,27 @@ class LAC(object):
             # Retrieve min Q target (Current state but now actor input)
             min_Q_target = tf.reduce_max((q1_a, q2_a), axis=0)
 
+            # # Optimize sigma
+            # # Test: Check which version is correct
+            # sigma_loss = -tf.reduce_mean(
+            #     input_tensor=(self.log_sigma * tf.stop_gradient(min_Q_target))
+            # )
+            # # sigma_loss = tf.reduce_mean(
+            # #     input_tensor=(self.log_sigma * tf.stop_gradient(min_Q_target))
+            # # )  # NOTE: Sigma decreases
+            # self.sigma_train = tf.compat.v1.train.AdamOptimizer(self.LR_C).minimize(
+            #     sigma_loss, var_list=self.log_sigma
+            # )
+
             # Actor loss and optimizer graph
             if self.use_lyapunov:
                 # Test input tensor
+                # a_loss = self.labda * self.l_delta + tf.reduce_mean(
+                #     self.alpha * log_pis + self.sigma * min_Q_target
+                # )
                 a_loss = self.labda * self.l_delta + tf.reduce_mean(
                     self.alpha * log_pis + min_Q_target
-                )
+                )  # NOTE (rickstaa): First version
             else:
                 a_loss = tf.reduce_mean(self.alpha * log_pis + min_Q_target)
             self.a_loss = a_loss  # FIXME: IS this needed?
@@ -313,7 +336,7 @@ class LAC(object):
             with tf.control_dependencies(target_update):
 
                 # Create Lyapunov critic graph
-                l_target = self.R + ALG_PARAMS["gamma"] * (
+                l_target = self.R1 + ALG_PARAMS["gamma"] * (
                     1 - self.terminal
                 ) * tf.stop_gradient(l_)
 
@@ -326,12 +349,12 @@ class LAC(object):
 
                 # Calculate target q values
                 min_next_q = tf.reduce_max([q1_, q2_], axis=0)
-                q1_target = self.R + ALG_PARAMS["gamma"] * (
+                q1_target = self.R2 + ALG_PARAMS["gamma"] * (
                     1 - self.terminal
                 ) * tf.compat.v1.stop_gradient(
                     min_next_q - self.alpha * next_log_pis
                 )  # ddpg
-                q2_target = self.R + ALG_PARAMS["gamma"] * (
+                q2_target = self.R2 + ALG_PARAMS["gamma"] * (
                     1 - self.terminal
                 ) * tf.compat.v1.stop_gradient(
                     min_next_q - self.alpha * next_log_pis
@@ -366,6 +389,7 @@ class LAC(object):
                     self.l_error,
                     self.td_error_1,
                     self.td_error_2,
+                    self.sigma,
                 ]
             else:
                 self.diagnostics = [
@@ -384,6 +408,7 @@ class LAC(object):
                     self.lambda_train,
                     self.qc_train_1,
                     self.qc_train_2,
+                    # self.sigma_train,
                 ]
             else:
                 self.opt = [self.qc_train_1, self.qc_train_2]
@@ -434,12 +459,14 @@ class LAC(object):
         bs_ = batch["s_"]  # next state
 
         # Fill optimizer variable feed dict
+        # FIXME: Quick solution to have multiple rewards
         if self.use_lyapunov:
             feed_dict = {
                 self.a_input: ba,
                 self.S: bs,
                 self.S_: bs_,
-                self.R: br,
+                self.R1: np.expand_dims(np.transpose(br)[0], axis=1),
+                self.R2: np.expand_dims(np.transpose(br)[1], axis=1),
                 self.terminal: bterminal,
                 self.LR_A: LR_A,
                 self.LR_L: LR_L,
@@ -472,10 +499,11 @@ class LAC(object):
                 l_error,
                 q1_error,
                 q2_error,
+                sigma,
             ) = self.sess.run(self.diagnostics, feed_dict)
 
             # Return optimization results
-            return labda, alpha, q1_error, q2_error, l_error, entropy, a_loss
+            return labda, alpha, sigma, q1_error, q2_error, l_error, entropy, a_loss
         else:
             entropy, alpha, a_loss, alpha_loss, q1_error, q2_error = self.sess.run(
                 self.diagnostics, feed_dict
@@ -901,9 +929,11 @@ def train(log_dir):
     print(f"Logging results to `{log_dir}`.")
 
     # Create replay memory buffer
+    # FIXME: QD way to change replay buffer reward dimension
     pool = Pool(
         s_dim=s_dim,
         a_dim=a_dim,
+        r_dim=2,
         store_last_n_paths=TRAIN_PARAMS["num_of_training_paths"],
         memory_capacity=ALG_PARAMS["memory_capacity"],
         min_memory_size=ALG_PARAMS["min_memory_size"],
@@ -928,9 +958,11 @@ def train(log_dir):
         # Create variable to store information about the current path
         if policy.use_lyapunov:
             current_path = {
-                "rewards": [],
+                "reward_1": [],
+                "reward_2": [],
                 "lyapunov_error": [],
                 "critic_error": [],
+                "sigma": [],
                 "alpha": [],
                 "lambda": [],
                 "entropy": [],
@@ -1023,6 +1055,7 @@ def train(log_dir):
                         (
                             labda,
                             alpha,
+                            sigma,
                             q1_error,
                             q2_error,
                             l_loss,
@@ -1037,9 +1070,12 @@ def train(log_dir):
             # Save path results
             if training_started:
                 if policy.use_lyapunov:
-                    current_path["rewards"].append(r)
+                    # FIXME: QD way to support 2 rewards
+                    current_path["reward_1"].append(r[0])
+                    current_path["reward_2"].append(r[1])
                     current_path["lyapunov_error"].append(l_loss)
                     current_path["critic_error"].append(max(q1_error, q2_error))
+                    current_path["sigma"].append(sigma)
                     current_path["alpha"].append(alpha)
                     current_path["lambda"].append(labda)
                     current_path["entropy"].append(entropy)
@@ -1066,7 +1102,10 @@ def train(log_dir):
                             logger.logkv(key, eval_diagnostics[key])
                             for key in eval_diagnostics.keys()
                         ]
-                        training_diagnostics.pop("return")
+                        training_diagnostics.pop(
+                            "return_1"
+                        )  # TODO: Strange why pop return but not length
+                        training_diagnostics.pop("return_2")
                     [
                         logger.logkv(key, training_diagnostics[key])
                         for key in training_diagnostics.keys()

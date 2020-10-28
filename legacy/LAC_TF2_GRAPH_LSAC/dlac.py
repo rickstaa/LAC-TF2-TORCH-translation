@@ -115,16 +115,18 @@ class LAC(object):
             #     RANDOM_SEED,
             #     TFP_SEED_STREAM(),
             # ]  # [weight init seed, sample seed]
-            self.lc_seed = RANDOM_SEED + 2  # Weight init seed
-            self.lc_target_seed = RANDOM_SEED + 3  # Weight init seed
-            self.qc_seed1 = RANDOM_SEED + 4  # Weight init seed
-            self.qc_seed2 = RANDOM_SEED + 5  # Weight init seed
-            self.qc_target_seed1 = RANDOM_SEED + 6  # Weight init seed
-            self.qc_target_seed2 = RANDOM_SEED + 7  # Weight init seed
+            self.lc_seed1 = RANDOM_SEED + 2  # Weight init seed
+            self.lc_seed2 = RANDOM_SEED + 3  # Weight init seed
+            self.lc_target_seed = RANDOM_SEED + 4  # Weight init seed
+            self.qc_seed1 = RANDOM_SEED + 5  # Weight init seed
+            self.qc_seed2 = RANDOM_SEED + 6  # Weight init seed
+            self.qc_target_seed1 = RANDOM_SEED + 7  # Weight init seed
+            self.qc_target_seed2 = RANDOM_SEED + 8  # Weight init seed
         else:
             self.ga_seeds = None
             self.ga_target_seeds = None
-            self.lc_seed = None
+            self.lc_seed1 = None
+            self.lc_seed2 = None
             self.lc_target_seed = None
             self.qc_seed1 = None
             self.qc_seed2 = None
@@ -185,7 +187,12 @@ class LAC(object):
             self.a, self.deterministic_a, self.a_dist = self._build_a(
                 self.S, seeds=self.ga_seeds
             )
-            self.l = self._build_l(self.S, self.a_input, seed=self.lc_seed)
+            self.l1 = self._build_l(
+                self.S, self.a_input, name="lyapunov_critic_1", seed=self.lc_seed1
+            )
+            self.l2 = self._build_l(
+                self.S, self.a_input, name="lyapunov_critic_2", seed=self.lc_seed2
+            )
             self.log_pis = log_pis = self.a_dist.log_prob(
                 self.a
             )  # Gaussian actor action log_probability
@@ -200,9 +207,13 @@ class LAC(object):
             a_params = tf.compat.v1.get_collection(
                 tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/gaussian_actor"
             )
-            l_params = tf.compat.v1.get_collection(
+            l1_params = tf.compat.v1.get_collection(
                 tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
-                scope="Actor/lyapunov_critic",
+                scope="Actor/lyapunov_critic_1",
+            )
+            l2_params = tf.compat.v1.get_collection(
+                tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
+                scope="Actor/lyapunov_critic_2",
             )
             c1_params = tf.compat.v1.get_collection(
                 tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope="Actor/q_critic_1"
@@ -219,7 +230,8 @@ class LAC(object):
 
             target_update = [
                 ema.apply(a_params),
-                ema.apply(l_params),
+                ema.apply(l1_params),
+                ema.apply(l2_params),
                 ema.apply(c1_params),
                 ema.apply(c2_params),
             ]
@@ -233,10 +245,19 @@ class LAC(object):
                 custom_getter=ema_getter,
                 seeds=self.ga_target_seeds,
             )
-            l_ = self._build_l(
+            l1_ = self._build_l(
+                self.S_,
+                a_,
+                name="lyapunov_critic_1",
+                reuse=True,
+                custom_getter=ema_getter,
+                seed=self.lc_target_seed,
+            )
+            l2_ = self._build_l(
                 self.S_,
                 a_,
                 reuse=True,
+                name="lyapunov_critic_2",
                 custom_getter=ema_getter,
                 seed=self.lc_target_seed,
             )
@@ -259,7 +280,20 @@ class LAC(object):
 
             # Graph for value of current best action out of the Actor
             lya_a_, _, _ = self._build_a(self.S_, reuse=True, seeds=self.ga_seeds)
-            self.l_ = self._build_l(self.S_, lya_a_, reuse=True, seed=self.lc_seed)
+            self.l1_ = self._build_l(
+                self.S_,
+                lya_a_,
+                name="lyapunov_critic_1",
+                reuse=True,
+                seed=self.lc_seed1,
+            )
+            self.l2_ = self._build_l(
+                self.S_,
+                lya_a_,
+                name="lyapunov_critic_2",
+                reuse=True,
+                seed=self.lc_seed2,
+            )
             q1_a = self._build_c(
                 self.S, self.a, "q_critic_1", reuse=True, seed=self.qc_seed1
             )
@@ -272,12 +306,20 @@ class LAC(object):
             ###########################################
 
             # Lyapunov constraint function
-            self.l_delta = tf.reduce_mean(
-                input_tensor=(self.l_ - self.l + (ALG_PARAMS["alpha3"]) * self.R)
+            # Question: How do we want to use the double Q trick here?
+            # TEST: Test if this goes how it supposed to!
+            self.l1_delta = tf.reduce_mean(
+                input_tensor=(self.l1_ - self.l1 + (ALG_PARAMS["alpha3"]) * self.R)
             )
+            self.l2_delta = tf.reduce_mean(
+                input_tensor=(self.l2_ - self.l2 + (ALG_PARAMS["alpha3"]) * self.R)
+            )
+            self.l_delta_max = tf.reduce_min([self.l1_delta, self.l2_delta], axis=0)
 
             # Lagrance multiplier loss functions and optimizers graphs
-            labda_loss = -tf.reduce_mean(input_tensor=(self.log_labda * self.l_delta))
+            labda_loss = -tf.reduce_mean(
+                input_tensor=(self.log_labda * self.l_delta_max)
+            )
             alpha_loss = -tf.reduce_mean(
                 input_tensor=(
                     self.log_alpha * tf.stop_gradient(log_pis + self.target_entropy)
@@ -296,7 +338,7 @@ class LAC(object):
             # Actor loss and optimizer graph
             if self.use_lyapunov:
                 # Test input tensor
-                a_loss = self.labda * self.l_delta + tf.reduce_mean(
+                a_loss = self.labda * self.l_delta_max + tf.reduce_mean(
                     self.alpha * log_pis + min_Q_target
                 )
             else:
@@ -313,28 +355,38 @@ class LAC(object):
             with tf.control_dependencies(target_update):
 
                 # Create Lyapunov critic graph
-                l_target = self.R + ALG_PARAMS["gamma"] * (
+                max_next_l = tf.reduce_max([l1_, l2_], axis=0)
+                l1_target = self.R + ALG_PARAMS["gamma"] * (
                     1 - self.terminal
-                ) * tf.stop_gradient(l_)
+                ) * tf.stop_gradient(max_next_l)
+                l2_target = self.R + ALG_PARAMS["gamma"] * (
+                    1 - self.terminal
+                ) * tf.stop_gradient(max_next_l)
 
-                self.l_error = tf.compat.v1.losses.mean_squared_error(
-                    labels=l_target, predictions=self.l
+                self.l1_error = tf.compat.v1.losses.mean_squared_error(
+                    labels=l1_target, predictions=self.l1
                 )
-                self.l_train = tf.compat.v1.train.AdamOptimizer(self.LR_L).minimize(
-                    self.l_error, var_list=l_params
+                self.l2_error = tf.compat.v1.losses.mean_squared_error(
+                    labels=l2_target, predictions=self.l2
+                )
+                self.l_train_1 = tf.compat.v1.train.AdamOptimizer(self.LR_L).minimize(
+                    self.l1_error, var_list=l1_params
+                )
+                self.l_train_2 = tf.compat.v1.train.AdamOptimizer(self.LR_L).minimize(
+                    self.l2_error, var_list=l2_params
                 )
 
                 # Calculate target q values
-                min_next_q = tf.reduce_max([q1_, q2_], axis=0)
+                max_next_q = tf.reduce_max([q1_, q2_], axis=0)
                 q1_target = self.R + ALG_PARAMS["gamma"] * (
                     1 - self.terminal
                 ) * tf.compat.v1.stop_gradient(
-                    min_next_q - self.alpha * next_log_pis
+                    max_next_q - self.alpha * next_log_pis
                 )  # ddpg
                 q2_target = self.R + ALG_PARAMS["gamma"] * (
                     1 - self.terminal
                 ) * tf.compat.v1.stop_gradient(
-                    min_next_q - self.alpha * next_log_pis
+                    max_next_q - self.alpha * next_log_pis
                 )  # ddpg
 
                 # Create Q critic graph
@@ -355,6 +407,7 @@ class LAC(object):
             self.entropy = tf.reduce_mean(input_tensor=-self.log_pis)
             self.sess.run(tf.compat.v1.global_variables_initializer())
             self.saver = tf.compat.v1.train.Saver()
+            # TODO: Add both critics
             if self.use_lyapunov:
                 self.diagnostics = [
                     self.entropy,
@@ -363,7 +416,8 @@ class LAC(object):
                     self.a_loss,
                     alpha_loss,
                     labda_loss,
-                    self.l_error,
+                    self.l1_error,
+                    self.l2_error,
                     self.td_error_1,
                     self.td_error_2,
                 ]
@@ -380,7 +434,8 @@ class LAC(object):
             # Create optimizer array
             if self.use_lyapunov:
                 self.opt = [
-                    self.l_train,
+                    self.l_train_1,
+                    self.l_train_2,
                     self.lambda_train,
                     self.qc_train_1,
                     self.qc_train_2,
@@ -469,13 +524,14 @@ class LAC(object):
                 a_loss,
                 alpha_loss,
                 labda_loss,
-                l_error,
+                l1_error,
+                l2_error,
                 q1_error,
                 q2_error,
             ) = self.sess.run(self.diagnostics, feed_dict)
 
             # Return optimization results
-            return labda, alpha, q1_error, q2_error, l_error, entropy, a_loss
+            return labda, alpha, q1_error, q2_error, l1_error, l2_error, entropy, a_loss
         else:
             entropy, alpha, a_loss, alpha_loss, q1_error, q2_error = self.sess.run(
                 self.diagnostics, feed_dict
@@ -1025,7 +1081,8 @@ def train(log_dir):
                             alpha,
                             q1_error,
                             q2_error,
-                            l_loss,
+                            l1_loss,
+                            l2_loss,
                             entropy,
                             a_loss,
                         ) = policy.learn(lr_a_now, lr_l_now, lr_a, lr_c_now, batch)
@@ -1038,7 +1095,7 @@ def train(log_dir):
             if training_started:
                 if policy.use_lyapunov:
                     current_path["rewards"].append(r)
-                    current_path["lyapunov_error"].append(l_loss)
+                    current_path["lyapunov_error"].append(max(l1_loss, l2_loss))
                     current_path["critic_error"].append(max(q1_error, q2_error))
                     current_path["alpha"].append(alpha)
                     current_path["lambda"].append(labda)
