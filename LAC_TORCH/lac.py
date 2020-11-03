@@ -1,4 +1,3 @@
-
 """LAC algorithm class
 
 This module contains a Pytorch implementation of the Lyapunov Actor Critic (LAC)
@@ -264,9 +263,7 @@ class LAC(object):
         if evaluation is True:
             try:
                 with torch.no_grad():
-                    det_a, _ = self.ga(
-                        s.unsqueeze(0), determinstic=True
-                    )  # TODO: Check unsqueeze
+                    det_a, _ = self.ga(s.unsqueeze(0), determinstic=True)
                     return (
                         det_a[0].cpu().numpy()
                     )  # IMPROVE: Check if this is the fastest method
@@ -274,7 +271,7 @@ class LAC(object):
                 return
         else:
             with torch.no_grad():
-                a, _ = self.ga(s.unsqueeze(0))  # TODO: Check unsqueeze
+                a, _ = self.ga(s.unsqueeze(0))
                 return (
                     a[0].cpu().numpy()
                 )  # IMPROVE: Check if this is the fastest method
@@ -426,7 +423,7 @@ class LAC(object):
         # Calculate alpha loss
         alpha_loss = -(
             self.alpha * (log_pis + self.target_entropy).detach()
-        ).mean()  # See Haarnoja eq. 17  # FIXME: Check if log_alpha gives same resullt
+        ).mean()  # See Haarnoja eq. 17  # TEST: Check if log_alpha gives same resullt
 
         # Perform one gradient descent step for alpha
         alpha_loss.backward()

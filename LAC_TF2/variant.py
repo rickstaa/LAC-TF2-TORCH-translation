@@ -22,9 +22,9 @@ ENV_NAME = "oscillator"  # The environment used for training
 # Training parameters
 EPISODES = int(0.4e4)  # Max episodes
 NUM_OF_POLICIES = 1  # Number of randomly seeded trained agents
-USE_LYAPUNOV = False  # Use LAC (If false SAC is used)
+USE_LYAPUNOV = True  # Use LAC (If false SAC is used)
 CONTINUE_TRAINING = (
-    True  # Whether we want to continue training an already trained model
+    False  # Whether we want to continue training an already trained model
 )
 CONTINUE_MODEL_FOLDER = "SAC20201101_1026/0"  # Which model you want to use
 RESET_LAGRANCE_MULTIPLIERS = False  # Reset lagrance multipliers before retraining

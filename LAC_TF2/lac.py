@@ -393,10 +393,6 @@ class LAC(tf.Module):
         # Optimize Gaussian actor ######################
         ################################################
 
-        # Get current Lyapunov value
-        # if self.use_lyapunov:
-        #     l1 = self.lc(batch["s"], batch["a"]) # TODO: Check if this is needed
-
         # Compute actor loss gradients
         with tf.GradientTape() as a_tape:
 
@@ -453,7 +449,7 @@ class LAC(tf.Module):
             # Calculate alpha loss
             alpha_loss = -tf.reduce_mean(
                 self.alpha * tf.stop_gradient(log_pis + self.target_entropy)
-            )  # See Haarnoja eq. 17 # FIXME: Check if log_alpha gives same resullt
+            )  # See Haarnoja eq. 17 # TEST: Check if log_alpha gives same resullt
 
         # Perform one gradient descent step for alpha
         alpha_grads = alpha_tape.gradient(alpha_loss, [self.log_alpha])

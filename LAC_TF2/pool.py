@@ -137,12 +137,12 @@ class Pool(object):
             batch = {}
             for key in self.memory.keys():
                 if "s" in key:
-                    sample = self.memory[key][indices].astype(
-                        np.float32
-                    )  # FIXME: Test typeing
-                    # sample = self.memory[key][indices] # DEBUG
+                    # sample = self.memory[key][indices].astype(
+                    #     np.float32
+                    # )  # FIXME: Test typeing
+                    sample = self.memory[key][indices] # DEBUG
                     batch.update({key: sample})
                 else:
-                    batch.update({key: self.memory[key][indices].astype(np.float32)})
-                    # batch.update({key: self.memory[key][indices]})  # DEBUG
+                    # batch.update({key: self.memory[key][indices].astype(np.float32)})
+                    batch.update({key: self.memory[key][indices]})  # DEBUG
             return batch
