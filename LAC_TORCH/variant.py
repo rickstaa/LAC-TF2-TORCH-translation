@@ -17,7 +17,7 @@ RANDOM_SEED = 0  # The script random seed
 ENV_NAME = "oscillator"  # The environment used for training
 
 # Training parameters
-EPISODES = int(1e5)  # Max episodes
+EPISODES = int(1.1e4)  # Max episodes
 NUM_OF_POLICIES = 1  # Number of randomly seeded trained agents
 USE_LYAPUNOV = True  # Use LAC (If false SAC is used)
 CONTINUE_TRAINING = (
@@ -29,7 +29,7 @@ SAVE_CHECKPOINTS = False  # Store intermediate models
 CHECKPOINT_SAVE_FREQ = 10000  # Intermediate model save frequency
 
 # Evaluation parameters
-EVAL_LIST = ["LAC20201027_1311"]
+EVAL_LIST = ["SAC20201103_2150"]
 WHICH_POLICY_FOR_INFERENCE = [
     0
 ]  # If this is empty, it means all the policies are evaluated;
@@ -105,6 +105,8 @@ ALG_PARAMS = {
 
 # Environment parameters
 # IMPROVEMENT: Place in its own configuration file
+# NOTE (rickstaa): If eval_reset is true a eval argument is passed to the env.reset
+# method.
 ENVS_PARAMS = {
     "oscillator": {
         "module_name": "envs.oscillator",
@@ -112,7 +114,8 @@ ENVS_PARAMS = {
         "max_ep_steps": 800,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
-        "eval_render": False,
+        "eval_render": False,  # Render env in training and inference
+        "eval_reset": False,  # If the reset differs between train and inference mode
     },
     "ex3_ekf_gyro": {
         "module_name": "envs.Ex3_EKF_gyro",
@@ -120,7 +123,8 @@ ENVS_PARAMS = {
         "max_ep_steps": 800,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
-        "eval_render": False,
+        "eval_render": False,  # Render env in training and inference
+        "eval_reset": True,  # If the reset differs between train and inference mode
     },
     "ex3_ekf_gyro_dt": {
         "module_name": "envs.ex3_ekf_gyro_dt",
@@ -128,7 +132,8 @@ ENVS_PARAMS = {
         "max_ep_steps": 120,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
-        "eval_render": False,
+        "eval_render": False,  # Render env in training and inference
+        "eval_reset": True,  # If the reset differs between train and inference mode
     },
     "ex3_ekf_gyro_dt_real": {
         "module_name": "envs.ex3_ekf_gyro_dt_real",
@@ -136,7 +141,8 @@ ENVS_PARAMS = {
         "max_ep_steps": 1000,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
-        "eval_render": False,
+        "eval_render": False,  # Render env in training and inference
+        "eval_reset": True,  # If the reset differs between train and inference mode
     },
 }
 
