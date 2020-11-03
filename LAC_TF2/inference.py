@@ -403,7 +403,7 @@ if __name__ == "__main__":
                 # Reset environment
                 # NOTE (rickstaa): This check was added since some of the supported
                 # environments have a different reset when running the inference.
-                # IMPROVEMENT: Add these environments in a config file!
+                # TODO: Add these environments in a config file!
                 if env.__class__.__name__.lower() == "ex3_ekf_gyro":
                     s = env.reset(eval=True)
                 else:

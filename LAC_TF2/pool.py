@@ -44,13 +44,6 @@ class Pool(object):
         self.memory_capacity = memory_capacity
         self.paths = deque(maxlen=store_last_n_paths)  # TODO: Why is this used?
         self.reset()
-        # self.memory = {
-        #     "s": np.zeros([1, s_dim],),
-        #     "a": np.zeros([1, a_dim]),
-        #     "r": np.zeros([1, 1]),
-        #     "terminal": np.zeros([1, 1]),
-        #     "s_": np.zeros([1, s_dim]),
-        # }
         self.memory = {
             "s": np.zeros([1, s_dim], dtype=np.float32),
             "a": np.zeros([1, a_dim], dtype=np.float32),
@@ -89,15 +82,6 @@ class Pool(object):
         Returns:
             int: The current memory buffer size.
         """
-
-        # Store experience in memory buffer
-        # transition = {
-        #     "s": s,
-        #     "a": a,
-        #     "r": np.array([r]),
-        #     "terminal": np.array([terminal]),
-        #     "s_": s_,
-        # }  # TODO: Check speed
         transition = {
             "s": np.array(s, dtype=np.float32),
             "a": np.array(a, dtype=np.float32),
@@ -151,12 +135,8 @@ class Pool(object):
             batch = {}
             for key in self.memory.keys():
                 if "s" in key:
-                    # sample = self.memory[key][indices].astype(
-                    #     np.float32
-                    # )  # FIXME: Test typeing
-                    sample = self.memory[key][indices]  # DEBUG
+                    sample = self.memory[key][indices]
                     batch.update({key: sample})
                 else:
-                    # batch.update({key: self.memory[key][indices].astype(np.float32)})
-                    batch.update({key: self.memory[key][indices]})  # DEBUG
+                    batch.update({key: self.memory[key][indices]})
             return batch

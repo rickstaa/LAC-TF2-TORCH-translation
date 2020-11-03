@@ -481,7 +481,6 @@ class LAC(tf.Module):
         self._update_targets()
 
         # Return diagnostics
-        # IMPROVE: Check if this it the right location to do this
         if self.use_lyapunov:
             return (
                 self.labda,
