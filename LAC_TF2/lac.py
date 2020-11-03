@@ -81,7 +81,7 @@ if DEBUG_PARAMS["debug"]:
             bold=True,
         )
     )
-    tf.config.experimental_run_functions_eagerly(True)
+    tf.config.run_functions_eagerly(True)
 
 # TEST: Zero weight bias initialization.
 # TEST: Log_alpha, alpha change.
@@ -138,9 +138,13 @@ class LAC(tf.Module):
 
         # Display information about the algorithm being used (LAC or SAC)
         if ALG_PARAMS["use_lyapunov"]:
-            print(colorize("INFO: You are using the LAC algorithm.", "green", bold=True))
+            print(
+                colorize("INFO: You are using the LAC algorithm.", "green", bold=True)
+            )
         else:
-            print(colorize("INFO: You are using the SAC algorithm.", "yellow", bold=True))
+            print(
+                colorize("INFO: You are using the SAC algorithm.", "yellow", bold=True)
+            )
 
         # Save action and observation space as members
         self._a_dim = a_dim

@@ -41,19 +41,38 @@ def get_log_path(env_name=ENV_NAME, agent_name=None):
     Returns:
         str: The model/results log path.
     """
+
+    # Retrieve log_folder path
+    log_folder = osp.join("./log", env_name.lower())
+
     # Create agent name if not supplied
     if not agent_name:
         alg_prefix = "LAC" if USE_LYAPUNOV else "SAC"
         agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M")
+        while 1:
+            agent_folder = osp.join(log_folder, agent_name)
+
+            # Check if created agent_name is valid
+            if not osp.isdir(agent_folder):
+                break
+            else:  # Also add seconds if folder already exists
+                agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M%S")
+    else:
+        while 1:
+            agent_folder = osp.join(log_folder, agent_name)
+
+            # Check if supplied agent_name is valid
+            if not osp.isdir(agent_folder):
+                break
+            else:  # Also add seconds if folder already exists
+                agent_name = agent_name + "_" + time.strftime("%Y%m%d_%H%M%S")
 
     # Create log_path
     if REL_PATH:
-        LOG_PATH = osp.join("./log", env_name.lower(), agent_name)
+        LOG_PATH = agent_folder
     else:
         dirname = osp.dirname(__file__)
-        LOG_PATH = osp.abspath(
-            osp.join(dirname, "./log/" + env_name.lower(), agent_name)
-        )
+        LOG_PATH = osp.abspath(osp.join(dirname, agent_folder))
         return LOG_PATH
 
 

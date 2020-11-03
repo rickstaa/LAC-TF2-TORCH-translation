@@ -47,15 +47,15 @@ pip install -r requirements.txt
 You can change the training parameters in the [variant.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2/variant.py) file. The essential variables are explained below:
 
 -   **ENV_NAME**: The environment in which you want to train your agent.
--   **episodes**: The number of episodes you want the agent to perform.
--   **num_of_policies**: The number of (distinct) agents you want to train.
--   **use_lyapunov**: Whether you want to use the LAC (`use_lyapunov=True`) or SAC (`use_lyapunov=False`) algorithm.
+-   **EPISODES**: The number of episodes you want the agent to perform.
+-   **NUM_OF_POLICIES**: The number of (distinct) agents you want to train.
+-   **USE_LYAPUNOV**: Whether you want to use the LAC (`use_lyapunov=True`) or SAC (`use_lyapunov=False`) algorithm.
 -   **ENV_SEED**: The random seed used for the environment. Set to None if you don't want the environment to be deterministic.
 -   **RANDOM_SEED**: The random seed of the rest of the script. Set to None if you do not want the script to be deterministic.
--   **continue_training**: Whether we want to continue training an already trained model.
--   **continue_model_folder**: The path of the model for which you want to continue the training
--   **save_checkpoints**: Store intermediate models.
--   **checkpoint_save_freq**: Intermediate model save frequency.
+-   **CONTINUE_TRAINING**: Whether we want to continue training an already trained model.
+-   **CONTINUE_MODEL_FOLDER**: The path of the model for which you want to continue the training
+-   **SAVE_CHECKPOINTS**: Store intermediate models.
+-   **CHECKPOINT_SAVE_FREQ**: Intermediate model save frequency.
 
 ### Start the training
 
@@ -72,9 +72,9 @@ python <LAC_VERSION_NAME>/train.py
 
 You can change the inference parameters in the [variant.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2/variant.py) file. The essential variables are explained below:
 
--   **eval_list**: The names of the agents you want to run the inference for.
--   **which_policy_for_inference**: Which policies of a trained agent you want to use for the inference. Each trained agent can contain multiple policies (see: `num_of_policies` parameter).
--   **num_of_paths_for_eval**: How many paths you want to use during the inference for each policy.
+-   **EVAL_LIST**: The names of the agents you want to run the inference for.
+-   **WHICH_POLICY_FOR_INFERENCE**: Which policies of a trained agent you want to use for the inference. Each trained agent can contain multiple policies (see: `num_of_policies` parameter).
+-   **NUM_OF_PATHS_FOR_EVAL**: How many paths you want to use during the inference for each policy.
 
 ### Start the inference
 
@@ -94,9 +94,20 @@ python <LAC_VERSION_NAME>/inference_eval.py
 
 ## Add new environments
 
-[//]: TODO "This may be the most platform independent comment"
+New environments should be added to the `ENVS_PARAMS` variable of the
+[variant.py file](https://github.com/rickstaa/LAC_TF2_TORCH_Translation/blob/f492ceb1ede9c22e5f4fae45085f2393465aeb61/LAC_TF2/variant.py#L111-L144). While doing so please make sure you supply a valid
+module and class name:
 
-New environments should be added in the [&lt;LAC_VERSION_NAME>/envs](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/tree/master/LAC_TF2_GRAPH/envs) folder. After you added a new environment
-to this folder, you have to add it to the available environments in the [utils.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2/utils.py) file. The currently
-available environments are found in the [get_env_from_name](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/66f97571f5273508967c3b19102fa127927147f1/LAC_TF2/utils.py#L12) function. If you did this successfully, you could
-train the LAC/SAC agent in your environment by setting it as the `ENV_NAME` in the [variant.py](https://github.com/rickstaa/LAC_TF2_TORCH_TRANSLATION/blob/master/LAC_TF2/variant.py) file.
+```python
+"oscillator": {
+    "module_name": "envs.oscillator",
+    "class_name": "oscillator",
+    "max_ep_steps": 800,
+    "max_global_steps": TRAIN_PARAMS["episodes"],
+    "max_episodes": int(1e6),
+    "eval_render": False,
+},
+```
+
+After that, the new environment can be used by setting the `ENV_NAME` variable of the
+of the [variant.py file](https://github.com/rickstaa/LAC_TF2_TORCH_Translation/blob/f492ceb1ede9c22e5f4fae45085f2393465aeb61/LAC_TF2/variant.py#L20).
