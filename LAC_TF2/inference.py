@@ -5,7 +5,6 @@ import os
 import os.path as osp
 
 import sys
-from itertools import cycle
 import math
 import numpy as np
 import matplotlib.pyplot as plt
@@ -612,7 +611,7 @@ if __name__ == "__main__":
                     )
                     ax = fig.add_subplot(111)
                     colors = "bgrcmk"
-                    cycol = cycle(colors)
+                    cycol = itertools.cycle(colors)
                     figs["states_of_interest"].append(fig)  # Store figure reference
                 for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
                     if (i + 1) in req_sio or not req_sio:
@@ -764,7 +763,7 @@ if __name__ == "__main__":
                         ),
                     )
                     colors = "bgrcmk"
-                    cycol = cycle(colors)
+                    cycol = itertools.cycle(colors)
                     ax2 = fig.add_subplot(111)
                     figs["states"].append(fig)  # Store figure reference
                 for i in range(0, obs_mean_path.shape[0]):
@@ -890,7 +889,7 @@ if __name__ == "__main__":
                         ),
                     )
                     colors = "bgrcmk"
-                    cycol = cycle(colors)
+                    cycol = itertools.cycle(colors)
                     ax3 = fig.add_subplot(111)
                     figs["costs"].append(fig)  # Store figure reference
                 for i in range(0, costs_mean_path.shape[0]):

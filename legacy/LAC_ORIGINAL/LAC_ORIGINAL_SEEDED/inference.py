@@ -2,11 +2,11 @@
 
 import os
 import sys
-from itertools import cycle
 import math
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
+import itertools
 
 from LAC.LAC_V1 import LAC
 from variant import (
@@ -417,7 +417,7 @@ if __name__ == "__main__":
                 fig_1 = plt.figure(figsize=(9, 6), num=f"LAC_ORIGINAL_{i + 1}")
                 ax = fig_1.add_subplot(111)
                 colors = "bgrcmk"
-                cycol = cycle(colors)
+                cycol = itertools.cycle(colors)
             for i in range(0, max(soi_mean_path.shape[0], ref_mean_path.shape[0])):
                 if (i + 1) in req_ref or not req_ref:
                     if not EVAL_PARAMS["merged"]:
@@ -474,7 +474,7 @@ if __name__ == "__main__":
             # BUG: Doesn't work with non merged option
             fig_2 = plt.figure(figsize=(9, 6), num="LAC_ORIGINAL_2")
             colors = "bgrcmk"
-            cycol = cycle(colors)
+            cycol = itertools.cycle(colors)
             ax2 = fig_2.add_subplot(111)
 
             # Calculate mean observation path and std

@@ -44,12 +44,19 @@ class Pool(object):
         self.memory_capacity = memory_capacity
         self.paths = deque(maxlen=store_last_n_paths)  # TODO: Why is this used?
         self.reset()
+        # self.memory = {
+        #     "s": np.zeros([1, s_dim],),
+        #     "a": np.zeros([1, a_dim]),
+        #     "r": np.zeros([1, 1]),
+        #     "terminal": np.zeros([1, 1]),
+        #     "s_": np.zeros([1, s_dim]),
+        # }
         self.memory = {
-            "s": np.zeros([1, s_dim]),
-            "a": np.zeros([1, a_dim]),
-            "r": np.zeros([1, 1]),
-            "terminal": np.zeros([1, 1]),
-            "s_": np.zeros([1, s_dim]),
+            "s": np.zeros([1, s_dim], dtype=np.float32),
+            "a": np.zeros([1, a_dim], dtype=np.float32),
+            "r": np.zeros([1, 1], dtype=np.float32),
+            "terminal": np.zeros([1, 1], dtype=np.float32),
+            "s_": np.zeros([1, s_dim], dtype=np.float32),
         }
         self.memory_pointer = 0
         self.min_memory_size = min_memory_size
@@ -84,12 +91,19 @@ class Pool(object):
         """
 
         # Store experience in memory buffer
+        # transition = {
+        #     "s": s,
+        #     "a": a,
+        #     "r": np.array([r]),
+        #     "terminal": np.array([terminal]),
+        #     "s_": s_,
+        # }  # TODO: Check speed
         transition = {
-            "s": s,
-            "a": a,
-            "r": np.array([r]),
-            "terminal": np.array([terminal]),
-            "s_": s_,
+            "s": np.array(s, dtype=np.float32),
+            "a": np.array(a, dtype=np.float32),
+            "r": np.array([r], dtype=np.float32),
+            "terminal": np.array([terminal], dtype=np.float32),
+            "s_": np.array(s_, dtype=np.float32),
         }
         if len(self.current_path["s"]) < 1:
             for key in transition.keys():
@@ -140,7 +154,7 @@ class Pool(object):
                     # sample = self.memory[key][indices].astype(
                     #     np.float32
                     # )  # FIXME: Test typeing
-                    sample = self.memory[key][indices] # DEBUG
+                    sample = self.memory[key][indices]  # DEBUG
                     batch.update({key: sample})
                 else:
                     # batch.update({key: self.memory[key][indices].astype(np.float32)})
