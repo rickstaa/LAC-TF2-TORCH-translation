@@ -1,4 +1,6 @@
-"""Logger that logs to performance of the current policy to the stdout and file.
+"""Simple logger used to log the performance of the current policy to the
+stdout and file. This loger was based on
+https://github.com/openai/baselines/blob/master/baselines/logger.py.
 """
 
 import os
@@ -12,12 +14,11 @@ import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 
-# os.environ['OPENAI_LOGDIR'] = './log'
+# Script parameters
 DEBUG = 10
 INFO = 20
 WARN = 30
 ERROR = 40
-
 DISABLED = 50
 
 
@@ -55,7 +56,7 @@ class HumanOutputFormat(KVWriter, SeqWriter):
 
         # Find max widths
         if len(key2str) == 0:
-            print("WARNING: tried to write empty key-value dict")
+            print("WARN: tried to write empty key-value dict")
             return
         else:
             keywidth = max(map(len, key2str.keys()))
@@ -245,7 +246,8 @@ def getkvs():
 
 def log(*args, level=INFO):
     """
-    Write the sequence of args, with no separators, to the console and output files (if you've configured an output file).
+    Write the sequence of args, with no separators, to the console and output files
+    (if you've configured an output file).
     """
     get_current().log(*args, level=level)
 
@@ -511,44 +513,6 @@ def read_csv(fname):
     import pandas
 
     return pandas.read_csv(fname, index_col=None, comment="#")
-
-
-def read_tb(path):
-    """
-    path : a tensorboard file OR a directory, where we will find all TB files
-           of the form events.*
-    """
-    import pandas
-    import numpy as np
-    from glob import glob
-    import tensorflow as tf
-
-    if osp.isdir(path):
-        fnames = glob(osp.join(path, "events.*"))
-    elif osp.basename(path).startswith("events."):
-        fnames = [path]
-    else:
-        raise NotImplementedError(
-            "Expected tensorboard file or directory containing them. Got %s" % path
-        )
-    tag2pairs = defaultdict(list)
-    maxstep = 0
-    for fname in fnames:
-        # for summary in tf.train.summary_iterator(fname):  # FIXME: Don't forget this change
-        for summary in tf.compat.v1.train.summary_iterator(fname):  # DEBUG
-            if summary.step > 0:
-                for v in summary.summary.value:
-                    pair = (summary.step, v.simple_value)
-                    tag2pairs[v.tag].append(pair)
-                maxstep = max(summary.step, maxstep)
-    data = np.empty((maxstep, len(tag2pairs)))
-    data[:] = np.nan
-    tags = sorted(tag2pairs.keys())
-    for (colidx, tag) in enumerate(tags):
-        pairs = tag2pairs[tag]
-        for (step, value) in pairs:
-            data[step - 1, colidx] = value
-    return pandas.DataFrame(data, columns=tags)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
+tensorboard
+torch
 opencv-python
 matplotlib
 gym
 cloudpickle==1.3.0
 numpy==1.18.5
-torch
-tensorboard

@@ -1,50 +1,210 @@
+"""A set of common utilities used within the algorithm code.
+"""
+
+import sys
+import os.path as osp
+import importlib
 from collections import OrderedDict
-
-import numpy as np
 import copy
+import time
 
-from variant import (
-    TRAIN_PARAMS,
-    ENV_PARAMS,
+import tensorflow as tf
+import numpy as np
+
+from variant import ENVS_PARAMS, TRAIN_PARAMS, ENV_NAME, REL_PATH, USE_LYAPUNOV
+
+# Script parameters
+color2num = dict(
+    gray=30,
+    red=31,
+    green=32,
+    yellow=33,
+    blue=34,
+    magenta=35,
+    cyan=36,
+    white=37,
+    crimson=38,
 )
 
 
-def get_env_from_name(name, ENV_SEED=None):  # FIXME: Naming
+def get_log_path(env_name=ENV_NAME, agent_name=None):
+    """Retrieve model/results log path.
+
+    Args:
+        environment_name (str, optional): The name of the gym environment you are
+            using. By default the value in the `variant.py` file is used.
+
+        agent_name (str, optional): The name of the agent you are using. When no agent
+            is supplied a agent name will be created.
+
+    Returns:
+        str: The model/results log path.
+    """
+    # Create agent name if not supplied
+    if not agent_name:
+        alg_prefix = "LAC" if USE_LYAPUNOV else "SAC"
+        agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M")
+
+    # Create log_path
+    if REL_PATH:
+        LOG_PATH = osp.join("./log", env_name.lower(), agent_name)
+    else:
+        dirname = osp.dirname(__file__)
+        LOG_PATH = osp.abspath(
+            osp.join(dirname, "./log/" + env_name.lower(), agent_name)
+        )
+        return LOG_PATH
+
+
+def get_env_from_name(env_name, ENV_SEED):
     """Initializes the gym environment with the given name
 
     Args:
-        name (str): The name of the gym environment you want to initialize.
+        env_name (str): The name of the gym environment you want to initialize.
 
     Returns:
         gym.Env: The gym environment.
     """
-    if name.lower() == "oscillator":
-        from envs.oscillator import oscillator as env
 
-        env = env()
-        env = env.unwrapped
-    elif name.lower() == "ex3_ekf_gyro":
-        from envs.Ex3_EKF_gyro import Ex3_EKF_gyro as env
+    # Retrieve Environment Parameters
+    if env_name.lower() in ENVS_PARAMS.keys():
+        env_params = ENVS_PARAMS[env_name.lower()]
+        module_name = env_params["module_name"]
+        class_name = env_params["class_name"]
+    else:
+        print(
+            colorize(
+                f"ERROR: Shutting down the training as the {env_name} environment "
+                "was not specified in the `ENVS_PARAMS` dictionary. Please specify "
+                "your environment in the `variant.py` file.",
+                "red",
+                bold=True,
+            )
+        )
+        sys.exit(0)
 
+    # Load the environment
+    try:
+        env = getattr(importlib.import_module(module_name), class_name)
         env = env()
-        env = env.unwrapped
-    elif name.lower() == "ex3_ekf_gyro_dt":
-        from envs.Ex3_EKF_gyro_dt import Ex3_EKF_gyro as env
+        env = env.unwrapped  # Improve: It is better to register the environment
+    except ModuleNotFoundError:
+        print(
+            colorize(
+                (
+                    f"ERROR: Shutting down the training as the {env_name} environment "
+                    f"could not be found in module {module_name} and class "
+                    f"{class_name}. Please check the `module_name` and `class_name` "
+                    "variables in the `variant.py` file."
+                ),
+                "red",
+                bold=True,
+            )
+        )
+        sys.exit(0)
 
-        env = env()
-        env = env.unwrapped
-    elif name.lower() == "ex3_ekf_gyro_dt_real":
-        from envs.Ex3_EKF_gyro_dt_real import Ex3_EKF_gyro as env
-
-        env = env()
-        env = env.unwrapped
+    # Set environment seed
     if ENV_SEED is not None:
         env.seed(ENV_SEED)
     return env
 
 
+def mlp(sizes, activation, output_activation=None, name=""):
+    """Creates a multi-layered perceptron using Tensorflow.
+
+    Args:
+        sizes (list): The size of each of the layers.
+
+        activation (function): The activation function used for the
+            hidden layers.
+
+        output_activation (function, optional): The activation function used for the
+            output layers. Defaults to tf.keras.activations.linear.
+
+        name (st, optional): A nameprefix that is added before the layer name. Defaults
+            to an empty string.
+
+    Returns:
+        tf.keras.Sequential: The multi-layered perceptron.
+    """
+
+    # Create sequential model
+    layers = []
+    for j in range(len(sizes) - 1):
+        act = activation if j < len(sizes) - 2 else output_activation
+        layers += [
+            tf.keras.layers.Dense(
+                sizes[j + 1],
+                input_shape=(sizes[j],),
+                activation=act,
+                name=name + "/l{}".format(j + 1),
+            )
+        ]
+    return tf.keras.Sequential(layers)
+
+
+def colorize(string, color, bold=False, highlight=False):
+    """Returns string surrounded by appropriate terminal color codes to
+    print colorized text.
+
+    Args:
+        string (str): The string you want to print.
+
+        color (str): The color you want the string to have. Valid colors: gray, red,
+            green, yellow, blue, magenta, cyan, white, crimson.
+
+        bold (bool): Whether you want to use bold characters for the string.
+
+        highlight (bool): Whether you want to highlight the text.
+
+    Returns:
+        str: The colorized string.
+    """
+
+    # Import six here so that `utils` has no import-time dependencies.
+    # We want this since we use `utils` during our import-time sanity checks
+    # that verify that our dependencies (including six) are actually present.
+    import six
+
+    attr = []
+    num = color2num[color]
+    if highlight:
+        num += 10
+    attr.append(six.u(str(num)))
+    if bold:
+        attr.append(six.u("1"))
+    attrs = six.u(";").join(attr)
+    return six.u("\x1b[%sm%s\x1b[0m") % (attrs, string)
+
+
+def clamp(data, min_bound, max_bound):
+    """Clamp all the values of a input to be between the min and max boundaries.
+
+    Args:
+        data (np.ndarray/list): Input data.
+
+        min_bound (np.ndarray/list): Array containing the desired minimum values.
+
+        max_bound (np.ndarray/list): Array containing the desired maximum values.
+
+    Returns:
+        np.ndarray: Array which has it values clamped between the min and max
+            boundaries.
+    """
+
+    # Clamp all actions to be within the boundaries
+    return (data + 1.0) * (max_bound - min_bound) / 2 + min_bound
+
+
 def evaluate_training_rollouts(paths):
-    """Evaluate the performance of the policy in the training rollouts."""
+    """Evaluates the performance of the policy in the training rollouts.
+
+    Args:
+       paths (collections.deque): The training paths.
+
+    Returns:
+        collections.OrderedDict: Dictionary with performance statistics.
+    """
     data = copy.deepcopy(paths)
     if len(data) < 1:
         return None
@@ -61,24 +221,26 @@ def evaluate_training_rollouts(paths):
     for key in data[0].keys():
         result = [np.mean(path[key]) for path in data]
         diagnostics.update({key: np.mean(result)})
-
     return diagnostics
 
 
-def training_evaluation(env, policy):
+def training_evaluation(test_env, policy):
     """Evaluates the performance of the current policy in
     several test rollouts.
 
     Args:
-        env (gym.Env): The gym environment you want to use.
+        test_env (gym.Env): The test gym environment you want to use.
+
         policy (object): The current policy.
 
     Returns:
-        [type]: [description]
+        collections.OrderedDict: Dictionary with performance statistics.
     """
-    # Retrieve action space bounds from env
-    a_upperbound = env.action_space.high
-    a_lowerbound = env.action_space.low
+
+    # Retrieve action space bounds from test_env and pass them to the policy
+    a_lowerbound = test_env.action_space.low
+    a_upperbound = test_env.action_space.high
+    policy.act_limits = {"low": a_lowerbound, "high": a_upperbound}
 
     # Training setting
     total_cost = []
@@ -89,24 +251,29 @@ def training_evaluation(env, policy):
     # Perform roolouts to evaluate performance
     for i in range(TRAIN_PARAMS["num_of_evaluation_paths"]):
         cost = 0
-        if env.__class__.__name__.lower() == "ex3_ekf_gyro":
-            s = env.reset(eval=True)
+        if test_env.__class__.__name__.lower() == "ex3_ekf_gyro":
+            s = test_env.reset(eval=True)
         else:
-            s = env.reset()
-        for j in range(ENV_PARAMS["max_ep_steps"]):
-            if ENV_PARAMS["eval_render"]:
-                env.render()
+            s = test_env.reset()
+        for j in range(ENVS_PARAMS[ENV_NAME]["max_ep_steps"]):
+            if ENVS_PARAMS[ENV_NAME]["eval_render"]:
+                test_env.render()
+
+            # Retrieve (scaled) action based on the current policy
+            # NOTE (rickstaa): The scaling operation is already performed inside the
+            # policy based on the `act_limits` you supplied.
             a = policy.choose_action(s, True)
-            action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
-            s_, r, done, _ = env.step(action)
+
+            # Perform action in the environment
+            s_, r, done, _ = test_env.step(a)
             cost += r
-            if j == ENV_PARAMS["max_ep_steps"] - 1:
+            if j == ENVS_PARAMS[ENV_NAME]["max_ep_steps"] - 1:
                 done = True
             s = s_
             if done:
                 seed_average_cost.append(cost)
                 episode_length.append(j)
-                if j < ENV_PARAMS["max_ep_steps"] - 1:
+                if j < ENVS_PARAMS[ENV_NAME]["max_ep_steps"] - 1:
                     die_count += 1
                 break
 
@@ -117,7 +284,31 @@ def training_evaluation(env, policy):
 
     # Return evaluation results
     diagnostic = {
-        "return": total_cost_mean,
-        "average_length": average_length,
+        "average_test_return": total_cost_mean,
+        "average_test_length": average_length,
     }
     return diagnostic
+
+
+def validate_indices(indices, input_array):
+    """Validates whether indices exist in the input_array.
+
+    Args:
+        indices (list): The indices you want to check.
+
+        input_array (list): The input_array for which you want to check whether the
+            indices exist.
+
+    Returns:
+        tuple: Tuple containing the valid and invalid indices (Valid indices, invalid
+            indices).
+    """
+    if indices:
+        invalid_indices = [
+            idx for idx in indices if (idx > input_array.shape[0] or idx < 0)
+        ]
+        valid_indices = list(set(invalid_indices) ^ set(indices))
+    else:
+        invalid_indices = []
+        valid_indices = list(range(0, (input_array.shape[0])))
+    return valid_indices, invalid_indices

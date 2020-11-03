@@ -1,9 +1,7 @@
 """A set of common utilities used within the algorithm code.
 """
 
-import json
 import sys
-import os
 import os.path as osp
 import importlib
 from collections import OrderedDict
@@ -36,6 +34,7 @@ def get_log_path(env_name=ENV_NAME, agent_name=None):
     Args:
         environment_name (str, optional): The name of the gym environment you are
             using. By default the value in the `variant.py` file is used.
+
         agent_name (str, optional): The name of the agent you are using. When no agent
             is supplied a agent name will be created.
 
@@ -49,11 +48,11 @@ def get_log_path(env_name=ENV_NAME, agent_name=None):
 
     # Create log_path
     if REL_PATH:
-        LOG_PATH = "/".join(["./log", env_name.lower(), agent_name])
+        LOG_PATH = osp.join("./log", env_name.lower(), agent_name)
     else:
         dirname = osp.dirname(__file__)
         LOG_PATH = osp.abspath(
-            osp.join(dirname, "./log/" + env_name.lower(), agent_name,)
+            osp.join(dirname, "./log/" + env_name.lower(), agent_name)
         )
         return LOG_PATH
 
@@ -112,7 +111,7 @@ def get_env_from_name(env_name, ENV_SEED):
 
 
 def mlp(sizes, activation, output_activation=nn.Identity):
-    """Creates a multi-layered perceptron using pytorch.
+    """Creates a multi-layered perceptron using Pytorch.
 
     Args:
         sizes (list): The size of each of the layers.
@@ -167,94 +166,18 @@ def colorize(string, color, bold=False, highlight=False):
     return six.u("\x1b[%sm%s\x1b[0m") % (attrs, string)
 
 
-def convert_json(obj):
-    """Converts obj to a version which can be serialized with JSON.
-
-    Args:
-        obj (object): Object which you want to convert to json.
-
-    Returns:
-        object: Serialized json object.
-    """
-    if is_json_serializable(obj):
-        return obj
-    else:
-        if isinstance(obj, dict):
-            return {convert_json(k): convert_json(v) for k, v in obj.items()}
-
-        elif isinstance(obj, tuple):
-            return (convert_json(x) for x in obj)
-
-        elif isinstance(obj, list):
-            return [convert_json(x) for x in obj]
-
-        elif hasattr(obj, "__name__") and not ("lambda" in obj.__name__):
-            return convert_json(obj.__name__)
-
-        elif hasattr(obj, "__dict__") and obj.__dict__:
-            obj_dict = {
-                convert_json(k): convert_json(v) for k, v in obj.__dict__.items()
-            }
-            return {str(obj): obj_dict}
-
-        return str(obj)
-
-
-def is_json_serializable(v):
-    """Check if object can be serialized with JSON.
-
-    Args:
-        v (object): object you want to check.
-
-    Returns:
-        bool: Boolean specifying whether the object can be serialized by json.
-    """
-    try:
-        json.dumps(v)
-        return True
-    except TypeError:
-        return False
-
-
-def save_config(config, output_dir):
-    """Log an experiment configuration.
-
-    Call this once at the top of your experiment, passing in all important
-    config vars as a dict. This will serialize the config to JSON, while
-    handling anything which can't be serialized in a graceful way (writing
-    as informative a string as possible).
-
-    Example use:
-
-    .. code-block:: python
-
-        logger = EpochLogger(**logger_kwargs)
-        logger.save_config(locals())
-
-    Args:
-        config (dict): Configuration dictionary.
-
-        output_dir (str): Output directory.
-    """
-    config_json = convert_json(config)
-    output = json.dumps(config_json, separators=(",", ":\t"), indent=4, sort_keys=True)
-    print(colorize("INFO: Saving config.", color="cyan", bold=True))
-    if not osp.exists(output_dir):
-        os.makedirs(output_dir)
-    with open(osp.join(output_dir, "config.json"), "w") as out:
-        out.write(output)
-
-
 def clamp(data, min_bound, max_bound):
     """Clamp all the values of a input to be between the min and max boundaries.
 
     Args:
         data (np.ndarray/list): Input data.
+
         min_bound (np.ndarray/list): Array containing the desired minimum values.
+
         max_bound (np.ndarray/list): Array containing the desired maximum values.
 
     Returns:
-        np.ndarray: Array which has it values clamped between the min and max
+        torch.Tensor: Tensor which has it values clamped between the min and max
             boundaries.
     """
 
@@ -309,6 +232,7 @@ def training_evaluation(test_env, policy):
 
     Args:
         test_env (gym.Env): The test gym environment you want to use.
+
         policy (object): The current policy.
 
     Returns:
@@ -329,7 +253,10 @@ def training_evaluation(test_env, policy):
     # Perform roolouts to evaluate performance
     for i in range(TRAIN_PARAMS["num_of_evaluation_paths"]):
         cost = 0
-        s = test_env.reset()
+        if test_env.__class__.__name__.lower() == "ex3_ekf_gyro":
+            s = test_env.reset(eval=True)
+        else:
+            s = test_env.reset()
         for j in range(ENVS_PARAMS[ENV_NAME]["max_ep_steps"]):
             if ENVS_PARAMS[ENV_NAME]["eval_render"]:
                 test_env.render()
@@ -363,3 +290,27 @@ def training_evaluation(test_env, policy):
         "average_test_length": average_length,
     }
     return diagnostic
+
+
+def validate_indices(indices, input_array):
+    """Validates whether indices exist in the input_array.
+
+    Args:
+        indices (list): The indices you want to check.
+
+        input_array (list): The input_array for which you want to check whether the
+            indices exist.
+
+    Returns:
+        tuple: Tuple containing the valid and invalid indices (Valid indices, invalid
+            indices).
+    """
+    if indices:
+        invalid_indices = [
+            idx for idx in indices if (idx > input_array.shape[0] or idx < 0)
+        ]
+        valid_indices = list(set(invalid_indices) ^ set(indices))
+    else:
+        invalid_indices = []
+        valid_indices = list(range(0, (input_array.shape[0])))
+    return valid_indices, invalid_indices

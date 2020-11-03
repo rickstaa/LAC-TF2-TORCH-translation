@@ -1,21 +1,48 @@
+"""Contains the replay buffer class.
+"""
+
 from collections import deque
+
 import numpy as np
 
 
 class Pool(object):
-    """Memory buffer class."""
+    """Memory buffer class.
+
+    Attributes:
+        self.memory_capacity (int): The current memory capacity.
+
+        paths (collections.deque): A storage bucket for storing paths.
+
+        memory (dict): The replay memory storage bucket.
+
+        min_memory_size (np.float32): The minimum memory size before we start to sample
+            from the memory buffer.
+
+        memory_pointer (): The number of experiences that are currently stored in the
+            replay buffer.
+    """
 
     def __init__(
         self, s_dim, a_dim, memory_capacity, store_last_n_paths, min_memory_size,
     ):
-        """Initialize memory buffer object.
+        """Initializes memory buffer object.
 
         Args:
-            variant (dict): Dictionary containing all the required memory buffer
-            parameters.
+            s_dim (int): The observation space dimension.
+
+            a_dim (int): The action space dimension.
+
+            memory_capacity (int): The size of the memory buffer.
+
+            store_last_n_paths (int): How many paths you want to store in the replay
+                buffer.
+
+            min_memory_size (int): The minimum memory size before we start to sample
+                from the memory buffer.
         """
         self.memory_capacity = memory_capacity
-        self.paths = deque(maxlen=store_last_n_paths)
+        self.paths = deque(maxlen=store_last_n_paths)  # TODO: Why is this used?
         self.reset()
         self.memory = {
             "s": np.zeros([1, s_dim]),
@@ -39,13 +66,17 @@ class Pool(object):
         }
 
     def store(self, s, a, r, terminal, s_):
-        """Store experience tuple.
+        """Stores experience tuple.
 
         Args:
             s (numpy.ndarray): State.
+
             a (numpy.ndarray): Action.
+
             r (numpy.ndarray): Reward.
+
             terminal (numpy.ndarray): Whether the terminal state was reached.
+
             s_ (numpy.ndarray): Next state.
 
         Returns:
@@ -69,8 +100,7 @@ class Pool(object):
                     (self.current_path[key], transition[key][np.newaxis, :])
                 )
         if terminal == 1.0:
-            # FIXME: DIFFERENCE WITH SPINNINGUP
-            # Question (rickstaa): WHY the hell only update when Paths are terminal? Done because
+            # Question (rickstaa): Why only update when Paths are terminal?
             # evaluation is on path basis?
             for key in self.current_path.keys():
                 self.memory[key] = np.concatenate(
@@ -84,7 +114,7 @@ class Pool(object):
         return self.memory_pointer
 
     def sample(self, batch_size):
-        """Sample from memory buffer.
+        """Samples from memory buffer.
 
         Args:
             batch_size (int): The memory buffer sample size.
@@ -107,7 +137,9 @@ class Pool(object):
             batch = {}
             for key in self.memory.keys():
                 if "s" in key:
-                    sample = self.memory[key][indices].astype(np.float32)
+                    sample = self.memory[key][indices].astype(
+                        np.float32
+                    )  # FIXME: Test typeing
                     # sample = self.memory[key][indices] # DEBUG
                     batch.update({key: sample})
                 else:

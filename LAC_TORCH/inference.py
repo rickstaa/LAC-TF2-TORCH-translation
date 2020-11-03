@@ -14,36 +14,89 @@ import itertools
 
 from lac import LAC
 
-from utils import get_env_from_name, colorize, get_log_path
+from utils import get_env_from_name, colorize, get_log_path, validate_indices
 from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
--
+
 # IMPROVEMENT: Add render evaluation option -> inference_type=["render", "plot"]
-# TODO: Add rollout input argument
-# TODO: Add option to print multiple costs
 
 
-def validate_req_sio(req_sio, soi_mean_path, ref_mean_path):
+def validate_req_policies(req_policies, policies):
+    """Validates whether the requested policies are valid.
+
+    Args:
+        req_policies (list): Requested policies.
+
+        policies (list): Available policies.
+
+    Returns:
+        list: The requested policies which are valid.
+    """
+
+    # Validate whether the policy is a number and does exist
+    valid_policies = []
+    invalid_policies = []
+    for policy in req_policies:
+        if isinstance(policy, str):
+            if not policy.isnumeric():
+                invalid_policies.append(policy)
+            else:
+                if int(policy) in policies:
+                    valid_policies.append(int(policy))
+                else:
+                    invalid_policies.append(int(policy))
+        elif isinstance(policy, (float, int)):
+            if int(policy) in policies:
+                valid_policies.append(int(policy))
+            else:
+                invalid_policies.append(int(policy))
+        else:
+            invalid_policies.append(policy)
+
+    # Display warning if policies were not found
+    if len(invalid_policies) != 0:
+        policy_strs = (
+            ["policy", "it"] if len(invalid_policies) <= 1 else ["policies", "they"]
+        )
+        print(
+            colorize(
+                (
+                    f"WARN: Skipping {policy_strs[0]} {invalid_policies} as "
+                    f"{policy_strs[1]} not exist. Please re-check the list of "
+                    "policies you supplied."
+                ),
+                "yellow",
+                bold=True,
+            )
+        )
+
+    # Return valid policies
+    return valid_policies
+
+
+def validate_req_sio(req_sio, sio_array, refs_array):
     """Validates whether the requested states of interest exists. Throws a warning
     message if a requested state is not found.
 
     Args:
         req_sio (list): The requested states of interest.
-        soi_mean_path (numpy.ndarray): The state of interest mean paths.
-        ref_mean_path (numpy.ndarray): The reference mean paths.
+
+        sio_array (numpy.ndarray): The array with the states of interest.
+
+        refs_array (numpy.ndarray): The array with the references.
 
     Returns:
-        tuple: Lists whith the requested states of interest and reference which are
-        valid.
+        tuple: Lists with the requested states of interest and reference which are
+            valid.
     """
 
-    # Check if the requested states of interest are present
-    req_sio = (
-        req_sio if req_sio else list(range(1, (soi_mean_path.shape[0] + 1)))
-    )  # Get req sio (Use all if empty)
-    N_sio = soi_mean_path.squeeze().shape[0] if soi_mean_path.squeeze().ndim > 1 else 1
-    N_refs = ref_mean_path.squeeze().shape[0] if ref_mean_path.squeeze().ndim > 1 else 1
-    invalid_sio = [sio for sio in req_sio if (sio > N_sio or sio < 1)]
-    invalid_refs = [ref for ref in req_sio if (ref > N_refs or ref < 1)]
+    # Check if the requested states of interest and references are present
+    req_sio = [sio - 1 for sio in req_sio]  # Translate indices to python format
+    valid_sio, invalid_sio = validate_indices(req_sio, sio_array)
+    valid_refs, invalid_refs = validate_indices(req_sio, refs_array)
+    valid_sio = [sio + 1 for sio in valid_sio]  # Translate back to hunan format
+    invalid_sio = [sio + 1 for sio in invalid_sio]
+    valid_refs = [ref + 1 for ref in valid_refs]
+    invalid_refs = [ref + 1 for ref in invalid_refs]
 
     # Display warning if not found
     if invalid_sio and invalid_refs:
@@ -74,31 +127,30 @@ def validate_req_sio(req_sio, soi_mean_path, ref_mean_path):
         )
         print(colorize(warning_str, "yellow"))
 
-    # Retrieve valid states of interest and references
-    valid_sio = list(set(invalid_sio) ^ set(req_sio))
-    valid_refs = list(set(invalid_refs) ^ set(req_sio))
-
     # Return valid states of interest and references
     return valid_sio, valid_refs
 
 
-def validate_req_obs(req_obs, obs_mean_path):
+def validate_req_obs(req_obs, obs_array):
     """Validates whether the requested observations exists. Throws a warning
     message if a requested state is not found.
 
     Args:
         req_obs (list): The requested observations.
-        obs_mean_path (numpy.ndarray): The mean paths of the observations.
+
+        obs_array (numpy.ndarray): The array with the observations.
 
     Returns:
         list: The requested observations which are valid.
     """
 
     # Check if the requested observations are present
-    req_obs = (
-        req_obs if req_obs else list(range(1, (obs_mean_path.shape[0] + 1)))
-    )  # Get req sio (Use all if empty)
-    invalid_obs = [obs for obs in req_obs if (obs > obs_mean_path.shape[0] or obs < 1)]
+    req_obs = [obs - 1 for obs in req_obs]  # Translate indices to python format
+    valid_obs, invalid_obs = validate_indices(req_obs, obs_array)
+    valid_obs = [obs + 1 for obs in valid_obs]  # Translate back to hunan format
+    invalid_obs = [obs + 1 for obs in invalid_obs]
+
+    # Display warning if req obs were not found
     if invalid_obs:
         warning_str = (
             "WARN: {} {}".format(
@@ -107,10 +159,42 @@ def validate_req_obs(req_obs, obs_mean_path):
             + " could not be plotted as they does not exist."
         )
         print(colorize(warning_str, "yellow"))
-    valid_obs = list(set(invalid_obs) ^ set(range(1, len(obs_mean_path))))
 
     # Return valid observations
     return valid_obs
+
+
+def validate_req_costs(req_costs, costs_array):
+    """Validates whether the requested observations exists. Throws a warning
+    message if a requested state is not found.
+
+    Args:
+        req_costs (list): The requested observations.
+
+        costs_array (numpy.ndarray): The array with the costs.
+
+    Returns:
+        list: The requested observations which are valid.
+    """
+
+    # Check if the requested observations are present
+    req_costs = [cost - 1 for cost in req_costs]  # Translate indices to python format
+    valid_costs, invalid_costs = validate_indices(req_costs, costs_array)
+    valid_costs = [cost + 1 for cost in valid_costs]  # Translate back to hunan format
+    invalid_costs = [cost + 1 for cost in invalid_costs]
+
+    # Display warning if req obs were not found
+    if invalid_costs:
+        warning_str = (
+            "WARN: {} {}".format(
+                "Costs" if len(invalid_costs) > 1 else "Cost", invalid_costs,
+            )
+            + " could not be plotted as they does not exist."
+        )
+        print(colorize(warning_str, "yellow"))
+
+    # Return valid costs
+    return valid_costs
 
 
 if __name__ == "__main__":
@@ -130,6 +214,13 @@ if __name__ == "__main__":
         type=str,
         default=ENV_NAME,
         help="The name of the env you want to evaluate.",
+    )
+    parser.add_argument(
+        "-p",
+        "--policies",
+        nargs="+",
+        default=EVAL_PARAMS["which_policy_for_inference"],
+        help="The policies you want to use in the inference.",
     )
     parser.add_argument(
         "--plot-s",
@@ -188,7 +279,6 @@ if __name__ == "__main__":
     for name in eval_agents:
 
         # Create agent policy and log paths
-
         if REL_PATH:
             model_path = get_log_path(env_name=args.env_name, agent_name=name)
             log_path = "/".join([model_path, "figure"])
@@ -198,10 +288,10 @@ if __name__ == "__main__":
             log_path = osp.abspath(osp.join(model_path, "figure"))
             os.makedirs(log_path, exist_ok=True)
         print("\n====Evaluation agent " + name + "====")
-        print(colorize(f"INFO: Using model folder: {model_path}", "cyan", bold=True))
+        print(colorize(f"INFO: Using model folder {model_path}.", "cyan", bold=True))
 
         # Create environment
-        print(colorize(f"INFO: In environment: {args.env_name}", "cyan", bold=True))
+        print(colorize(f"INFO: Using environment {args.env_name}.", "cyan", bold=True))
         env = get_env_from_name(args.env_name, ENV_SEED)
 
         # Check if specified agent exists
@@ -224,82 +314,58 @@ if __name__ == "__main__":
             a_dim, s_dim, act_limits={"low": a_lowerbound, "high": a_upperbound}
         )
 
-        # Retrieve all trained policies (rollouts) for a given agent
-        print("Looking for policies (rollouts)...")
-        rollout_list = os.listdir(model_path)
-        rollout_list = [
-            rollout_name
-            for rollout_name in rollout_list
+        # Retrieve all trained policies for a given agent
+        print("Looking for policies...")
+        policy_list = os.listdir(model_path)
+        policy_list = [
+            policy_name
+            for policy_name in policy_list
             if osp.exists(
-                osp.abspath(model_path + "/" + rollout_name + "/policy/model.pth")
+                osp.abspath(osp.join(model_path, policy_name, "policy/model.pth"))
             )
         ]
-        rollout_list = [int(item) for item in rollout_list if item.isnumeric()]
-        rollout_list.sort()  # Sort rollouts_list
+        policy_list = [int(item) for item in policy_list if item.isnumeric()]
+        policy_list.sort()
 
-        # Check if a given policy (rollout) exists
-        if not rollout_list:
+        # Check if a given policy exists for the current agent
+        if not policy_list:
             warning_str = (
-                f"Shutting down robustness eval since no rollouts were found for model "
-                f"`{args.model_name}` in the `{args.env_name}` environment."
-            )
-            warning_str = (
-                f"WARN: Inference could not be run for agent `{name}` as no rollouts "
-                " were found."
+                f"WARN: Inference could not be run for agent `{name}` in the "
+                f"`{args.env_name}` environment as no policies were found."
             )
             print(colorize(warning_str, "yellow"))
             continue
 
-        # Retrieve USER defined rollouts list
-        rollouts_input = EVAL_PARAMS["which_policy_for_inference"]
-        rollouts_input = rollout_list if not rollouts_input else rollouts_input
+        # Retrieve *user* defined policy list
+        input_policies = args.policies
 
-        # Process requested rollouts input
-        # Here we check if they exist and also convert them to the
-        # right format.
-        if any([not isinstance(x, (int, float)) for x in rollouts_input]):
+        # Validate *user* defined policy list
+        valid_policies = validate_req_policies(input_policies, policy_list)
+
+        # Check if valid policies were found
+        if not valid_policies:
             print(
                 colorize(
                     (
-                        "ERROR: Please provide a valid list of rollouts in the "
-                        "`which_policy_for_inference` variable of the variant file "
-                        " (example: [1, 2, 3])."
+                        f"WARN: Skipping agent `{name}` since no valid policies were "
+                        "found. Please re-check the list policies you supplied."
                     ),
-                    "red",
+                    "yellow",
                     bold=True,
                 )
             )
-            sys.exit(0)
-        rollouts_input = [int(item) for item in rollouts_input]
-        invalid_input_rollouts = [
-            x for i, x in enumerate(rollouts_input) if not (x in rollout_list)
-        ]
-        if len(invalid_input_rollouts) != 0:
-            rollout_str = "Rollout" if sum(invalid_input_rollouts) <= 1 else "Rollouts"
-            print(
-                colorize(
-                    (
-                        f"ERROR: Please re-check the list you supplied in the "
-                        "`which_policy_for_inference` variable of the variant file. "
-                        f"{rollout_str} {invalid_input_rollouts} do not exist."
-                    ),
-                    "red",
-                    bold=True,
-                )
-            )
-            sys.exit(0)
-        rollouts_input = [str(item) for item in rollouts_input]
-        print(f"Using rollouts: {rollouts_input}")
+            continue  # Skip agent
 
         ############################################
         # Run policy inference #####################
         ############################################
-        # Perform a number of paths in each rollout and store them.
-        roll_outs_paths = {}
-        for rollout in rollouts_input:
+        print(f"Using policies: {valid_policies}")
+        # Perform a number of paths in each policy and store them.
+        policies_paths = {}
+        for policy_name in valid_policies:
 
-            # Rollouts paths storage bucket
-            roll_out_paths = {
+            # Policy paths storage bucket
+            policy_paths = {
                 "s": [],
                 "r": [],
                 "s_": [],
@@ -310,18 +376,20 @@ if __name__ == "__main__":
                 "death_rate": 0.0,
             }
 
-            # Load current rollout policy
-            retval = policy.restore(osp.abspath(model_path + "/" + rollout + "/policy"))
+            # Load current policy
+            retval = policy.restore(
+                osp.abspath(osp.join(model_path, str(policy_name), "policy"))
+            )
             if not retval:
                 print(
-                    f"Policy {rollout} could not be loaded. Continuing to the next "
+                    f"Policy {policy_name} could not be loaded. Continuing to the next "
                     "policy."
                 )
                 continue
 
             # Perform a number of paths in the environment
             for i in range(
-                math.ceil(EVAL_PARAMS["num_of_paths"] / len(rollouts_input))
+                math.ceil(EVAL_PARAMS["num_of_paths"] / len(input_policies))
             ):
 
                 # Path storage bucket
@@ -376,68 +444,66 @@ if __name__ == "__main__":
                     if done:
                         break
 
-                # Append path to rollout paths list
-                roll_out_paths["s"].append(episode_path["s"])
-                roll_out_paths["r"].append(episode_path["r"])
-                roll_out_paths["s_"].append(episode_path["s_"])
-                roll_out_paths["state_of_interest"].append(
+                # Append path to policy paths list
+                policy_paths["s"].append(episode_path["s"])
+                policy_paths["r"].append(episode_path["r"])
+                policy_paths["s_"].append(episode_path["s_"])
+                policy_paths["state_of_interest"].append(
                     episode_path["state_of_interest"]
                 )
-                roll_out_paths["reference"].append(episode_path["reference"])
-                roll_out_paths["episode_length"].append(len(episode_path["s"]))
-                roll_out_paths["return"].append(np.sum(episode_path["r"]))
+                policy_paths["reference"].append(episode_path["reference"])
+                policy_paths["episode_length"].append(len(episode_path["s"]))
+                policy_paths["return"].append(np.sum(episode_path["r"]))
 
-            # Calculate rollout death rate
-            roll_out_paths["death_rate"] = sum(
+            # Calculate policy death rate
+            policy_paths["death_rate"] = sum(
                 [
                     episode <= (ENVS_PARAMS[args.env_name]["max_ep_steps"] - 1)
-                    for episode in roll_out_paths["episode_length"]
+                    for episode in policy_paths["episode_length"]
                 ]
-            ) / len(roll_out_paths["episode_length"])
+            ) / len(policy_paths["episode_length"])
 
-            # Store rollout results in rollout dictionary
-            roll_outs_paths["roll_out_" + rollout] = roll_out_paths
+            # Store policy results in policy dictionary
+            policies_paths["policy " + str(policy_name)] = policy_paths
 
         ############################################
-        # Calculate rollout statistics #############
+        # Calculate policy statistics ##############
         ############################################
         eval_paths = {}
-        roll_outs_diag = {}
-        for roll_out, roll_out_val in roll_outs_paths.items():
+        policies_diag = {}
+        for pol, val in policies_paths.items():
 
-            # Calculate rollouts statistics
-            roll_outs_diag[roll_out] = {}
-            roll_outs_diag[roll_out]["mean_return"] = np.mean(roll_out_val["return"])
-            roll_outs_diag[roll_out]["mean_episode_length"] = np.mean(
-                roll_out_val["episode_length"]
-            )
-            roll_outs_diag[roll_out]["death_rate"] = roll_out_val.pop("death_rate")
+            # Calculate policy statistics
+            policies_diag[pol] = {}
+            policies_diag[pol]["mean_return"] = np.mean(val["return"])
+            policies_diag[pol]["mean_episode_length"] = np.mean(val["episode_length"])
+            policies_diag[pol]["death_rate"] = val.pop("death_rate")
 
-            # concatenate rollout to eval dictionary
-            for key, val in roll_out_val.items():
+            # concatenate current policy to eval dictionary
+            for key, val in val.items():
                 if key not in eval_paths.keys():
                     eval_paths[key] = val
                 else:
                     eval_paths[key].extend(val)
 
         ############################################
-        # Display rollout diagnostics ##############
+        # Display policy diagnostics ###############
         ############################################
 
-        # Display rollouts diagnostics
-        print("Printing rollouts diagnostics...")
-        print("\n==Rollouts Diagnostics==")
+        # Display policy diagnostics
+        print("Printing policies diagnostics...")
+        print("\n==Policies diagnostics==")
         eval_diagnostics = {}
-        for roll_out, roll_out_diagnostics_val in roll_outs_diag.items():
-            print(f"{roll_out}:")
-            for key, val in roll_out_diagnostics_val.items():
+        for pol, diag_val in policies_diag.items():
+            print(f"{pol}:")
+            for key, val in diag_val.items():
                 print(f"- {key}: {val}")
                 if key not in eval_diagnostics:
                     eval_diagnostics[key] = [val]
                 else:
                     eval_diagnostics[key].append(val)
             print("")
-        print("all_roll_outs:")
+        print("all policies:")
         for key, val in eval_diagnostics.items():
             print(f" - {key}: {np.mean(val)}")
             print(f" - {key}_std: {np.std(val)}")
@@ -445,7 +511,7 @@ if __name__ == "__main__":
         ############################################
         # Display performance figures ##############
         ############################################
-        print("\n==Rollouts inference plots==")
+        print("\n==Policies inference plots==")
 
         # Create figure storage dictionary and time axis
         figs = {
@@ -522,7 +588,7 @@ if __name__ == "__main__":
             # Plot mean path and std for states of interest and references
             if valid_sio or valid_refs:  # Check if any sio or refs were found
                 print(
-                    "Using: {}".format(
+                    "Using: {}...".format(
                         (
                             "states of interest "
                             if len(valid_sio) > 1
@@ -610,7 +676,10 @@ if __name__ == "__main__":
                         if not EVAL_PARAMS["sio_merged"]:
                             ax_title = (
                                 EVAL_PARAMS["soi_title"]
-                                if isinstance(EVAL_PARAMS["soi_title"], str)
+                                if (
+                                    EVAL_PARAMS["soi_title"]
+                                    and isinstance(EVAL_PARAMS["soi_title"], str)
+                                )
                                 else "True and Estimated Quatonian"
                             )
                             ax.set_title(f"{ax_title} {i+1}")
@@ -623,7 +692,10 @@ if __name__ == "__main__":
                 if EVAL_PARAMS["sio_merged"]:
                     ax_title = (
                         EVAL_PARAMS["soi_title"]
-                        if isinstance(EVAL_PARAMS["soi_title"], str)
+                        if (
+                            EVAL_PARAMS["soi_title"]
+                            and isinstance(EVAL_PARAMS["soi_title"], str)
+                        )
                         else "True and Estimated Quatonian"
                     )
                     ax.set_title(f"{ax_title}")
@@ -660,11 +732,28 @@ if __name__ == "__main__":
                 np.squeeze(np.std(np.array(obs_trimmed), axis=0))
             )
 
+            # Make sure mean path and std arrays are the right shape
+            obs_mean_path = (
+                np.expand_dims(obs_mean_path, axis=0)
+                if len(obs_mean_path.shape) == 1
+                else obs_mean_path
+            )
+            obs_std_path = (
+                np.expand_dims(obs_std_path, axis=0)
+                if len(obs_std_path.shape) == 1
+                else obs_std_path
+            )
+
             # Check if USER requested observation exists
             valid_obs = validate_req_obs(req_obs, obs_mean_path)
 
             # Plot mean observations path and std
-            print(f"Using observations {valid_obs}...")
+            print(
+                "Using: {}...".format(
+                    ("observations " if len(valid_obs) > 1 else "observation ")
+                    + str(valid_obs)
+                )
+            )
             if valid_obs:  # Check if any sio or refs were found
                 if EVAL_PARAMS["obs_merged"]:
                     fig = plt.figure(
@@ -719,7 +808,10 @@ if __name__ == "__main__":
                         if not EVAL_PARAMS["obs_merged"]:
                             ax2_title = (
                                 EVAL_PARAMS["obs_title"]
-                                if isinstance(EVAL_PARAMS["obs_title"], str)
+                                if (
+                                    EVAL_PARAMS["obs_title"]
+                                    and isinstance(EVAL_PARAMS["obs_title"], str)
+                                )
                                 else "Observation"
                             )
                             ax2.set_title(f"{ax2_title} {i+1}")
@@ -732,7 +824,10 @@ if __name__ == "__main__":
                 if EVAL_PARAMS["obs_merged"]:
                     ax2_title = (
                         EVAL_PARAMS["obs_title"]
-                        if isinstance(EVAL_PARAMS["obs_title"], str)
+                        if (
+                            EVAL_PARAMS["obs_title"]
+                            and isinstance(EVAL_PARAMS["obs_title"], str)
+                        )
                         else "Observations"
                     )
                     ax2.set_title(f"{ax2_title}")
@@ -748,50 +843,124 @@ if __name__ == "__main__":
         if args.plot_c:
             print("Plotting mean cost and standard deviation...")
 
-            # Create figure
-            fig = plt.figure(
-                figsize=(9, 6),
-                num=(
-                    "LAC_TORCH_" + str(len(list(itertools.chain(*figs.values()))) + 1)
-                ),
-            )
-            ax3 = fig.add_subplot(111)
-            figs["costs"].append(fig)  # Store figure reference
+            # Retrieve USER defined observations list
+            req_costs = EVAL_PARAMS["costs"]
 
             # Calculate mean cost and std
-            cost_trimmed = [
+            costs_trimmed = [
                 path
                 for path in eval_paths["r"]
                 if len(path) == max(eval_paths["episode_length"])
             ]
-            cost_mean_path = np.transpose(
-                np.squeeze(np.mean(np.array(cost_trimmed), axis=0))
+            costs_mean_path = np.transpose(
+                np.squeeze(np.mean(np.array(costs_trimmed), axis=0))
             )
-            cost_std_path = np.transpose(
-                np.squeeze(np.std(np.array(cost_trimmed), axis=0))
+            costs_std_path = np.transpose(
+                np.squeeze(np.std(np.array(costs_trimmed), axis=0))
             )
-            t = range(max(eval_paths["episode_length"]))
 
-            # Plot mean cost and std
-            ax3.plot(
-                t, cost_mean_path, color="g", linestyle="dashed", label=("mean cost"),
+            # Make sure mean path and std arrays are the right shape
+            costs_mean_path = (
+                np.expand_dims(costs_mean_path, axis=0)
+                if len(costs_mean_path.shape) == 1
+                else costs_mean_path
             )
-            ax3.fill_between(
-                t,
-                cost_mean_path - cost_std_path,
-                cost_mean_path + cost_std_path,
-                color="g",
-                alpha=0.3,
-                label=("mean cost std"),
+            costs_std_path = (
+                np.expand_dims(costs_std_path, axis=0)
+                if len(costs_std_path.shape) == 1
+                else costs_std_path
             )
-            ax3_title = (
-                EVAL_PARAMS["cost_title"]
-                if isinstance(EVAL_PARAMS["cost_title"], str)
-                else "Mean cost"
+
+            # Check if USER requested observation exists
+            valid_costs = validate_req_costs(req_costs, costs_mean_path)
+
+            # Plot mean observations path and std
+            print(
+                "Using: {}...".format(
+                    ("costs " if len(valid_costs) > 1 else "cost ") + str(valid_costs)
+                )
             )
-            ax3.set_title(f"{ax3_title}")
-            handles3, labels3 = ax3.get_legend_handles_labels()
-            ax3.legend(handles3, labels3, loc=2, fancybox=False, shadow=False)
+            if valid_costs:  # Check if any sio or refs were found
+                if EVAL_PARAMS["costs_merged"]:
+                    fig = plt.figure(
+                        figsize=(9, 6),
+                        num=(
+                            "LAC_TORCH_"
+                            + str(len(list(itertools.chain(*figs.values()))) + 1)
+                        ),
+                    )
+                    colors = "bgrcmk"
+                    cycol = cycle(colors)
+                    ax3 = fig.add_subplot(111)
+                    figs["costs"].append(fig)  # Store figure reference
+                for i in range(0, costs_mean_path.shape[0]):
+                    if (i + 1) in req_costs or not req_costs:
+                        if not EVAL_PARAMS[
+                            "costs_merged"
+                        ]:  # Create separate figs for each cost
+                            fig = plt.figure(
+                                figsize=(9, 6),
+                                num=(
+                                    "LAC_TORCH_"
+                                    + str(
+                                        len(list(itertools.chain(*figs.values()))) + 1
+                                    )
+                                ),
+                            )
+                            ax3 = fig.add_subplot(111)
+                            color = "blue"
+                            figs["costs"].append(fig)  # Store figure reference
+                        else:
+                            color = next(cycol)
+
+                        # Plot mean costs
+                        ax3.plot(
+                            t,
+                            costs_mean_path[i],
+                            color=color,
+                            linestyle="dashed",
+                            label=(f"cost_{i+1}"),
+                        )
+                        ax3.fill_between(
+                            t,
+                            costs_mean_path[i] - costs_std_path[i],
+                            costs_mean_path[i] + costs_std_path[i],
+                            color=color,
+                            alpha=0.3,
+                            label=(f"cost_{i+1}_std"),
+                        )
+
+                        # Add figure legend and title (Separate figures)
+                        if not EVAL_PARAMS["costs_merged"]:
+                            ax3_title = (
+                                EVAL_PARAMS["costs_title"]
+                                if (
+                                    EVAL_PARAMS["costs_title"]
+                                    and isinstance(EVAL_PARAMS["costs_title"], str)
+                                )
+                                else "Mean cost"
+                            )
+                            ax3.set_title(f"{ax3_title} {i+1}")
+                            handles3, labels3 = ax3.get_legend_handles_labels()
+                            ax3.legend(
+                                handles3, labels3, loc=2, fancybox=False, shadow=False
+                            )
+
+                # Add figure legend and title (merged figure)
+                if EVAL_PARAMS["obs_merged"]:
+                    ax3_title = (
+                        EVAL_PARAMS["costs_title"]
+                        if (
+                            EVAL_PARAMS["costs_title"]
+                            and isinstance(EVAL_PARAMS["costs_title"], str)
+                        )
+                        else "Mean Cost"
+                    )
+                    ax3.set_title(f"{ax3_title}")
+                    handles3, labels3 = ax3.get_legend_handles_labels()
+                    ax3.legend(handles3, labels3, loc=2, fancybox=False, shadow=False)
+            else:
+                print(colorize("WARN: No costs were found.", "yellow"))
 
         # Show figures
         plt.show()
@@ -833,6 +1002,6 @@ if __name__ == "__main__":
                 )
             for index, fig in enumerate(figs["costs"]):
                 fig.savefig(
-                    osp.join(log_path, "Cost" + "." + EVAL_PARAMS["fig_file_type"],),
+                    osp.join(log_path, "Cost" + "." + EVAL_PARAMS["fig_file_type"]),
                     bbox_inches="tight",
                 )

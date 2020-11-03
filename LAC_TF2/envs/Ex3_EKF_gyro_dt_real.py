@@ -23,8 +23,6 @@ DIRNAME = osp.dirname(__file__)
 DATA_PATH = osp.abspath(
     osp.join(DIRNAME, "../data/ex3_ekf_gyro_dt_real", "trainingData.csv")
 )
-# DATA_PATH = r'/Users/weipan/weipan/MLC/LAC_TF2_TORCH_REWRITE/LAC_TF115/trainingData.csv'
-
 
 def measrement_real(t, dt, data):
 
@@ -420,11 +418,6 @@ class Ex3_EKF_gyro(gym.Env):
         self.choice = "otherCase"
         self.realMeasurement = True
 
-        # if self.realMeasurement:
-        #     # p = r'trainingData.csv'
-        #     p = r'D:\reinforcement learning\learning to SLAM\code\LAC_TF2_TORCH_REWRITE-master\LAC_TF115\trainingData.csv'
-        #     self.readData = np.genfromtxt(p, delimiter=',')
-
         self.t = 0
         self.dt = 0.01
 
@@ -760,8 +753,6 @@ class Ex3_EKF_gyro(gym.Env):
 
         if self.realMeasurement:
 
-            # p = r'trainingData.csv'
-            # p = r"/Users/weipan/weipan/MLC/LAC_TF2_TORCH_REWRITE/LAC_TF115/trainingData.csv"
             p = DATA_PATH
             self.readData = np.genfromtxt(p, delimiter=",")
 

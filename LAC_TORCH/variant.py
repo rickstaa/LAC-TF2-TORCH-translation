@@ -62,15 +62,17 @@ EVAL_PARAMS = {
     "plot_average": True,
     "directly_show": True,
     "plot_soi": True,  # Plot the states of interest and the corresponding references.
-    "sio_merged": False,  # Display all the states of interest in one figure.
+    "sio_merged": True,  # Display all the states of interest in one figure.
     "soi": [],  # Which state of interest you want to plot (empty means all sio).
-    "soi_title": "True and Estimated Quatonian",  # SOI figure title.
+    "soi_title": "",  # SOI figure title.
     "plot_obs": True,  # Plot the observations.
-    "obs_merged": False,  # Display all the obserations in one figure.
+    "obs_merged": True,  # Display all the obserations in one figure.
     "obs": [],  # Which observations you want to plot (empty means all obs).
-    "obs_title": "Observations",  # Obs figure title.
-    "plot_cost": True,  # Plot the cost.
-    "cost_title": "Mean cost",  # TCost figure title.
+    "obs_title": "",  # Obs figure title.
+    "plot_cost": True,  # Plot the costs.
+    "costs_merged": True,  # Display all the costs in one figure.
+    "costs": [],  # Which costs you want to plot (empty means all obs).
+    "costs_title": "",  # TCost figure title.
     "save_figs": True,  # Save the figures to pdf.
     "fig_file_type": "pdf",  # The file type you want to use for saving the figures.
 }
@@ -82,12 +84,12 @@ ALG_PARAMS = {
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
-    "labda": 1.0,  # Initial value for the lyapunov constraint lagrance multiplier
+    "labda": 1.0,  # Initial value for the Lyapunov constraint lagrance multiplier
     "alpha": 1.0,  # The initial value for the entropy lagrance multiplier
     "alpha3": 0.1,  # The value of the stability condition multiplier
     "tau": 5e-3,  # Decay rate used in the polyak averaging
     "lr_a": 1e-4,  # The actor learning rate
-    "lr_l": 3e-4,  # The lyapunov critic
+    "lr_l": 3e-4,  # The Lyapunov critic
     "lr_c": 3e-4,  # The SAC critic
     "gamma": 0.999,  # Discount factor
     "steps_per_cycle": 100,  # The number of steps after which the model is trained

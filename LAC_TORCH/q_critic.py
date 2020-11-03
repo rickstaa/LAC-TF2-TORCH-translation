@@ -29,6 +29,9 @@ class QCritic(nn.Module):
 
             hidden_sizes (list): Sizes of the hidden layers.
 
+            activation (torch.nn.modules.activation): The hidden layer activation
+                function.
+
             output_activation (torch.nn.modules.activation, optional): The activation
                 function used for the output layers. Defaults to torch.nn.Identity.
         """
@@ -51,5 +54,7 @@ class QCritic(nn.Module):
             torch.Tensor: The tensor containing the Q values of the input observations
                 and actions.
         """
-        q = self.q(torch.cat([obs, act], dim=-1))
-        return torch.squeeze(q, -1)  # Critical to ensure q has right shape.
+        q_out = self.q(torch.cat([obs, act], dim=-1))
+        return torch.squeeze(
+            q_out, -1
+        )  # NOTE (rickstaa) Critical to ensure Q(s,a) has right shape.

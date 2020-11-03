@@ -9,11 +9,11 @@ from utils import mlp
 # IMPROVE: Create square Lyapunov activation function.
 
 
-class MLPLyapunovCritic(nn.Module):
+class LyapunovCritic(nn.Module):
     """Soft Lyapunov critic Network.
 
     Attributes:
-        l (torch.nn.modules.container.Sequential): The layers of the network.
+        lya (torch.nn.modules.container.Sequential): The layers of the network.
     """
 
     def __init__(
@@ -40,7 +40,7 @@ class MLPLyapunovCritic(nn.Module):
                 function used for the output layers. Defaults to torch.nn.Identity.
         """
         super().__init__()
-        self.l = mlp(
+        self.lya = mlp(
             [obs_dim + act_dim] + list(hidden_sizes), activation, output_activation
         )
 
@@ -53,12 +53,12 @@ class MLPLyapunovCritic(nn.Module):
             act (torch.Tensor): The tensor of actions.
 
         Returns:
-            torch.Tensor: The tensor containing the lyapunov values of the input
+            torch.Tensor: The tensor containing the Lyapunov values of the input
                 observations and actions.
         """
         # IMPROVEMENT: Make squaring layer from class so it shows up named in the graph!
         # https://pytorch.org/tutorials/beginner/examples_autograd/two_layer_net_custom_function.html
-        l_out = self.l(torch.cat([obs, act], dim=-1))
+        l_out = self.lya(torch.cat([obs, act], dim=-1))
         l_out_squared = torch.square(l_out)
         l_out_summed = torch.sum(l_out_squared, dim=1)
-        return l_out_summed.unsqueeze(dim=1)
+        return l_out_summed.unsqueeze(dim=1)  # L(s,a)

@@ -2,91 +2,63 @@
 """
 
 import tensorflow as tf
+from tensorflow import nn
+
+from utils import mlp
 
 
-# TODO: Update docstring
 class QCritic(tf.keras.Model):
     """Soft Q critic network.
 
     Attributes:
-        q (torch.nn.modules.container.Sequential): The layers of the network.
+        q (tf.keras.Sequential): The layers of the network.
     """
 
-    # TODO: ADD SEEDING:
     def __init__(
         self,
         obs_dim,
         act_dim,
         hidden_sizes,
-        name,
-        log_std_min=-20,
-        log_std_max=2.0,
-        trainable=True,
-        seed=None,
+        activation=nn.relu,
+        output_activation=None,
+        name="q_critic",
         **kwargs,
     ):
-        """Q Critic network.
+        """Constructs all the necessary attributes for the Soft Q critic object.
 
         Args:
-            obs_dim (int): The dimension of the observation space.
+            obs_dim (int): Dimension of the observation space.
 
-            act_dim (int): The dimension of the action space.
+            act_dim (int): Dimension of the action space.
 
-            hidden_sizes (list): Array containing the sizes of the hidden layers.
+            hidden_sizes (list): Sizes of the hidden layers.
 
-            name (str): The keras module name.
+            activation (function): The hidden layer activation function.
 
-            log_std_min (int, optional): The min log_std. Defaults to -20.
+            output_activation (function, optional): The activation function used for
+                the output layers. Defaults to tf.keras.activations.linear.
 
-            log_std_max (float, optional): The max log_std. Defaults to 2.0.
-
-            trainable (bool, optional): Whether the weights of the network layers should
-                be trainable. Defaults to True.
-
-            seed (int, optional): The random seed. Defaults to None.
+            name (str, optional): The Q-Critic name. Defaults to "q_critic".
         """
         super().__init__(name=name, **kwargs)
-
-        # Get class parameters
-        self.s_dim = obs_dim
-        self.a_dim = act_dim
-        self._seed = seed
-        self._initializer = tf.keras.initializers.GlorotUniform(
-            seed=self._seed
-        )  # Seed weights initializer
-
-        # Create network layers
-        self.net = tf.keras.Sequential(
-            [
-                tf.keras.layers.InputLayer(
-                    dtype=tf.float32,
-                    input_shape=(obs_dim + act_dim),
-                    name=name + "/input",
-                )
-            ]
-        )
-        for i, hidden_size_i in enumerate(hidden_sizes):
-            self.net.add(
-                tf.keras.layers.Dense(
-                    hidden_size_i,
-                    activation="relu",
-                    name=name + "/l{}".format(i),
-                    trainable=trainable,
-                    kernel_initializer=self._initializer,
-                )
-            )
-        # FIXME: Check if correct
-        # IMPROVE: Formatting
-        self.net.add(
-            tf.keras.layers.Dense(
-                1,
-                name=name + "/output",
-                trainable=trainable,
-                kernel_initializer=self._initializer,
-            ),
+        self.q = mlp(
+            [obs_dim + act_dim] + list(hidden_sizes) + [1],
+            activation,
+            output_activation,
+            name=name,
         )
 
     @tf.function
-    def call(self, inputs):
-        """Perform forward pass."""
-        return self.net(tf.concat(inputs, axis=-1))  # Q(s,a)
+    def call(self, obs, act):
+        """Performs forward pass through the network.
+
+        Args:
+            obs (tf.Tensor): The tensor of observations.
+
+            act (tf.Tensor): The tensor of actions.
+
+        Returns:
+            tf.Tensor: The tensor containing the Q values of the input observations
+                and actions.
+        """
+        return self.q(tf.concat([obs, act], axis=-1))  # Q(s,a)

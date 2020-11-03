@@ -63,8 +63,8 @@ class Pool(object):
             "terminal": torch.zeros([1, 1], dtype=torch.float32).to(self.device),
             "s_": torch.zeros([1, s_dim], dtype=torch.float32).to(self.device),
         }
-        self.min_memory_size = min_memory_size
         self.memory_pointer = 0
+        self.min_memory_size = min_memory_size
 
     def reset(self):
         """Reset memory buffer.
@@ -82,9 +82,13 @@ class Pool(object):
 
         Args:
             s (numpy.ndarray): State.
+
             a (numpy.ndarray): Action.
+
             r (numpy.ndarray): Reward.
+
             terminal (numpy.ndarray): Whether the terminal state was reached.
+
             s_ (numpy.ndarray): Next state.
 
         Returns:
@@ -92,6 +96,8 @@ class Pool(object):
         """
 
         # Store experience in memory buffer
+        # IMPROVE: Inefficient better to place on object and scale based on first sample
+        # IMPROVE: Test if conversion here is best?
         transition = {
             "s": torch.as_tensor(s, dtype=torch.float32).to(self.device),
             "a": torch.as_tensor(a, dtype=torch.float32).to(self.device),
@@ -110,7 +116,7 @@ class Pool(object):
                     [self.current_path[key], transition[key].unsqueeze(dim=0)], axis=0
                 )
         if terminal == 1.0:
-            # Question (rickstaa): Why only update when Paths are terminal? Done because
+            # Question (rickstaa): Why only update when Paths are terminal?
             # evaluation is on path basis?
             for key in self.current_path.keys():
                 self.memory[key] = torch.cat(

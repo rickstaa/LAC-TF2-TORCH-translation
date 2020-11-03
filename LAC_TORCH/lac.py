@@ -29,13 +29,12 @@ import torch
 from torch.optim import Adam
 import numpy as np
 
-from gaussian_actor import SquashedGaussianMLPActor
-from lyapunov_critic import MLPLyapunovCritic
+from gaussian_actor import SquashedGaussianActor
+from lyapunov_critic import LyapunovCritic
 from q_critic import QCritic
 from utils import (
     get_env_from_name,
     colorize,
-    save_config,
     evaluate_training_rollouts,
     training_evaluation,
 )
@@ -133,15 +132,11 @@ class LAC(object):
         # Display information about the algorithm being used (LAC or SAC)
         if ALG_PARAMS["use_lyapunov"]:
             print(
-                colorize(
-                    "INFO: You are training the LAC algorithm.", "green", bold=True
-                )
+                colorize("INFO: You are using the LAC algorithm.", "green", bold=True)
             )
         else:
             print(
-                colorize(
-                    "WARN: You are training the SAC algorithm.", "yellow", bold=True
-                )
+                colorize("WARN: You are using the SAC algorithm.", "yellow", bold=True)
             )
 
         # Save action and observation space as members
@@ -181,14 +176,18 @@ class LAC(object):
             self.log_labda.requires_grad = True
 
         # Create Gaussian Actor (GA) and Lyapunov critic (LC) or Q-Critic (QC) networks
-        self.ga = SquashedGaussianMLPActor(
+        # NOTE (rickstaa): Pytorch currently uses kaiming initialization for the baises
+        # in the future this will change to zero initialization
+        # (https://github.com/pytorch/pytorch/issues/18182). This however does not
+        # incluence the results.
+        self.ga = SquashedGaussianActor(
             obs_dim=self._s_dim,
             act_dim=self._a_dim,
             hidden_sizes=self._network_structure["actor"],
             act_limits=self.act_limits,
         ).to(self.device)
         if self.use_lyapunov:
-            self.lc = MLPLyapunovCritic(
+            self.lc = LyapunovCritic(
                 obs_dim=self._s_dim,
                 act_dim=self._a_dim,
                 hidden_sizes=self._network_structure["critic"],
@@ -249,29 +248,32 @@ class LAC(object):
 
         Args:
             s (np.numpy): The current state.
+
             evaluation (bool, optional): Whether to return a deterministic action.
-            Defaults to False.
+                Defaults to False.
 
         Returns:
             np.numpy: The current action.
         """
 
-        # Convert s to tensor if not yet the case
+        # Make sure s is float32 torch tensor
         s = torch.as_tensor(s, dtype=torch.float32).to(self.device)
 
         # Get current best action
         if evaluation is True:
             try:
                 with torch.no_grad():
-                    _, deterministic_a, _ = self.ga(s.unsqueeze(0))
+                    det_a, _ = self.ga(
+                        s.unsqueeze(0), determinstic=True
+                    )  # TODO: Check unsqueeze
                     return (
-                        deterministic_a[0].cpu().numpy()
+                        det_a[0].cpu().numpy()
                     )  # IMPROVE: Check if this is the fastest method
             except ValueError:
                 return
         else:
             with torch.no_grad():
-                a, _, _ = self.ga(s.unsqueeze(0))
+                a, _ = self.ga(s.unsqueeze(0))  # TODO: Check unsqueeze
                 return (
                     a[0].cpu().numpy()
                 )  # IMPROVE: Check if this is the fastest method
@@ -309,22 +311,26 @@ class LAC(object):
 
             # Get target Lyapunov value (Bellman-backup)
             with torch.no_grad():
-                a2_, _, _ = self.ga_(
+                a2_, _ = self.ga_(
                     batch["s_"]
                 )  # NOTE (rickstaa): Target actions come from *current* *target* policy
                 l_pi_targ = self.lc_(batch["s_"], a2_)
                 l_backup = (
                     batch["r"]
                     + self._gamma * (1 - batch["terminal"]) * l_pi_targ.detach()
-                )  # The lyapunov candidate
+                )  # The Lyapunov candidate
 
             # Get current Lyapunov value
-            l = self.lc(batch["s"], batch["a"])
+            l1 = self.lc(batch["s"], batch["a"])
 
             # Calculate Lyapunov *CRITIC* error
-            # NOTE (rickstaa): I used manual implementation as it is 2 times than F.MSE
-            # Change to F.mse_loss when TorchScript is used.
-            l_error = ((l - l_backup) ** 2).mean()  # See eq. (7)
+            # NOTE (rickstaa): The 0.5 multiplication factor was added to make the
+            # derivation cleaner and can be safely removed without influencing the
+            # minimization. We kept it here for consistency.
+            # NOTE (rickstaa): I use a manual implementation instead of using
+            # F.mse_loss as this is 2 times faster. This can be changed back to
+            # F.mse_loss if Torchscript is used.
+            l_error = 0.5 * ((l1 - l_backup) ** 2).mean()  # See eq. 7
 
             # Perform one gradient descent step for the Lyapunov critic
             l_error.backward()
@@ -338,7 +344,7 @@ class LAC(object):
             # NOTE (rickstaa): Here we use max-clipping instead of min-clipping used
             # in the SAC algorithm since we want to minimize the return.
             with torch.no_grad():
-                a2, _, logp_a2 = self.ga(
+                a2, logp_a2 = self.ga(
                     batch["s_"]
                 )  # NOTE (rickstaa): Target actions come from *current* policy
                 q1_pi_targ = self.q_1_(batch["s_"], a2)
@@ -355,11 +361,6 @@ class LAC(object):
             q2 = self.q_2(batch["s"], batch["a"])
 
             # Calculate Q-critic loss
-            # NOTE (rickstaa): The 0.5 multiplication factor was added to make the
-            # derivation cleaner and can be safely removed without influencing the
-            # minimization. We kept it here for consistency.
-            # NOTE (rickstaa): I used manual implementation as it is 2 times than F.MSE
-            # Change to F.mse_loss when TorchScript is used.
             loss_q1 = 0.5 * ((q1 - q_backup) ** 2).mean()  # See Haarnoja eq. 5
             loss_q2 = 0.5 * ((q2 - q_backup) ** 2).mean()
             loss_q = loss_q1 + loss_q2
@@ -375,28 +376,27 @@ class LAC(object):
         # Zero gradients on the actor
         self._a_train.zero_grad()
 
-        # Retrieve log probabilities of batch observations based on current policy
-        pi, _, log_pis = self.ga(batch["s"])
+        # Retrieve log probabilities of batch observations based on *current* policy
+        pi, log_pis = self.ga(batch["s"])
 
-        # Retrieve actor loss
+        # Compute actor loss
         if self.use_lyapunov:
-            # Calculate the target lyapunov value
-            a2, _, _ = self.ga(
+            # Calculate the target Lyapunov value
+            a2, _ = self.ga(
                 batch["s_"]
             )  # NOTE (rickstaa): Target actions come from *current* policy
             lya_l_ = self.lc(batch["s_"], a2)
 
             # Compute Lyapunov Actor error
             self.l_delta = torch.mean(
-                lya_l_ - l.detach() + self._alpha_3 * batch["r"]
+                lya_l_ - l1.detach() + self._alpha_3 * batch["r"]
             )  # See eq. 11
 
-            # Compute Actor loss
+            # Compute actor loss
             a_loss = (
                 self.labda.detach() * self.l_delta
                 + self.alpha.detach() * log_pis.mean()
             )  # See eq. 12
-
         else:
 
             # Retrieve the current Q values
@@ -411,7 +411,7 @@ class LAC(object):
             # Compute actor loss
             a_loss = (self.alpha.detach() * log_pis - q_pi).mean()  # See Haarnoja eq. 7
 
-            # Perform one gradient descent step for the Gaussian Actor
+        # Perform one gradient descent step for the Gaussian Actor
         a_loss.backward()
         self._a_train.step()
 
@@ -425,7 +425,7 @@ class LAC(object):
         # Calculate alpha loss
         alpha_loss = -(
             self.alpha * (log_pis + self.target_entropy).detach()
-        ).mean()  # See Haarnoja eq. 17
+        ).mean()  # See Haarnoja eq. 17  # FIXME: Check if log_alpha gives same resullt
 
         # Perform one gradient descent step for alpha
         alpha_loss.backward()
@@ -482,8 +482,8 @@ class LAC(object):
             path (str): The path where you want to save the policy.
         """
 
-        # Save all models/tensors in the _save_dict
-        save_path = osp.abspath(path + "/policy/model.pth")
+        # Retrieve save
+        save_path = osp.abspath(osp.join(path, "policy/model.pth"))
 
         # Create folder if not exist
         if osp.exists(osp.dirname(save_path)):
@@ -539,14 +539,16 @@ class LAC(object):
         Returns:
             bool: Boolean specifying whether the policy was loaded successfully.
         """
+        # TODO: Add load path error
+        # TODO: Check second warning
 
         # Create load path
-        load_path = osp.abspath(path + "/model.pth")
+        load_path = osp.abspath(osp.join(path, "model.pth"))
 
         # Load the model state
         try:
             models_state_dict = torch.load(load_path)
-        except NotADirectoryError:
+        except (FileNotFoundError, NotADirectoryError):
             success_load = False
             return success_load
 
@@ -572,7 +574,7 @@ class LAC(object):
                 sys.exit(0)
 
         # Restore network parameters
-        try:  # IMPROVE: Load missing networks instead of catching the error
+        try:
             if models_state_dict["use_lyapunov"]:
                 self.use_lyapunov = models_state_dict["use_lyapunov"]
                 self.ga.load_state_dict(models_state_dict["ga_state_dict"])
@@ -615,32 +617,6 @@ class LAC(object):
         success_load = True
         return success_load
 
-    def _update_targets(self):
-        """Updates the target networks based on a Exponential moving average.
-        """
-        # Polyak averaging for target variables
-        with torch.no_grad():
-            for pi_main, pi_targ in zip(self.ga.parameters(), self.ga_.parameters()):
-                pi_targ.data.mul_(self._polyak)
-                pi_targ.data.add_((1 - self._polyak) * pi_main.data)
-            if self.use_lyapunov:
-                for pi_main, pi_targ in zip(
-                    self.lc.parameters(), self.lc_.parameters()
-                ):
-                    pi_targ.data.mul_(self._polyak)
-                    pi_targ.data.add_((1 - self._polyak) * pi_main.data)
-            else:
-                for pi_main, pi_targ in zip(
-                    self.q_1.parameters(), self.q_1_.parameters()
-                ):
-                    pi_targ.data.mul_(self._polyak)
-                    pi_targ.data.add_((1 - self._polyak) * pi_main.data)
-                for pi_main, pi_targ in zip(
-                    self.q_2.parameters(), self.q_2_.parameters()
-                ):
-                    pi_targ.data.mul_(self._polyak)
-                    pi_targ.data.add_((1 - self._polyak) * pi_main.data)
-
     def _set_learning_rates(
         self, lr_a=None, lr_alpha=None, lr_l=None, lr_labda=None, lr_c=None
     ):
@@ -672,12 +648,39 @@ class LAC(object):
             if lr_l:
                 for param_group in self._l_train.param_groups:
                     param_group["lr"] = lr_l
+            if lr_labda:
                 for param_group in self._lambda_train.param_groups:
                     param_group["lr"] = lr_labda
         else:
             if lr_c:
                 for param_group in self._q_train.param_groups:
                     param_group["lr"] = lr_c
+
+    def _update_targets(self):
+        """Updates the target networks based on a Exponential moving average
+        (Polyak averaging).
+        """
+        with torch.no_grad():
+            for ga_main, ga_targ in zip(self.ga.parameters(), self.ga_.parameters()):
+                ga_targ.data.mul_(self._polyak)
+                ga_targ.data.add_((1 - self._polyak) * ga_main.data)
+            if self.use_lyapunov:
+                for lc_main, lc_targ in zip(
+                    self.lc.parameters(), self.lc_.parameters()
+                ):
+                    lc_targ.data.mul_(self._polyak)
+                    lc_targ.data.add_((1 - self._polyak) * lc_main.data)
+            else:
+                for q_1_main, q_1_targ in zip(
+                    self.q_1.parameters(), self.q_1_.parameters()
+                ):
+                    q_1_targ.data.mul_(self._polyak)
+                    q_1_targ.data.add_((1 - self._polyak) * q_1_main.data)
+                for q_2_main, q_2_targ in zip(
+                    self.q_2.parameters(), self.q_2_.parameters()
+                ):
+                    q_2_targ.data.mul_(self._polyak)
+                    q_2_targ.data.add_((1 - self._polyak) * q_2_main.data)
 
     @property
     def alpha(self):
@@ -726,8 +729,8 @@ def train(log_dir):
     """Performs the agent training.
 
     Args:
-        log_dir (str): The directory in which the final model (policy) and the
-            log data is saved.
+        log_dir (str): The directory in which the final model (policy) and the log data
+            is saved.
     """
 
     # Create train and test environments
@@ -764,7 +767,7 @@ def train(log_dir):
         # Create retrain model path
         retrain_model_folder = TRAIN_PARAMS["continue_model_folder"]
         retrain_model_path = osp.abspath(
-            osp.join(log_dir, "../../" + TRAIN_PARAMS["continue_model_folder"])
+            osp.join(log_dir, "../..", TRAIN_PARAMS["continue_model_folder"])
         )
 
         # Check if retrain model exists if not throw error
@@ -789,7 +792,7 @@ def train(log_dir):
             )
         )
         result = policy.restore(
-            osp.abspath(retrain_model_path + "/policy"),
+            osp.abspath(osp.join(retrain_model_path, "policy")),
             restore_lagrance_multipliers=(not ALG_PARAMS["reset_lagrance_multipliers"]),
         )
         if not result:
@@ -826,13 +829,12 @@ def train(log_dir):
         device=policy.device,
     )
 
-    # Setup logger and store/log hyperparameters
+    # Setup logger and log hyperparameters
     logger.configure(dir=log_dir, format_strs=["csv"])
     logger.logkv("tau", ALG_PARAMS["tau"])
     logger.logkv("alpha3", ALG_PARAMS["alpha3"])
     logger.logkv("batch_size", ALG_PARAMS["batch_size"])
     logger.logkv("target_entropy", policy.target_entropy)
-    save_config(locals(), log_dir)
 
     ####################################################
     # Training loop ####################################
@@ -901,11 +903,22 @@ def train(log_dir):
             if global_step > ENVS_PARAMS[ENV_NAME]["max_global_steps"]:
 
                 # Print step count, save model and stop the program
-                print(f"\nINFO: Training stopped after {global_step} steps.")
-                print("INFO: Running time: ", time.time() - t1)
-                print("INFO: Saving Model")
+                print(
+                    colorize(
+                        f"\nINFO: Training stopped after {global_step} steps.",
+                        "cyan",
+                        bold=True,
+                    )
+                )
+                print(
+                    colorize(
+                        "INFO: Running time: {}".format(time.time() - t1),
+                        "cyan",
+                        bold=True,
+                    )
+                )
+                print(colorize("INFO: Saving Model", "cyan", bold=True))
                 policy.save_result(log_dir)
-                print("INFO: Running time: ", time.time() - t1)
                 return
 
             # Render environment if requested

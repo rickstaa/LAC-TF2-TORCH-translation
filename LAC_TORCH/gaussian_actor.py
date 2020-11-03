@@ -15,12 +15,12 @@ LOG_STD_MIN = -20
 LOG_STD_MAX = 2
 
 
-class SquashedGaussianMLPActor(nn.Module):
+class SquashedGaussianActor(nn.Module):
     """The squashed gaussian actor network.
 
     Attributes:
-        net (torch.nn.modules.container.Sequential): The input/hidden layers of the
-            network.
+        net (torch.nn.modules.container.Sequential): The fully connected hidden layers
+            of the network.
 
         mu (torch.nn.modules.linear.Linear): The output layer which returns the mean of
             the actions.
@@ -63,10 +63,13 @@ class SquashedGaussianMLPActor(nn.Module):
                 from (-1, 1) to (low, high). Defaults to (-1, 1).
         """
         super().__init__()
+        # Set class attributes
+        self.act_limits = act_limits
+
+        # Create networks
         self.net = mlp([obs_dim] + list(hidden_sizes), activation, output_activation)
         self.mu = nn.Linear(hidden_sizes[-1], act_dim)
         self.log_sigma = nn.Linear(hidden_sizes[-1], act_dim)
-        self.act_limits = act_limits
 
     def forward(self, obs, deterministic=False, with_logprob=True):
         """Performs forward pass through the network.
@@ -84,30 +87,30 @@ class SquashedGaussianMLPActor(nn.Module):
 
         Returns:
             torch.Tensor,  torch.Tensor: The actions given by the policy, the log
-            probabilities of each of these actions.
+                probabilities of each of these actions.
         """
 
-        # Calculate required variables
+        # Calculate mean action and standard deviation
         net_out = self.net(obs)
         mu = self.mu(net_out)
         log_std = self.log_sigma(net_out)
         log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
-        std = torch.exp(log_std)
+        std = torch.exp(log_std)  # Transform to standard deviation
 
         # Check summing axis
         sum_axis = 0 if obs.shape.__len__() == 1 else 1
 
-        # Pre-squash distribution and sample
+        # Use the re-parameterization trick to sample a action from the pre-squashed
+        # distribution
         pi_distribution = Normal(mu, std)
         if deterministic:
-            # Only used for evaluating policy at test time.
-            pi_action = mu
+            pi_action = mu  # Determinstic action used at test time.
         else:
             pi_action = (
                 pi_distribution.rsample()
             )  # Sample while using the parameterization trick
 
-        # Compute log probability in squashed gaussian
+            # Compute log probability of the sampled action in  the squashed gaussian
         if with_logprob:
             # Compute logprob from Gaussian, and then apply correction for Tanh
             # squashing. NOTE: The correction formula is a little bit magic. To get an
@@ -122,8 +125,8 @@ class SquashedGaussianMLPActor(nn.Module):
         else:
             logp_pi = None
 
-        # Calculate scaled action and return the action and its log probability
-        pi_action = torch.tanh(pi_action)  # Squash gaussian to be between -1 and 1
+        # Squash the action between (-1 and 1)
+        pi_action = torch.tanh(pi_action)
 
         #  Clamp the actions such that they are in range of the environment
         if self.act_limits:
@@ -134,4 +137,4 @@ class SquashedGaussianMLPActor(nn.Module):
             )
 
         # Return action and log likelihood
-        return pi_action, pi_action, logp_pi
+        return pi_action, logp_pi
