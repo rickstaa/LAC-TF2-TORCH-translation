@@ -66,8 +66,9 @@ if RANDOM_SEED is not None:
     torch.manual_seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
     random.seed(RANDOM_SEED)
+
 # Check if GPU is requested and available and set the device
-self.device = (
+DEVICE = (
     torch.device("cuda")
     if (torch.cuda.is_available() and USE_GPU)
     else torch.device("cpu")
@@ -81,7 +82,7 @@ if not torch.cuda.is_available() and USE_GPU:
         "yellow",
         bold=True,
     )
-device_str = "GPU" if str(self.device) == "cuda" else str(self.device)
+device_str = "GPU" if str(DEVICE) == "cuda" else str(DEVICE)
 print(colorize(f"INFO: Torch is using the {device_str}.", "cyan", bold=True))
 
 # IMPROVE: Check if adding variables as tensors speeds up computation
@@ -141,6 +142,9 @@ class LAC(object):
             print(
                 colorize("WARN: You are using the SAC algorithm.", "yellow", bold=True)
             )
+
+        # Set the computational device
+        self.device = DEVICE
 
         # Save action and observation space as members
         self._a_dim = a_dim
