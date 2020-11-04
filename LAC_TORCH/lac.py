@@ -263,7 +263,7 @@ class LAC(object):
         if evaluation is True:
             try:
                 with torch.no_grad():
-                    det_a, _ = self.ga(s.unsqueeze(0), determinstic=True)
+                    det_a, _ = self.ga(s.unsqueeze(0), deterministic=True)
                     return (
                         det_a[0].cpu().numpy()
                     )  # IMPROVE: Check if this is the fastest method

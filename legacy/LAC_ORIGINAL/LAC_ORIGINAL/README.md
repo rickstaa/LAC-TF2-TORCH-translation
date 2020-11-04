@@ -60,7 +60,7 @@ You can change the inference parameters in the [variant.py](https://github.com/r
 
 -   **eval_list**: The names of the agents you want to run the inference for.
 -   **which_policy_for_inference**: Which policies of a trained agent you want to use for the inference. Each trained agent can contain multiple policies (see: `num_of_policies` parameter).
--   **num_of_paths_for_eval**: How many paths you want to use during the inference for each policy.
+-   **num_of_paths_for_eval**: How many paths you want to use during the inference.
 
 ### Start the inference
 

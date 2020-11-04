@@ -301,9 +301,6 @@ class LAC(tf.Module):
             return a[0]
 
     @tf.function
-    # def learn(
-    #     self, LR_A, LR_L, LR_lag, bs, ba, br, bterminal, bs_,
-    # ): # IMPROVEMENT: DEBUG SPEED!
     def learn(self, lr_a, lr_l, lr_lag, lr_c, batch):
         """Runs the SGD to update all the optimize parameters.
 
