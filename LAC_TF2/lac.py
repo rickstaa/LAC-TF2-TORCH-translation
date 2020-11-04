@@ -143,7 +143,7 @@ class LAC(tf.Module):
             )
         else:
             print(
-                colorize("INFO: You are using the SAC algorithm.", "yellow", bold=True)
+                colorize("WARN: You are using the SAC algorithm.", "yellow", bold=True)
             )
 
         # Save action and observation space as members
@@ -558,25 +558,37 @@ class LAC(tf.Module):
             return success_load
 
         # Throw warning if restored model is different from the model use now
-        if TRAIN_PARAMS["continue_training"]:
-            if self.use_lyapunov != train_config["use_lyapunov"]:
-                alg_strings = [
-                    "LAC" if self.use_lyapunov else "SAC",
-                    "LAC" if train_config["use_lyapunov"] else "SAC",
-                ]
-                print(
-                    colorize(
-                        (
-                            f"ERROR: You tried to load a {alg_strings[0]} model "
-                            "while you specified you want to train it as a "
-                            f"{alg_strings[0]} model. Shutting down training as this "
-                            "is not yet supported."
-                        ),
-                        "yellow",
-                        bold=True,
-                    )
+        if self.use_lyapunov != train_config["use_lyapunov"]:
+            alg_strings = [
+                "LAC" if self.use_lyapunov else "SAC",
+                "LAC" if train_config["use_lyapunov"] else "SAC",
+            ]
+            if TRAIN_PARAMS["continue_training"]:
+                warn_str = colorize(
+                    (
+                        f"ERROR: You tried to load a {alg_strings[1]} model while the "
+                        f"`variant.py` file specifies you want to train it as a"
+                        f"{alg_strings[0]} model. Shutting down training as this is "
+                        "not yet supported."
+                    ),
+                    "red",
+                    bold=True,
                 )
+                print(warn_str)
                 sys.exit(0)
+            else:
+                warn_str = colorize(
+                    (
+                        f"ERROR: You tried to load a {alg_strings[1]} model while the "
+                        f"`variant.py` file specifies you want to use it in the "
+                        f"inference as a {alg_strings[0]} model. As a result the "
+                        "`variant.py` will be ignored."
+                    ),
+                    "yellow",
+                    bold=True,
+                )
+                print(warn_str)
+                self.__reload_critic_networks(use_lyapunov=train_config["use_lyapunov"])
 
         # Check if the models exist
         try:
@@ -595,21 +607,116 @@ class LAC(tf.Module):
             return success_load
 
         # Restore network parameters
-        if train_config["use_lyapunov"]:
-            self.ga.load_weights(load_path + "/gaussian_actor")
-            self.lc.load_weights(load_path + "/lyapunov_critic")
-            if restore_lagrance_multipliers:
-                self.log_alpha = train_config["log_alpha"]
-                self.log_labda = train_config["log_labda"]
-        else:
-            self.ga.load_weights(load_path + "/gaussian_actor")
-            self.q_1.load_weights(load_path + "/q_critic_1")
-            self.q_2.load_weights(load_path + "/q_critic_2")
-            if restore_lagrance_multipliers:
-                self.log_alpha = train_config["log_alpha"]
-        self._init_targets()
+        try:
+            if train_config["use_lyapunov"]:
+                self.ga.load_weights(load_path + "/gaussian_actor")
+                self.lc.load_weights(load_path + "/lyapunov_critic")
+                if restore_lagrance_multipliers:
+                    self.log_alpha = train_config["log_alpha"]
+                    self.log_labda = train_config["log_labda"]
+            else:
+                self.ga.load_weights(load_path + "/gaussian_actor")
+                self.q_1.load_weights(load_path + "/q_critic_1")
+                self.q_2.load_weights(load_path + "/q_critic_2")
+                if restore_lagrance_multipliers:
+                    self.log_alpha = train_config["log_alpha"]
+        except (KeyError, AttributeError):
+            alg_string = "LAC" if train_config["use_lyapunov"] else "SAC"
+            print(
+                colorize(
+                    (
+                        "ERROR: Something went wrong while trying to load the "
+                        f"{alg_string} model. Shutting down the training."
+                    ),
+                    "red",
+                    bold=True,
+                )
+            )
+            sys.exit(0)
+
+        # Return result
         success_load = True
         return success_load
+
+    def __reload_critic_networks(self, use_lyapunov):
+        """Function used to reload the right networks when the loaded model type
+        differs from the type set in the `variant.py` file. Currently only used during
+        inference.
+
+        Args:
+            use_lyapunov (bool): Whether the new setup should use lyapunov or not.
+        """
+        # Create required networks
+        if use_lyapunov:  # LAC
+
+            # Print reload message
+            print(
+                colorize(
+                    "INFO: You switched to using the LAC algorithm.",
+                    "green",
+                    bold=True,
+                )
+            )
+
+            # Create log_labda
+            self.log_labda = tf.Variable(
+                tf.math.log(ALG_PARAMS["labda"]), name="log_lambda"
+            )
+
+            # Create main and target Lyapunov Critic networks
+            self.lc = LyapunovCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["critic"],
+            )
+            self.lc_ = LyapunovCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["critic"],
+            )
+
+            # Remove main and target Q-Critic networks
+            # NOTE (rickstaa): Removed to make sure we notice if something goes wrong.
+            delattr(self, "q_1")
+            delattr(self, "q_2")
+            delattr(self, "q_1_")
+            delattr(self, "q_2_")
+        else:  # SAC
+
+            # Print reload message
+            print(
+                colorize(
+                    "WARN: You switched to using the SAC algorithm.",
+                    "yellow",
+                    bold=True,
+                )
+            )
+
+            # Create main and target Q-Critic networks
+            self.q_1 = QCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["q_critic"],
+            )
+            self.q_2 = QCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["q_critic"],
+            )
+            self.q_1_ = QCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["q_critic"],
+            )
+            self.q_2_ = QCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["q_critic"],
+            )
+
+            # Remove main and target Q-Critic networks
+            delattr(self, "lc")
+            delattr(self, "lc_")
 
     def _set_learning_rates(
         self, lr_a=None, lr_alpha=None, lr_l=None, lr_labda=None, lr_c=None

@@ -6,8 +6,6 @@ import torch.nn as nn
 
 from utils import mlp
 
-# IMPROVE: Create square Lyapunov activation function.
-
 
 class LyapunovCritic(nn.Module):
     """Soft Lyapunov critic Network.

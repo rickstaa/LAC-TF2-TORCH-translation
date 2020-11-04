@@ -29,7 +29,7 @@ SAVE_CHECKPOINTS = False  # Store intermediate models
 CHECKPOINT_SAVE_FREQ = 10000  # Intermediate model save frequency
 
 # Evaluation parameters
-EVAL_LIST = ["LAC20201027_1311"]
+EVAL_LIST = ["SAC20201103_2150"]
 WHICH_POLICY_FOR_INFERENCE = [
     0
 ]  # If this is empty, it means all the policies are evaluated;
@@ -103,6 +103,8 @@ ALG_PARAMS = {
 }
 
 # Environment parameters
+# NOTE (rickstaa): If eval_reset is true a eval argument is passed to the env.reset
+# method.
 # IMPROVEMENT: Place in its own configuration file.
 # IMPROVEMENT: Create python module and register as gym environments.
 ENVS_PARAMS = {
@@ -112,7 +114,8 @@ ENVS_PARAMS = {
         "max_ep_steps": 800,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
-        "eval_render": False,
+        "eval_render": False,  # Render env in training and inference
+        "eval_reset": False,  # If the reset differs between train and inference mode
     },
     "ex3_ekf_gyro": {
         "module_name": "envs.Ex3_EKF_gyro",
@@ -120,7 +123,8 @@ ENVS_PARAMS = {
         "max_ep_steps": 800,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
-        "eval_render": False,
+        "eval_render": False,  # Render env in training and inference
+        "eval_reset": True,  # If the reset differs between train and inference mode
     },
     "ex3_ekf_gyro_dt": {
         "module_name": "envs.ex3_ekf_gyro_dt",
@@ -128,7 +132,8 @@ ENVS_PARAMS = {
         "max_ep_steps": 120,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
-        "eval_render": False,
+        "eval_render": False,  # Render env in training and inference
+        "eval_reset": True,  # If the reset differs between train and inference mode
     },
     "ex3_ekf_gyro_dt_real": {
         "module_name": "envs.ex3_ekf_gyro_dt_real",
@@ -136,7 +141,8 @@ ENVS_PARAMS = {
         "max_ep_steps": 1000,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
-        "eval_render": False,
+        "eval_render": False,  # Render env in training and inference
+        "eval_reset": True,  # If the reset differs between train and inference mode
     },
 }
 

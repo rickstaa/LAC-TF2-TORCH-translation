@@ -379,6 +379,7 @@ if __name__ == "__main__":
             retval = policy.restore(
                 osp.abspath(osp.join(model_path, str(policy_name), "policy"))
             )
+            policy_type = "LAC" if policy.use_lyapunov else "SAC"
             if not retval:
                 print(
                     f"Policy {policy_name} could not be loaded. Continuing to the next "
@@ -403,8 +404,7 @@ if __name__ == "__main__":
                 # Reset environment
                 # NOTE (rickstaa): This check was added since some of the supported
                 # environments have a different reset when running the inference.
-                # TODO: Add these environments in a config file!
-                if env.__class__.__name__.lower() == "ex3_ekf_gyro":
+                if ENVS_PARAMS[ENV_NAME]["eval_reset"]:
                     s = env.reset(eval=True)
                 else:
                     s = env.reset()
@@ -605,7 +605,7 @@ if __name__ == "__main__":
                     fig = plt.figure(
                         figsize=(9, 6),
                         num=(
-                            "LAC_TORCH_"
+                            f"{policy_type}_TORCH_"
                             + str(len(list(itertools.chain(*figs.values()))) + 1)
                         ),
                     )
@@ -621,7 +621,7 @@ if __name__ == "__main__":
                             fig = plt.figure(
                                 figsize=(9, 6),
                                 num=(
-                                    "LAC_TORCH_"
+                                    f"{policy_type}_TORCH_"
                                     + str(
                                         len(list(itertools.chain(*figs.values()))) + 1
                                     )
@@ -758,7 +758,7 @@ if __name__ == "__main__":
                     fig = plt.figure(
                         figsize=(9, 6),
                         num=(
-                            "LAC_TORCH_"
+                            f"{policy_type}_TORCH_"
                             + str(len(list(itertools.chain(*figs.values()))) + 1)
                         ),
                     )
@@ -774,7 +774,7 @@ if __name__ == "__main__":
                             fig = plt.figure(
                                 figsize=(9, 6),
                                 num=(
-                                    "LAC_TORCH_"
+                                    f"{policy_type}_TORCH_"
                                     + str(
                                         len(list(itertools.chain(*figs.values()))) + 1
                                     )
@@ -884,7 +884,7 @@ if __name__ == "__main__":
                     fig = plt.figure(
                         figsize=(9, 6),
                         num=(
-                            "LAC_TORCH_"
+                            f"{policy_type}_TORCH_"
                             + str(len(list(itertools.chain(*figs.values()))) + 1)
                         ),
                     )
@@ -900,7 +900,7 @@ if __name__ == "__main__":
                             fig = plt.figure(
                                 figsize=(9, 6),
                                 num=(
-                                    "LAC_TORCH_"
+                                    f"{policy_type}_TORCH_"
                                     + str(
                                         len(list(itertools.chain(*figs.values()))) + 1
                                     )

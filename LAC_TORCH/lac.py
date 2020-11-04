@@ -66,6 +66,23 @@ if RANDOM_SEED is not None:
     torch.manual_seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
     random.seed(RANDOM_SEED)
+# Check if GPU is requested and available and set the device
+self.device = (
+    torch.device("cuda")
+    if (torch.cuda.is_available() and USE_GPU)
+    else torch.device("cpu")
+)
+if not torch.cuda.is_available() and USE_GPU:
+    print(
+        colorize(
+            "WARN: GPU computing was enabled but the GPU can not be reached. "
+            "Reverting back to using CPU."
+        ),
+        "yellow",
+        bold=True,
+    )
+device_str = "GPU" if str(self.device) == "cuda" else str(self.device)
+print(colorize(f"INFO: Torch is using the {device_str}.", "cyan", bold=True))
 
 # IMPROVE: Check if adding variables as tensors speeds up computation
 
@@ -114,20 +131,6 @@ class LAC(object):
                 environment. Used for rescaling the actions that comes out of network
                 from (-1, 1) to (low, high). Defaults to (-1, 1).
         """
-
-        # Check if GPU is requested and available and set the device
-        self.device = (
-            torch.device("cuda")
-            if (torch.cuda.is_available() and USE_GPU)
-            else torch.device("cpu")
-        )
-        if not torch.cuda.is_available() and USE_GPU:
-            print(
-                "GPU computing was enabled but the GPU can not be reached. "
-                "Reverting back to using CPU."
-            )
-        device_str = "GPU" if str(self.device) == "cuda" else str(self.device)
-        print(colorize(f"INFO: Torch is using the {device_str}.", "cyan", bold=True))
 
         # Display information about the algorithm being used (LAC or SAC)
         if ALG_PARAMS["use_lyapunov"]:
@@ -179,7 +182,7 @@ class LAC(object):
         # NOTE (rickstaa): Pytorch currently uses kaiming initialization for the baises
         # in the future this will change to zero initialization
         # (https://github.com/pytorch/pytorch/issues/18182). This however does not
-        # incluence the results.
+        # influence the results.
         self.ga = SquashedGaussianActor(
             obs_dim=self._s_dim,
             act_dim=self._a_dim,
@@ -537,8 +540,6 @@ class LAC(object):
         Returns:
             bool: Boolean specifying whether the policy was loaded successfully.
         """
-        # TODO: Add load path error
-        # TODO: Check second warning
 
         # Create load path
         load_path = osp.abspath(osp.join(path, "model.pth"))
@@ -551,25 +552,39 @@ class LAC(object):
             return success_load
 
         # Throw warning if restored model is different from the model use now
-        if TRAIN_PARAMS["continue_training"]:
-            if self.use_lyapunov != models_state_dict["use_lyapunov"]:
-                alg_strings = [
-                    "LAC" if self.use_lyapunov else "SAC",
-                    "LAC" if models_state_dict["use_lyapunov"] else "SAC",
-                ]
-                print(
-                    colorize(
-                        (
-                            f"ERROR: You tried to load a {alg_strings[0]} model "
-                            "while you specified you want to train it as a "
-                            f"{alg_strings[0]} model. Shutting down training as this "
-                            "is not yet supported."
-                        ),
-                        "yellow",
-                        bold=True,
-                    )
+        if self.use_lyapunov != models_state_dict["use_lyapunov"]:
+            alg_strings = [
+                "LAC" if self.use_lyapunov else "SAC",
+                "LAC" if models_state_dict["use_lyapunov"] else "SAC",
+            ]
+            if TRAIN_PARAMS["continue_training"]:
+                warn_str = colorize(
+                    (
+                        f"ERROR: You tried to load a {alg_strings[1]} model while the "
+                        f"`variant.py` file specifies you want to train it as a"
+                        f"{alg_strings[0]} model. Shutting down training as this is "
+                        "not yet supported."
+                    ),
+                    "red",
+                    bold=True,
                 )
+                print(warn_str)
                 sys.exit(0)
+            else:
+                warn_str = colorize(
+                    (
+                        f"ERROR: You tried to load a {alg_strings[1]} model while the "
+                        f"`variant.py` file specifies you want to use it in the "
+                        f"inference as a {alg_strings[0]} model. As a result the "
+                        "`variant.py` will be ignored."
+                    ),
+                    "yellow",
+                    bold=True,
+                )
+                print(warn_str)
+                self.__reload_critic_networks(
+                    use_lyapunov=models_state_dict["use_lyapunov"]
+                )
 
         # Restore network parameters
         try:
@@ -592,20 +607,15 @@ class LAC(object):
                 self.q_2_.load_state_dict(models_state_dict["q2_targ_state_dict"])
                 if restore_lagrance_multipliers:
                     self.log_alpha = models_state_dict["log_alpha"]
-        except AttributeError:
-            alg_strings = [
-                "LAC" if self.use_lyapunov else "SAC",
-                "LAC" if models_state_dict["use_lyapunov"] else "SAC",
-            ]
+        except (KeyError, AttributeError):
+            alg_string = "LAC" if models_state_dict["use_lyapunov"] else "SAC"
             print(
                 colorize(
                     (
-                        f"ERROR: You tried to load a {alg_strings[0]} model "
-                        "while you specified you want to train it as a "
-                        f"{alg_strings[0]} model. Shutting down training as this "
-                        "is not yet supported."
+                        "ERROR: Something went wrong while trying to load the "
+                        f"{alg_string} model. Shutting down the training."
                     ),
-                    "yellow",
+                    "red",
                     bold=True,
                 )
             )
@@ -614,6 +624,75 @@ class LAC(object):
         # Return result
         success_load = True
         return success_load
+
+    def __reload_critic_networks(self, use_lyapunov):
+        """Function used to reload the right networks when the loaded model type
+        differs from the type set in the `variant.py` file. Currently only used during
+        inference.
+
+        Args:
+            use_lyapunov (bool): Whether the new setup should use lyapunov or not.
+        """
+        # Create required networks
+        if use_lyapunov:  # LAC
+
+            # Print reload message
+            print(
+                colorize(
+                    "INFO: You switched to using the LAC algorithm.",
+                    "green",
+                    bold=True,
+                )
+            )
+
+            # Create log_labda
+            self.log_labda = torch.tensor(
+                ALG_PARAMS["labda"], dtype=torch.float32
+            ).log()
+            self.log_labda.requires_grad = True
+
+            # Create main and target Lyapunov Critic networks
+            self.lc = LyapunovCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["critic"],
+            ).to(self.device)
+            self.lc_ = deepcopy(self.lc).to(self.device)
+
+            # Remove main and target Q-Critic networks
+            # NOTE (rickstaa): Removed to make sure we notice if something goes wrong.
+            delattr(self, "q_1")
+            delattr(self, "q_2")
+            delattr(self, "q_1_")
+            delattr(self, "q_2_")
+        else:  # SAC
+
+            # Print reload message
+            print(
+                colorize(
+                    "WARN: You switched to using the SAC algorithm.",
+                    "yellow",
+                    bold=True,
+                )
+            )
+
+            # Create main and target Q-Critic networks
+            self.q_1 = QCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["q_critic"],
+            ).to(self.device)
+            self.q_2 = QCritic(
+                obs_dim=self._s_dim,
+                act_dim=self._a_dim,
+                hidden_sizes=self._network_structure["q_critic"],
+            ).to(self.device)
+            self.q_1_ = deepcopy(self.q_1).to(self.device)
+            self.q_2_ = deepcopy(self.q_2).to(self.device)
+
+            # Remove main and target Q-Critic networks
+            delattr(self, "lc")
+            delattr(self, "lc_")
 
     def _set_learning_rates(
         self, lr_a=None, lr_alpha=None, lr_l=None, lr_labda=None, lr_c=None
