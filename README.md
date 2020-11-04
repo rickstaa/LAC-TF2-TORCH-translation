@@ -1,4 +1,4 @@
-# LAC_TF2_TORCH_Translation
+# LAC TF2 TORCH translation
 
 I used this repository to translate the LAC code of [Minghoa](https://github.com/hithmh/Actor-critic-with-stability-guarantee) into tf2 and Pytorch code. It currently contains the following translations:
 
