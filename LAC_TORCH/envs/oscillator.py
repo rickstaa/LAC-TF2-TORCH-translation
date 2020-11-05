@@ -115,18 +115,11 @@ class oscillator(gym.Env):
         else:
             done = False
 
-        # return (
-        #     np.array([m1, m2, m3, p1, p2, p3, r1, p1 - r1]),
-        #     cost,
-        #     done,
-        #     dict(reference=r1, state_of_interest=p1 - r1),
-        # )
         return (
             np.array([m1, m2, m3, p1, p2, p3, r1, p1 - r1]),
             cost,
-            # np.array([cost, cost]),  # DEBUG
             done,
-            dict(reference=[r1, m2], state_of_interest=[(p1 - r1), p1]),
+            dict(reference=r1, state_of_interest=p1 - r1),
         )
 
     def reset(self):

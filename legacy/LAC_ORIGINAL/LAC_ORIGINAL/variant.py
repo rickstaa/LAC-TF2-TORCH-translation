@@ -19,8 +19,8 @@ RANDOM_SEED = 0
 # alpha = 1.0
 alpha = 0.99
 alpha3 = 0.2
-actor = [128, 64, 32]
-critic = [128, 64, 32]
+actor = [64, 64]
+critic = [128, 128]
 approx_value = True
 use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
@@ -106,14 +106,14 @@ ALG_PARAMS = {
         "memory_capacity": int(1e6),
         "min_memory_size": 1000,
         "batch_size": 256,
-        "labda": 1.0,
+        "labda": 0.99,
         "alpha": alpha,
         "alpha3": alpha3,
         "tau": 5e-3,
         "lr_a": 1e-4,
         "lr_c": 3e-4,
         "lr_l": 3e-4,
-        "gamma": 0.999,
+        "gamma": 0.9,
         "steps_per_cycle": 100,
         "train_per_cycle": 80,
         "use_lyapunov": use_lyapunov,

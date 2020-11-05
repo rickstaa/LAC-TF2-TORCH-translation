@@ -1,4 +1,4 @@
-# LAC_TF2_TORCH_Translation
+# LAC TF2 TORCH translation
 
 I used this repository to translate the LAC code of [Minghoa](https://github.com/hithmh/Actor-critic-with-stability-guarantee) into tf2 and Pytorch code. It currently contains the following translations:
 
@@ -74,7 +74,7 @@ You can change the inference parameters in the [variant.py](https://github.com/r
 
 -   **EVAL_LIST**: The names of the agents you want to run the inference for.
 -   **WHICH_POLICY_FOR_INFERENCE**: Which policies of a trained agent you want to use for the inference. Each trained agent can contain multiple policies (see: `num_of_policies` parameter).
--   **NUM_OF_PATHS_FOR_EVAL**: How many paths you want to use during the inference for each policy.
+-   **NUM_OF_PATHS_FOR_EVAL**: How many paths you want to use during the inference.
 
 ### Start the inference
 
