@@ -196,6 +196,33 @@ def validate_req_costs(req_costs, costs_array):
     return valid_costs
 
 
+def get_distrubance_function(env_name):
+    """Returns a compatible disturber for a given environment.
+
+    Args:
+        env_name (str): The environment name.
+
+    Raises:
+        NameError: If environment name does not exist.
+
+    Returns:
+        function: A function that can be used as to perform a disturbed step into the
+        environment.
+    """
+    # IMPROVE: Docstring.
+
+    if "cartpole_cost" in env_name:
+        from disturbers import cartpole_disturber
+        disturbance_step = cartpole_disturber
+    elif "oscillator" in env_name:
+        from disturbers import oscillator_disturber
+        disturbance_step = oscillator_disturber
+    else:
+        print("no disturber designed for " + env_name)
+        raise NameError
+    return disturbance_step
+
+
 if __name__ == "__main__":
 
     # Parse cmdline arguments

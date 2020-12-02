@@ -25,6 +25,7 @@ VARIANT["algorithm_name"] = "LAC"
 VARIANT["alg_params"]["network_structure"] = VARIANT["env_params"]["network_structure"]
 EVAL_PARAMS = EVAL_PARAMS["dynamic"]
 
+
 ###################################################
 # Main inference eval script ######################
 ###################################################

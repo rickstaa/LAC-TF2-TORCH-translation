@@ -2,6 +2,7 @@
 """
 
 # IMPROVEMENT: Replace with yaml config file
+# IMPROVE: Add maximization reward.
 
 ########################################################
 # Main parameters ######################################

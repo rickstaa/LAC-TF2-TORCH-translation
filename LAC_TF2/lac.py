@@ -446,7 +446,7 @@ class LAC(tf.Module):
             # Calculate alpha loss
             alpha_loss = -tf.reduce_mean(
                 self.alpha * tf.stop_gradient(log_pis + self.target_entropy)
-            )  # See Haarnoja eq. 17 # TEST: Check if log_alpha gives same resullt
+            )  # See Haarnoja eq. 17 # TEST: Check if log_alpha gives same result
 
         # Perform one gradient descent step for alpha
         alpha_grads = alpha_tape.gradient(alpha_loss, [self.log_alpha])
@@ -461,6 +461,7 @@ class LAC(tf.Module):
             with tf.GradientTape() as lambda_tape:
 
                 # Calculate labda loss
+                # TEST: Validate if using self.labda gives the same result.
                 labda_loss = -tf.reduce_mean(
                     self.labda * tf.stop_gradient(self.l_delta)
                 )  # See formulas under eq. 14
