@@ -173,6 +173,16 @@ class LAC(object):
         else:
             self._lr_c = ALG_PARAMS["lr_c"]
 
+        # Make sure alpha and alpha are not zero
+        # NOTE (rickstaa): This is needed to prevent log_alpha/log_lambda from becoming
+        # -np.inf
+        ALG_PARAMS["alpha"] = (
+            1e-37 if ALG_PARAMS["alpha"] == 0.0 else ALG_PARAMS["alpha"]
+        )
+        ALG_PARAMS["labda"] = (
+            1e-37 if ALG_PARAMS["labda"] == 0.0 else ALG_PARAMS["labda"]
+        )
+
         # Create variables for the Lagrance multipliers
         self.log_alpha = torch.tensor(ALG_PARAMS["alpha"], dtype=torch.float32).log()
         self.log_alpha.requires_grad = True
@@ -430,7 +440,7 @@ class LAC(object):
         # Calculate alpha loss
         alpha_loss = -(
             self.alpha * (log_pis + self.target_entropy).detach()
-        ).mean()  # See Haarnoja eq. 17  # TEST: Check if log_alpha gives same resullt
+        ).mean()  # See Haarnoja eq. 17
 
         # Perform one gradient descent step for alpha
         alpha_loss.backward()
@@ -445,7 +455,10 @@ class LAC(object):
             self._lambda_train.zero_grad()
 
             # Calculate labda loss
-            # TEST: Validate if using self.labda gives the same result.
+            # NOTE (rickstaa): Log_labda was used in the lambda_loss function because
+            # using lambda caused the gradients to vanish. This is caused since we
+            # restrict lambda within a 0-1.0 range using the clamp function (see #38).
+            # Using log_lambda also is more numerically stable.
             labda_loss = -(
                 self.labda * self.l_delta.detach()
             ).mean()  # See formulas under eq. 14
@@ -471,6 +484,8 @@ class LAC(object):
                 l_error.cpu().detach(),
                 torch.mean(-log_pis.cpu().detach()),
                 a_loss.cpu().detach(),
+                alpha_loss.cpu().detach(),
+                labda_loss.cpu().detach(),
             )
         else:
             return (
@@ -478,6 +493,7 @@ class LAC(object):
                 loss_q.cpu().detach(),
                 torch.mean(-log_pis.cpu().detach()),
                 a_loss.cpu().detach(),
+                alpha_loss.cpu().detach(),
             )
 
     def save_result(self, path):
@@ -836,8 +852,8 @@ def train(log_dir):
     # Get observation and action space dimension and limits from the environment
     s_dim = env.observation_space.shape[0]
     a_dim = env.action_space.shape[0]
-    a_upperbound = env.action_space.high
     a_lowerbound = env.action_space.low
+    a_upperbound = env.action_space.high
 
     # Create the Agent
     policy = LAC(a_dim, s_dim, act_limits={"low": a_lowerbound, "high": a_upperbound})
@@ -929,7 +945,9 @@ def train(log_dir):
 
     # Train the agent in the environment until max_episodes has been reached
     print(colorize("INFO: Training...\n", "cyan", bold=True))
-    for i in range(ENVS_PARAMS[ENV_NAME]["max_episodes"]):
+    for i in range(
+        ENVS_PARAMS[ENV_NAME]["max_episodes"]
+    ):  # FIXME: Episodes looks very big i think naming is wrong
 
         # Create variable to store information about the current path
         if policy.use_lyapunov:
@@ -940,6 +958,8 @@ def train(log_dir):
                 "lambda": [],
                 "entropy": [],
                 "a_loss": [],
+                "alpha_loss": [],
+                "lambda_loss": [],
             }
             # current_path = {
             #     "rewards": torch.tensor([], dtype=torch.float32),
@@ -956,6 +976,7 @@ def train(log_dir):
                 "alpha": [],
                 "entropy": [],
                 "a_loss": [],
+                "alpha_loss": [],
             }
 
         # Reset environment
@@ -1037,11 +1058,17 @@ def train(log_dir):
                 for _ in range(ALG_PARAMS["train_per_cycle"]):
                     batch = pool.sample(ALG_PARAMS["batch_size"])
                     if policy.use_lyapunov:
-                        labda, alpha, l_loss, entropy, a_loss = policy.learn(
-                            lr_a_now, lr_l_now, lr_a, lr_c_now, batch
-                        )
+                        (
+                            labda,
+                            alpha,
+                            l_loss,
+                            entropy,
+                            a_loss,
+                            alpha_loss,
+                            labda_loss,
+                        ) = policy.learn(lr_a_now, lr_l_now, lr_a, lr_c_now, batch)
                     else:
-                        alpha, loss_q, entropy, a_loss = policy.learn(
+                        alpha, loss_q, entropy, a_loss, alpha_loss = policy.learn(
                             lr_a_now, lr_l_now, lr_a, lr_c_now, batch
                         )
 
@@ -1056,6 +1083,8 @@ def train(log_dir):
                     current_path["a_loss"].append(
                         a_loss.numpy()
                     )  # Improve: Check if this is the fastest way
+                    current_path["alpha_loss"].append(alpha_loss)
+                    current_path["lambda_loss"].append(labda_loss)
                     # current_path["rewards"] = torch.cat(
                     #     (current_path["rewards"], torch.tensor([r]))
                     # )
@@ -1082,6 +1111,7 @@ def train(log_dir):
                     current_path["a_loss"].append(
                         a_loss.numpy()
                     )  # Improve: Check if this is the fastest way
+                    current_path["alpha_loss"].append(alpha_loss)
 
             # Evalute the current policy performance and log the results
             if (

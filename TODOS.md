@@ -25,3 +25,5 @@
 -   [x] Clean up Torch
 -   [x] Clean up TF2
 -   [ ] Check learning rates
+
+- Add action prior like haarnoja.

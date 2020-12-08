@@ -89,6 +89,7 @@ if DEBUG_PARAMS["debug"]:
 # TEST: 0.5 constant.
 # TEST: Target actor for entropy result change.
 # TEST: Check if networks are correct compared to original script.
+# DEBUG Saving other vars goes wrong.
 
 
 class LAC(tf.Module):
@@ -172,6 +173,16 @@ class LAC(tf.Module):
             self._lr_l = tf.Variable(ALG_PARAMS["lr_l"], name="LR_L")
         else:
             self._lr_c = tf.Variable(ALG_PARAMS["lr_c"], name="LR_C")
+
+        # Make sure alpha and alpha are not zero
+        # NOTE (rickstaa): This is needed to prevent log_alpha/log_lambda from becoming
+        # -np.inf
+        ALG_PARAMS["alpha"] = (
+            1e-37 if ALG_PARAMS["alpha"] == 0.0 else ALG_PARAMS["alpha"]
+        )
+        ALG_PARAMS["labda"] = (
+            1e-37 if ALG_PARAMS["labda"] == 0.0 else ALG_PARAMS["labda"]
+        )
 
         # Create placeholders for the Lagrance multipliers
         self.log_alpha = tf.Variable(tf.math.log(ALG_PARAMS["alpha"]), name="log_alpha")
@@ -461,9 +472,12 @@ class LAC(tf.Module):
             with tf.GradientTape() as lambda_tape:
 
                 # Calculate labda loss
-                # TEST: Validate if using self.labda gives the same result.
+                # NOTE (rickstaa): Log_labda was used in the lambda_loss function because
+                # using lambda caused the gradients to vanish. This is caused since we
+                # restrict lambda within a 0-1.0 range using the clamp function (see #38).
+                # Using log_lambda also is more numerically stable.
                 labda_loss = -tf.reduce_mean(
-                    self.labda * tf.stop_gradient(self.l_delta)
+                    self.log_labda * tf.stop_gradient(self.l_delta)
                 )  # See formulas under eq. 14
 
             # Perform one gradient descent step for labda
@@ -486,6 +500,8 @@ class LAC(tf.Module):
                 l_error,
                 tf.reduce_mean(tf.stop_gradient(-log_pis)),
                 a_loss,
+                alpha_loss,
+                labda_loss,
             )
         else:
             return (
@@ -493,6 +509,7 @@ class LAC(tf.Module):
                 loss_q,
                 tf.reduce_mean(tf.stop_gradient(-log_pis)),
                 a_loss,
+                alpha_loss,
             )
 
     def save_result(self, path):
@@ -857,8 +874,8 @@ def train(log_dir):
     # Get observation and action space dimension and limits from the environment
     s_dim = env.observation_space.shape[0]
     a_dim = env.action_space.shape[0]
-    a_upperbound = env.action_space.high
     a_lowerbound = env.action_space.low
+    a_upperbound = env.action_space.high
 
     # Create the Agent
     policy = LAC(a_dim, s_dim, act_limits={"low": a_lowerbound, "high": a_upperbound})
@@ -960,6 +977,8 @@ def train(log_dir):
                 "lambda": [],
                 "entropy": [],
                 "a_loss": [],
+                "alpha_loss": [],
+                "lambda_loss": [],
             }
         else:
             current_path = {
@@ -968,6 +987,7 @@ def train(log_dir):
                 "alpha": [],
                 "entropy": [],
                 "a_loss": [],
+                "alpha_loss": [],
             }
 
         # Reset environment
@@ -1049,11 +1069,17 @@ def train(log_dir):
                 for _ in range(ALG_PARAMS["train_per_cycle"]):
                     batch = pool.sample(ALG_PARAMS["batch_size"])
                     if policy.use_lyapunov:
-                        labda, alpha, l_loss, entropy, a_loss = policy.learn(
-                            lr_a_now, lr_l_now, lr_a, lr_c_now, batch
-                        )
+                        (
+                            labda,
+                            alpha,
+                            l_loss,
+                            entropy,
+                            a_loss,
+                            alpha_loss,
+                            labda_loss,
+                        ) = policy.learn(lr_a_now, lr_l_now, lr_a, lr_c_now, batch)
                     else:
-                        alpha, loss_q, entropy, a_loss = policy.learn(
+                        alpha, loss_q, entropy, a_loss, alpha_loss = policy.learn(
                             lr_a_now, lr_l_now, lr_a, lr_c_now, batch
                         )
 
@@ -1066,6 +1092,8 @@ def train(log_dir):
                     current_path["lambda"].append(labda)
                     current_path["entropy"].append(entropy)
                     current_path["a_loss"].append(a_loss)
+                    current_path["alpha_loss"].append(alpha_loss)
+                    current_path["lambda_loss"].append(labda_loss)
                 else:
                     current_path["rewards"].append(r)
                     current_path["critic_error"].append(loss_q.numpy())
@@ -1074,6 +1102,7 @@ def train(log_dir):
                     current_path["a_loss"].append(
                         a_loss.numpy()
                     )  # Improve: Check if this is the fastest way
+                    current_path["alpha_loss"].append(alpha_loss)
 
             # Evalute the current policy performance and log the results
             if (

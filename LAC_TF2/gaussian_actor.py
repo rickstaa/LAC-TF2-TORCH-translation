@@ -39,7 +39,7 @@ class SquashedGaussianActor(tf.keras.Model):
         hidden_sizes,
         act_limits=None,
         activation=nn.relu,
-        output_activation=None,
+        output_activation=nn.relu,
         name="gaussian_actor",
         **kwargs
     ):

@@ -40,7 +40,7 @@ class SquashedGaussianActor(nn.Module):
         hidden_sizes,
         act_limits=None,
         activation=nn.ReLU,
-        output_activation=torch.nn.Identity,
+        output_activation=nn.ReLU,
     ):
         """Constructs all the necessary attributes for the Squashed Gaussian Actor
         object.

@@ -20,7 +20,7 @@ class LyapunovCritic(nn.Module):
         act_dim,
         hidden_sizes,
         activation=nn.ReLU,
-        output_activation=torch.nn.Identity,
+        output_activation=nn.ReLU,  # FIXME: Put back to identity
     ):
         """Constructs all the necessary attributes for the Soft Q critic object.
 

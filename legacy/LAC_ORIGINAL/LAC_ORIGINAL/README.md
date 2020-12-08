@@ -49,7 +49,7 @@ After you set the right hyperparameter in the [variant.py](https://github.com/ri
 algorithm in a specific folder using the following command:
 
 ```bash
-python ./legacy/LAC_ORIGINAL/LAC_ORIGINAL/train.py
+python ./legacy/LAC_ORIGINAL/LAC_ORIGINAL/main.py
 ```
 
 ## Inference instructions

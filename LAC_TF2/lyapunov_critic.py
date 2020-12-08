@@ -20,7 +20,7 @@ class LyapunovCritic(tf.keras.Model):
         act_dim,
         hidden_sizes,
         activation=nn.relu,
-        output_activation=None,
+        output_activation=nn.relu,  # FIXME: Put back to identity
         name="lyapunov_critic",
         **kwargs,
     ):

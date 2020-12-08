@@ -20,8 +20,8 @@ RANDOM_SEED = 0  # The script random seed
 ENV_NAME = "oscillator"  # The environment used for training
 
 # Training parameters
-EPISODES = int(1e5)  # Max episodes
-NUM_OF_POLICIES = 5  # Number of randomly seeded trained agents
+EPISODES = int(2e4)  # Max episodes
+NUM_OF_POLICIES = 20  # Number of randomly seeded trained agents
 USE_LYAPUNOV = True  # Use LAC (If false SAC is used)
 CONTINUE_TRAINING = (
     False  # Whether we want to continue training an already trained model
@@ -86,7 +86,7 @@ ALG_PARAMS = {
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
-    "labda": 0.99,  # Initial value for the Lyapunov constraint lagrance multiplier
+    "labda": 1.0,  # Initial value for the Lyapunov constraint lagrance multiplier
     "alpha": 0.99,  # The initial value for the entropy lagrance multiplier
     "alpha3": 0.2,  # The value of the stability condition multiplier
     "tau": 5e-3,  # Decay rate used in the polyak averaging
@@ -150,7 +150,7 @@ ENVS_PARAMS = {
 }
 
 # Other paramters
-SCALE_lambda_MIN_MAX = (0, 1)  # Range of lambda lagrance multiplier
+SCALE_lambda_MIN_MAX = (0, 1.0)  # Range of lambda lagrance multiplier
 
 # Check if specified environment is valid
 ENVS_PARAMS = {

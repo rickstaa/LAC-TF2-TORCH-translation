@@ -19,7 +19,7 @@ ENV_NAME = "oscillator"  # The environment used for training
 
 # Training parameters
 EPISODES = int(1e5)  # Max episodes
-NUM_OF_POLICIES = 5  # Number of randomly seeded trained agents
+NUM_OF_POLICIES = 30  # Number of randomly seeded trained agents
 USE_LYAPUNOV = True  # Use LAC (If false SAC is used)
 CONTINUE_TRAINING = (
     False  # Whether we want to continue training an already trained model
@@ -84,7 +84,7 @@ ALG_PARAMS = {
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
-    "labda": 0.99,  # Initial value for the Lyapunov constraint lagrance multiplier
+    "labda": 1.0,  # Initial value for the Lyapunov constraint lagrance multiplier
     "alpha": 0.99,  # The initial value for the entropy lagrance multiplier
     "alpha3": 0.2,  # The value of the stability condition multiplier
     "tau": 5e-3,  # Decay rate used in the polyak averaging
@@ -113,7 +113,7 @@ ENVS_PARAMS = {
         "module_name": "envs.oscillator",
         "class_name": "oscillator",
         "max_ep_steps": 800,
-        "max_global_steps": TRAIN_PARAMS["episodes"],
+        "max_global_steps": TRAIN_PARAMS["episodes"],  # FIXME: THIS naming is WRONG!
         "max_episodes": int(1e6),
         "eval_render": False,  # Render env in training and inference
         "eval_reset": False,  # If the reset differs between train and inference mode
