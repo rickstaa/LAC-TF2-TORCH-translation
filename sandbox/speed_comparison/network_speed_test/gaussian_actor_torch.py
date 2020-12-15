@@ -112,9 +112,9 @@ class SquashedGaussianMLPActor(nn.Module):
         # numerically-stable equivalent to Eq 21. Try deriving it yourself as a
         # (very difficult) exercise. :)
         logp_pi = pi_distribution.log_prob(pi_action).sum(axis=-1)
-        # logp_pi -= (2 * (np.log(2) - pi_action - F.softplus(-2 * pi_action))).sum(
-        #     axis=sum_axis
-        # ) # DEBUG
+        logp_pi -= (2 * (np.log(2) - pi_action - F.softplus(-2 * pi_action))).sum(
+            axis=sum_axis
+        )
 
         # Calculate scaled action and return the action and its log probability
         clipped_mu = torch.tanh(mu)

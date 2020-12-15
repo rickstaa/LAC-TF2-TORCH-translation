@@ -579,31 +579,22 @@ def train(variant):
             "entropy": [],
         }
 
-        # # Stop training if max number of steps has been reached
-        # # FIXME: OLD_VERSION This makes no sense since the global steps will never be
-        # # the set global steps in this case.
-        # if global_step > max_global_steps:
-        #     print(f"Training stopped after {global_step} steps.")
-        #     break
+        # Break out of loop if global steps have been reached
+        if global_step > max_global_steps:
+
+            # Print step count, save model and stop the program
+            print(f"Training stopped after {global_step} steps.")
+            print("Running time: ", time.time() - t1)
+            print("Saving Model")
+            policy.save_result(log_path)
+            print("Running time: ", time.time() - t1)
+            return
 
         s = env.reset()
         if "Fetch" in env_name or "Hand" in env_name:
             s = np.concatenate([s[key] for key in s.keys()])
 
         for j in range(max_ep_steps):
-
-            # Break out of loop if global steps have been reached
-            # FIXME: NEW Here makes sense
-            if global_step > max_global_steps:
-
-                # Print step count, save model and stop the program
-                print(f"Training stopped after {global_step} steps.")
-                print("Running time: ", time.time() - t1)
-                print("Saving Model")
-                policy.save_result(log_path)
-                print("Running time: ", time.time() - t1)
-                return
-
             if Render:
                 env.render()
 
@@ -705,4 +696,4 @@ def train(variant):
                 lr_a_now = lr_a * frac  # learning rate for actor
                 lr_c_now = lr_c * frac  # learning rate for critic
                 lr_l_now = lr_l * frac  # learning rate for critic
-                break  # FIXME: Redundant
+                break

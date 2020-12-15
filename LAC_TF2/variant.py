@@ -1,7 +1,7 @@
 """File containing the algorithm parameters.
 """
 
-# IMPROVEMENT: Replace with yaml config file
+import numpy as np
 
 ########################################################
 # Main parameters ######################################
@@ -20,7 +20,7 @@ RANDOM_SEED = 0  # The script random seed
 ENV_NAME = "oscillator"  # The environment used for training
 
 # Training parameters
-EPISODES = int(2e4)  # Max episodes
+MAX_GLOBAL_STEPS = int(8e3)  # Maximum number of global steps
 NUM_OF_POLICIES = 20  # Number of randomly seeded trained agents
 USE_LYAPUNOV = True  # Use LAC (If false SAC is used)
 CONTINUE_TRAINING = (
@@ -44,7 +44,7 @@ NUM_OF_PATHS_FOR_EVAL = 100  # How many paths you want to perform during inferen
 
 # Training parameters
 TRAIN_PARAMS = {
-    "episodes": EPISODES,
+    "max_global_steps": MAX_GLOBAL_STEPS,
     "num_of_policies": NUM_OF_POLICIES,
     "continue_training": CONTINUE_TRAINING,
     "continue_model_folder": CONTINUE_MODEL_FOLDER,
@@ -108,15 +108,11 @@ ALG_PARAMS = {
 # Environment parameters
 # NOTE (rickstaa): If eval_reset is true a eval argument is passed to the env.reset
 # method.
-# IMPROVEMENT: Place in its own configuration file.
-# IMPROVEMENT: Create python module and register as gym environments.
 ENVS_PARAMS = {
     "oscillator": {
         "module_name": "envs.oscillator",
         "class_name": "oscillator",
         "max_ep_steps": 800,
-        "max_global_steps": TRAIN_PARAMS["episodes"],
-        "max_episodes": int(1e6),
         "eval_render": False,  # Render env in training and inference
         "eval_reset": False,  # If the reset differs between train and inference mode
     },
@@ -124,8 +120,6 @@ ENVS_PARAMS = {
         "module_name": "envs.Ex3_EKF_gyro",
         "class_name": "Ex3_EKF_gyro",
         "max_ep_steps": 800,
-        "max_global_steps": TRAIN_PARAMS["episodes"],
-        "max_episodes": int(1e6),
         "eval_render": False,  # Render env in training and inference
         "eval_reset": True,  # If the reset differs between train and inference mode
     },
@@ -133,8 +127,6 @@ ENVS_PARAMS = {
         "module_name": "envs.ex3_ekf_gyro_dt",
         "class_name": "Ex3_EKF_gyro",
         "max_ep_steps": 120,
-        "max_global_steps": TRAIN_PARAMS["episodes"],
-        "max_episodes": int(1e6),
         "eval_render": False,  # Render env in training and inference
         "eval_reset": True,  # If the reset differs between train and inference mode
     },
@@ -142,15 +134,19 @@ ENVS_PARAMS = {
         "module_name": "envs.ex3_ekf_gyro_dt_real",
         "class_name": "Ex3_EKF_gyro",
         "max_ep_steps": 1000,
-        "max_global_steps": TRAIN_PARAMS["episodes"],
-        "max_episodes": int(1e6),
         "eval_render": False,  # Render env in training and inference
         "eval_reset": True,  # If the reset differs between train and inference mode
     },
 }
 
 # Other paramters
-SCALE_lambda_MIN_MAX = (0, 1.0)  # Range of lambda lagrance multiplier
+# NOTE (rickstaa): Lambda is clipped to be lower than 1.0 to prevent it from exploding
+# when hyperparmaters are badly chosen.
+SCALE_LAMBDA_MIN_MAX = (
+    0.0,
+    1.0,
+)  # Range of lambda lagrance multiplier
+SCALE_ALPHA_MIN_MAX = (0.0, np.inf)
 
 # Check if specified environment is valid
 ENVS_PARAMS = {

@@ -16,8 +16,6 @@ from lac import LAC
 from utils import get_env_from_name, colorize, get_log_path, validate_indices
 from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
 
-# IMPROVEMENT: Add render evaluation option -> inference_type=["render", "plot"]
-
 
 def validate_req_policies(req_policies, policies):
     """Validates whether the requested policies are valid.
@@ -403,7 +401,6 @@ if __name__ == "__main__":
                 # Reset environment
                 # NOTE (rickstaa): This check was added since some of the supported
                 # environments have a different reset when running the inference.
-                # IMPROVEMENT: Add these environments in a config file!
                 if env.__class__.__name__.lower() == "ex3_ekf_gyro":
                     s = env.reset(eval=True)
                 else:

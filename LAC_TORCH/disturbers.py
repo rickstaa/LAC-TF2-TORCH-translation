@@ -3,8 +3,6 @@
 
 import numpy as np
 
-# IMPROVE: Could be cleaned up into one big class based on the inputed environment
-
 
 def cartpole_disturber(
     time, s, action, env, eval_params, form_of_eval, disturber=None, initial_pos=0.0

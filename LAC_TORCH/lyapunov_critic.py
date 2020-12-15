@@ -20,7 +20,7 @@ class LyapunovCritic(nn.Module):
         act_dim,
         hidden_sizes,
         activation=nn.ReLU,
-        output_activation=nn.ReLU,  # FIXME: Put back to identity
+        output_activation=nn.ReLU,  # DEPLOY: Put back to identity when deploy
     ):
         """Constructs all the necessary attributes for the Soft Q critic object.
 
@@ -54,7 +54,7 @@ class LyapunovCritic(nn.Module):
             torch.Tensor: The tensor containing the Lyapunov values of the input
                 observations and actions.
         """
-        # IMPROVEMENT: Make squaring layer from class so it shows up named in the graph!
+        # DEPLOY: Make squaring layer from class so it shows up named in the graph!
         # https://pytorch.org/tutorials/beginner/examples_autograd/two_layer_net_custom_function.html
         l_out = self.lya(torch.cat([obs, act], dim=-1))
         l_out_squared = torch.square(l_out)

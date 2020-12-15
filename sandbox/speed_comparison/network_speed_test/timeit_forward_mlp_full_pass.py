@@ -49,6 +49,6 @@ pytorch_time = timeit.timeit(
 ######################################################
 # Print results ######################################
 ######################################################
-print("\nTest tensorflow/pytorch sample method speed:")
+print("\nTest pytorch sample method speed:")
 print(f"- Pytorch total forward pass time: {pytorch_time} s")
 print("- Pytorch mean forward pass time: {} ms".format((pytorch_time / N_SAMPLE) * 1e3))

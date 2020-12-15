@@ -958,7 +958,7 @@ if __name__ == "__main__":
             dirname = os.path.dirname(__file__)
             VARIANT["log_path"] = os.path.abspath(
                 os.path.join(dirname, "./log/" + VARIANT["env_name"] + "/" + name)
-            )  # TODO: Make log paths env name lowercase
+            )
 
         if "LAC" in name:
             VARIANT["alg_params"] = ALG_PARAMS["LAC"]

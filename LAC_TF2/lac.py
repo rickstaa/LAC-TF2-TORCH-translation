@@ -49,7 +49,8 @@ from variant import (
     TRAIN_PARAMS,
     ALG_PARAMS,
     ENVS_PARAMS,
-    SCALE_lambda_MIN_MAX,
+    SCALE_LAMBDA_MIN_MAX,
+    SCALE_ALPHA_MIN_MAX,
     DEBUG_PARAMS,
 )
 
@@ -82,14 +83,6 @@ if DEBUG_PARAMS["debug"]:
         )
     )
     tf.config.run_functions_eagerly(True)
-
-# TEST: Zero weight bias initialization.
-# TEST: Log_alpha, alpha change.
-# TEST: Optimization order.
-# TEST: 0.5 constant.
-# TEST: Target actor for entropy result change.
-# TEST: Check if networks are correct compared to original script.
-# DEBUG Saving other vars goes wrong.
 
 
 class LAC(tf.Module):
@@ -267,8 +260,8 @@ class LAC(tf.Module):
             self._save_dict = {
                 "gaussian_actor": self.ga,
                 "lyapunov_critic": self.lc,
-                "log_alpha": self.log_alpha.numpy(),
-                "log_labda": self.log_labda.numpy(),
+                "log_alpha": self.log_alpha,
+                "log_labda": self.log_labda,
                 "use_lyapunov": self.use_lyapunov,
             }
         else:
@@ -276,7 +269,7 @@ class LAC(tf.Module):
                 "gaussian_actor": self.ga,
                 "q_critic_1": self.q_1,
                 "q_critic_2": self.q_2,
-                "log_alpha": self.log_alpha.numpy(),
+                "log_alpha": self.log_alpha,
                 "use_lyapunov": self.use_lyapunov,
             }
 
@@ -457,7 +450,7 @@ class LAC(tf.Module):
             # Calculate alpha loss
             alpha_loss = -tf.reduce_mean(
                 self.alpha * tf.stop_gradient(log_pis + self.target_entropy)
-            )  # See Haarnoja eq. 17 # TEST: Check if log_alpha gives same result
+            )  # See Haarnoja eq. 17
 
         # Perform one gradient descent step for alpha
         alpha_grads = alpha_tape.gradient(alpha_loss, [self.log_alpha])
@@ -472,10 +465,10 @@ class LAC(tf.Module):
             with tf.GradientTape() as lambda_tape:
 
                 # Calculate labda loss
-                # NOTE (rickstaa): Log_labda was used in the lambda_loss function because
-                # using lambda caused the gradients to vanish. This is caused since we
-                # restrict lambda within a 0-1.0 range using the clamp function (see #38).
-                # Using log_lambda also is more numerically stable.
+                # NOTE (rickstaa): Log_labda was used in the lambda_loss function
+                # because using lambda caused the gradients to vanish. This is caused
+                # since we restrict lambda within a 0-1.0 range using the clamp function
+                # (see #38). Using log_lambda also is more numerically stable.
                 labda_loss = -tf.reduce_mean(
                     self.log_labda * tf.stop_gradient(self.l_delta)
                 )  # See formulas under eq. 14
@@ -538,6 +531,8 @@ class LAC(tf.Module):
                         bold=True,
                     )
                 )
+            elif issubclass(item.__class__, tf.Variable):
+                vars_dict[name] = item.numpy()
             else:
                 vars_dict[name] = item
 
@@ -803,11 +798,19 @@ class LAC(tf.Module):
 
     @property
     def alpha(self):
-        return tf.exp(self.log_alpha)
+        """Property used to clip alpha to be equal or bigger than 0.0 to prevent it from
+        becoming nan when log_alpha becomes -inf. For alpha no upper bound is used.
+        """
+        return tf.clip_by_value(tf.exp(self.log_alpha), *SCALE_ALPHA_MIN_MAX)
 
     @property
     def labda(self):
-        return tf.clip_by_value(tf.exp(self.log_labda), *SCALE_lambda_MIN_MAX)
+        """Property used to clip lambda to be equal or bigger than 0.0 in order to
+        prevent it from becoming nan when log_labda becomes -inf. Further we clip it to
+        be lower or equal than 1.0 in order to prevent lambda from exploding when the
+        the hyperparameters are chosen badly.
+        """
+        return tf.clip_by_value(tf.exp(self.log_labda), *SCALE_LAMBDA_MIN_MAX)
 
     @property
     def act_limits(self):
@@ -961,12 +964,13 @@ def train(log_dir):
     # Setup training loop parameters
     t1 = time.time()
     global_step = 0
+    global_episodes = 0
     last_training_paths = deque(maxlen=TRAIN_PARAMS["num_of_training_paths"])
     training_started = False
 
     # Train the agent in the environment until max_episodes has been reached
     print(colorize("INFO: Training...\n", "cyan", bold=True))
-    for i in range(ENVS_PARAMS[ENV_NAME]["max_episodes"]):
+    while 1:  # Keep running episodes until global step has been reached
 
         # Create variable to store information about the current path
         if policy.use_lyapunov:
@@ -990,11 +994,33 @@ def train(log_dir):
                 "alpha_loss": [],
             }
 
+        # Break out of loop if global steps have been reached
+        if global_step > TRAIN_PARAMS["max_global_steps"]:
+
+            # Print step count, save model and stop the program
+            print(
+                colorize(
+                    f"\nINFO: Training stopped after {global_step} steps.",
+                    "cyan",
+                    bold=True,
+                )
+            )
+            print(
+                colorize(
+                    "INFO: Running time: {}".format(time.time() - t1),
+                    "cyan",
+                    bold=True,
+                )
+            )
+            print(colorize("INFO: Saving Model", "cyan", bold=True))
+            policy.save_result(log_dir)
+            return
+
         # Reset environment
         s = env.reset()
 
         # Training Episode loop
-        for j in range(ENVS_PARAMS[ENV_NAME]["max_ep_steps"]):
+        for jj in range(ENVS_PARAMS[ENV_NAME]["max_ep_steps"]):
 
             # Save intermediate checkpoints if requested
             if TRAIN_PARAMS["save_checkpoints"]:
@@ -1005,34 +1031,12 @@ def train(log_dir):
 
                     # Create intermediate result checkpoint folder
                     checkpoint_save_path = osp.abspath(
-                        osp.join(log_dir, "checkpoints", "step_" + str(j))
+                        osp.join(log_dir, "checkpoints", "step_" + str(jj))
                     )
                     os.makedirs(checkpoint_save_path, exist_ok=True)
 
                     # Save intermediate checkpoint
                     policy.save_result(checkpoint_save_path)
-
-            # Break out of loop if global steps have been reached
-            if global_step > ENVS_PARAMS[ENV_NAME]["max_global_steps"]:
-
-                # Print step count, save model and stop the program
-                print(
-                    colorize(
-                        f"\nINFO: Training stopped after {global_step} steps.",
-                        "cyan",
-                        bold=True,
-                    )
-                )
-                print(
-                    colorize(
-                        "INFO: Running time: {}".format(time.time() - t1),
-                        "cyan",
-                        bold=True,
-                    )
-                )
-                print(colorize("INFO: Saving Model", "cyan", bold=True))
-                policy.save_result(log_dir)
-                return
 
             # Render environment if requested
             if ENVS_PARAMS[ENV_NAME]["eval_render"]:
@@ -1051,7 +1055,7 @@ def train(log_dir):
                 global_step += 1
 
             # Stop episode if max_steps has been reached
-            if j == ENVS_PARAMS[ENV_NAME]["max_ep_steps"] - 1:
+            if jj == ENVS_PARAMS[ENV_NAME]["max_ep_steps"] - 1:
                 done = True
             terminal = 1.0 if done else 0.0
 
@@ -1180,11 +1184,11 @@ def train(log_dir):
                     last_training_paths.appendleft(current_path)
 
                 # Decay learning rates
-                frac = (
-                    1.0
-                    - (global_step - 1.0) / ENVS_PARAMS[ENV_NAME]["max_global_steps"]
-                )
+                frac = 1.0 - (global_step - 1.0) / TRAIN_PARAMS["max_global_steps"]
                 lr_a_now = lr_a * frac  # learning rate for actor, lambda, alpha
                 lr_l_now = lr_l * frac  # learning rate for Lyapunov critic
                 lr_c_now = lr_c * frac  # learning rate for q critic
                 break  # Continue to next episode
+
+    # Increase episode counter
+    global_episodes += 1

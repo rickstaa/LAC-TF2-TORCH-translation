@@ -42,7 +42,6 @@ class Pool(object):
                 from the memory buffer.
         """
         self.memory_capacity = memory_capacity
-        self.paths = deque(maxlen=store_last_n_paths)  # TODO: Why is this used?
         self.reset()
         self.memory = {
             "s": np.zeros([1, s_dim], dtype=np.float32),
@@ -104,7 +103,6 @@ class Pool(object):
                 self.memory[key] = np.concatenate(
                     (self.memory[key], self.current_path[key]), axis=0
                 )
-            self.paths.appendleft(self.current_path)
             self.reset()
             self.memory_pointer = len(self.memory["s"])
 

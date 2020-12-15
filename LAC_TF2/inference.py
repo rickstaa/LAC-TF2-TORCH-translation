@@ -16,9 +16,6 @@ from lac import LAC
 from utils import get_env_from_name, colorize, get_log_path, validate_indices
 from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
 
-# IMPROVEMENT: Add render evaluation option -> inference_type=["render", "plot"]
-
-
 def validate_req_policies(req_policies, policies):
     """Validates whether the requested policies are valid.
 

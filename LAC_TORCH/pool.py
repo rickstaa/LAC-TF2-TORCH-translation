@@ -53,7 +53,6 @@ class Pool(object):
             device (str): Whether you want to return the sample on the CPU or GPU.
         """
         self.memory_capacity = memory_capacity
-        self.paths = deque(maxlen=store_last_n_paths)  # TODO: Why is this used?
         self.reset()
         self.device = device
         self.memory = {
@@ -96,8 +95,7 @@ class Pool(object):
         """
 
         # Store experience in memory buffer
-        # IMPROVE: Inefficient better to place on object and scale based on first sample
-        # IMPROVE: Test if conversion here is best?
+        # IMPROVE: Test if conversion here is best
         transition = {
             "s": torch.as_tensor(s, dtype=torch.float32).to(self.device),
             "a": torch.as_tensor(a, dtype=torch.float32).to(self.device),
@@ -122,7 +120,6 @@ class Pool(object):
                 self.memory[key] = torch.cat(
                     [self.memory[key], self.current_path[key]], axis=0
                 )
-            self.paths.appendleft(self.current_path)
             self.reset()
             self.memory_pointer = len(self.memory["s"])
 

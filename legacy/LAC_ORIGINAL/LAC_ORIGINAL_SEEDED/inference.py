@@ -106,7 +106,7 @@ if __name__ == "__main__":
             dirname = os.path.dirname(__file__)
             MODEL_PATH = os.path.abspath(
                 os.path.join(dirname, "./log/" + args.env_name + "/" + name)
-            )  # TODO: Make log paths env name lowercase
+            )
             LOG_PATH = os.path.abspath(os.path.join(MODEL_PATH, "figure"))
             os.makedirs(LOG_PATH, exist_ok=True)
 
@@ -356,12 +356,12 @@ if __name__ == "__main__":
                 path
                 for path in eval_paths["state_of_interest"]
                 if len(path) == max(eval_paths["episode_length"])
-            ]  # Needed because unequal paths # FIXME: CLEANUP
+            ]  # Needed because unequal paths
             ref_trimmed = [
                 path
                 for path in eval_paths["reference"]
                 if len(path) == max(eval_paths["episode_length"])
-            ]  # Needed because unequal paths # FIXME: CLEANUP
+            ]  # Needed because unequal paths
             soi_mean_path = np.transpose(
                 np.squeeze(np.mean(np.array(soi_trimmed), axis=0))
             )

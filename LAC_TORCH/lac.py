@@ -50,11 +50,12 @@ from variant import (
     TRAIN_PARAMS,
     ALG_PARAMS,
     ENVS_PARAMS,
-    SCALE_lambda_MIN_MAX,
+    SCALE_LAMBDA_MIN_MAX,
+    SCALE_ALPHA_MIN_MAX,
 )
 
 # # Change torch backend backend (GPU: Speed improvement)
-# # Note (rickstaa): To speed up training, when you are using GPU, you can uncomment
+# # NOTE (rickstaa): To speed up training, when you are using GPU, you can uncomment
 # # one of the following lines to change the torch backend (see:
 # # https://discuss.pytorch.org/t/what-does-torch-backends-cudnn-benchmark-do/5936)
 # torch.backends.cudnn.benchmark = True
@@ -281,9 +282,7 @@ class LAC(object):
             try:
                 with torch.no_grad():
                     det_a, _ = self.ga(s.unsqueeze(0), deterministic=True)
-                    return (
-                        det_a[0].cpu().numpy()
-                    )  # IMPROVE: Check if this is the fastest method
+                    return det_a[0].cpu().numpy()
             except ValueError:
                 return
         else:
@@ -460,7 +459,7 @@ class LAC(object):
             # restrict lambda within a 0-1.0 range using the clamp function (see #38).
             # Using log_lambda also is more numerically stable.
             labda_loss = -(
-                self.labda * self.l_delta.detach()
+                self.log_labda * self.l_delta.detach()
             ).mean()  # See formulas under eq. 14
 
             # Perform one gradient descent step for labda
@@ -781,11 +780,20 @@ class LAC(object):
 
     @property
     def alpha(self):
+        """Property used to clip alpha to be equal or bigger than 0.0 to prevent it from
+        becoming nan when log_alpha becomes -inf. For alpha no upper bound is used.
+        """
+        return torch.clamp(self.log_alpha.exp(), *SCALE_ALPHA_MIN_MAX)
         return self.log_alpha.exp()
 
     @property
     def labda(self):
-        return torch.clamp(self.log_labda.exp(), *SCALE_lambda_MIN_MAX)
+        """Property used to clip lambda to be equal or bigger than 0.0 in order to
+        prevent it from becoming nan when log_labda becomes -inf. Further we clip it to
+        be lower or equal than 1.0 in order to prevent lambda from exploding when the
+        the hyperparameters are chosen badly.
+        """
+        return torch.clamp(self.log_labda.exp(), *SCALE_LAMBDA_MIN_MAX)
 
     @property
     def act_limits(self):
@@ -940,14 +948,13 @@ def train(log_dir):
     # Setup training loop parameters
     t1 = time.time()
     global_step = 0
+    global_episodes = 0
     last_training_paths = deque(maxlen=TRAIN_PARAMS["num_of_training_paths"])
     training_started = False
 
     # Train the agent in the environment until max_episodes has been reached
     print(colorize("INFO: Training...\n", "cyan", bold=True))
-    for i in range(
-        ENVS_PARAMS[ENV_NAME]["max_episodes"]
-    ):  # FIXME: Episodes looks very big i think naming is wrong
+    while 1:  # Keep running episodes until global step has been reached
 
         # Create variable to store information about the current path
         if policy.use_lyapunov:
@@ -979,11 +986,33 @@ def train(log_dir):
                 "alpha_loss": [],
             }
 
+        # Break out of loop if global steps have been reached
+        if global_step > TRAIN_PARAMS["max_global_steps"]:
+
+            # Print step count, save model and stop the program
+            print(
+                colorize(
+                    f"\nINFO: Training stopped after {global_step} steps.",
+                    "cyan",
+                    bold=True,
+                )
+            )
+            print(
+                colorize(
+                    "INFO: Running time: {}".format(time.time() - t1),
+                    "cyan",
+                    bold=True,
+                )
+            )
+            print(colorize("INFO: Saving Model", "cyan", bold=True))
+            policy.save_result(log_dir)
+            return
+
         # Reset environment
         s = env.reset()
 
         # Training Episode loop
-        for j in range(ENVS_PARAMS[ENV_NAME]["max_ep_steps"]):
+        for jj in range(ENVS_PARAMS[ENV_NAME]["max_ep_steps"]):
 
             # Save intermediate checkpoints if requested
             if TRAIN_PARAMS["save_checkpoints"]:
@@ -994,34 +1023,12 @@ def train(log_dir):
 
                     # Create intermediate result checkpoint folder
                     checkpoint_save_path = osp.abspath(
-                        osp.join(log_dir, "checkpoints", "step_" + str(j))
+                        osp.join(log_dir, "checkpoints", "step_" + str(jj))
                     )
                     os.makedirs(checkpoint_save_path, exist_ok=True)
 
                     # Save intermediate checkpoint
                     policy.save_result(checkpoint_save_path)
-
-            # Break out of loop if global steps have been reached
-            if global_step > ENVS_PARAMS[ENV_NAME]["max_global_steps"]:
-
-                # Print step count, save model and stop the program
-                print(
-                    colorize(
-                        f"\nINFO: Training stopped after {global_step} steps.",
-                        "cyan",
-                        bold=True,
-                    )
-                )
-                print(
-                    colorize(
-                        "INFO: Running time: {}".format(time.time() - t1),
-                        "cyan",
-                        bold=True,
-                    )
-                )
-                print(colorize("INFO: Saving Model", "cyan", bold=True))
-                policy.save_result(log_dir)
-                return
 
             # Render environment if requested
             if ENVS_PARAMS[ENV_NAME]["eval_render"]:
@@ -1040,7 +1047,7 @@ def train(log_dir):
                 global_step += 1
 
             # Stop episode if max_steps has been reached
-            if j == ENVS_PARAMS[ENV_NAME]["max_ep_steps"] - 1:
+            if jj == ENVS_PARAMS[ENV_NAME]["max_ep_steps"] - 1:
                 done = True
             terminal = 1.0 if done else 0.0
 
@@ -1189,11 +1196,11 @@ def train(log_dir):
                     last_training_paths.appendleft(current_path)
 
                 # Decay learning rates
-                frac = (
-                    1.0
-                    - (global_step - 1.0) / ENVS_PARAMS[ENV_NAME]["max_global_steps"]
-                )
+                frac = 1.0 - (global_step - 1.0) / TRAIN_PARAMS["max_global_steps"]
                 lr_a_now = lr_a * frac  # learning rate for actor, lambda, alpha
                 lr_l_now = lr_l * frac  # learning rate for Lyapunov critic
                 lr_c_now = lr_c * frac  # learning rate for q critic
                 break  # Continue to next episode
+
+    # Increase episode counter
+    global_episodes += 1

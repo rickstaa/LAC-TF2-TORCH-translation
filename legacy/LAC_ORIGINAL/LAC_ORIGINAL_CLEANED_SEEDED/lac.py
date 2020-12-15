@@ -216,7 +216,7 @@ class LAC(object):
 
             # Actor loss and optimizer graph
             a_loss = self.labda * self.l_delta + self.alpha * tf.reduce_mean(log_pis)
-            self.a_loss = a_loss  # FIXME: IS this needed?
+            self.a_loss = a_loss
             self.a_train = tf.train.AdamOptimizer(self.LR_A).minimize(
                 a_loss, var_list=a_params
             )
@@ -489,7 +489,6 @@ class LAC(object):
             n1 = self.network_structure["critic"][0]
 
             # Create actor hidden/ output layers
-            # TODO: Check
             layers = []
             w1_s = tf.get_variable(
                 "w1_s", [self.s_dim, n1], trainable=trainable, initializer=initializer
@@ -667,12 +666,16 @@ def train(log_dir):
             "a_loss": [],
         }
 
-        # # Stop training if max number of steps has been reached
-        # # FIXME: OLD_VERSION This makes no sense since the global steps will never be
-        # # the set global steps in this case.
-        # if global_step > ENV_PARAMS["max_global_steps"]:
-        #     print(f"Training stopped after {global_step} steps.")
-        #     break
+        # Break out of loop if global steps have been reached
+        if global_step > ENV_PARAMS["max_global_steps"]:
+
+            # Print step count, save model and stop the program
+            print(f"Training stopped after {global_step} steps.")
+            print("Running time: ", time.time() - t1)
+            print("Saving Model")
+            policy.save_result(log_dir)
+            print("Running time: ", time.time() - t1)
+            return
 
         # Reset environment
         s = env.reset()
@@ -695,18 +698,6 @@ def train(log_dir):
 
                     # Save intermediate checkpoint
                     policy.save_result(checkpoint_save_path)
-
-            # Break out of loop if global steps have been reached
-            # FIXME: NEW Here makes sense
-            if global_step > ENV_PARAMS["max_global_steps"]:
-
-                # Print step count, save model and stop the program
-                print(f"Training stopped after {global_step} steps.")
-                print("Running time: ", time.time() - t1)
-                print("Saving Model")
-                policy.save_result(log_dir)
-                print("Running time: ", time.time() - t1)
-                return
 
             # Render environment if requested
             if ENV_PARAMS["eval_render"]:
@@ -807,4 +798,4 @@ def train(log_dir):
                 frac = 1.0 - (global_step - 1.0) / ENV_PARAMS["max_global_steps"]
                 lr_a_now = lr_a * frac  # learning rate for actor, lambda, alpha
                 lr_l_now = lr_l * frac  # learning rate for lyapunov critic
-                break  # FIXME: Redundant
+                break

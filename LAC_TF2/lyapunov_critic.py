@@ -20,7 +20,7 @@ class LyapunovCritic(tf.keras.Model):
         act_dim,
         hidden_sizes,
         activation=nn.relu,
-        output_activation=nn.relu,  # FIXME: Put back to identity
+        output_activation=nn.relu,  # DEPLOY: Put back to identity when deploy
         name="lyapunov_critic",
         **kwargs,
     ):
@@ -61,6 +61,7 @@ class LyapunovCritic(tf.keras.Model):
             tf.Tensor: The tensor containing the Lyapunov values of the input
                 observations and actions.
         """
+        # DEPLOY: Make squaring layer from class so it shows up named in the graph!
         net_out = self.lya(tf.concat([obs, act], axis=-1))
         return tf.expand_dims(
             tf.reduce_sum(tf.math.square(net_out), axis=1), axis=1
