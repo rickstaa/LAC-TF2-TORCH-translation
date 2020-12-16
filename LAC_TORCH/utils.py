@@ -203,12 +203,12 @@ def clamp(data, min_bound, max_bound):
     # Convert arguments to numpy array is not already
     data = torch.tensor(data) if not isinstance(data, torch.Tensor) else data
     min_bound = (
-        torch.tensor(min_bound)
+        torch.tensor(min_bound, device=data.device.type)
         if not isinstance(min_bound, torch.Tensor)
         else min_bound
     )
     max_bound = (
-        torch.tensor(max_bound)
+        torch.tensor(max_bound, device=data.device.type)
         if not isinstance(max_bound, torch.Tensor)
         else max_bound
     )

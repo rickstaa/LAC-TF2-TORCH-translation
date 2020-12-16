@@ -17,9 +17,9 @@ RANDOM_SEED = 0  # The script random seed
 ENV_NAME = "oscillator"  # The environment used for training
 
 # Training parameters
-MAX_GLOBAL_STEPS = int(1e5)  # Maximum number of global steps
-NUM_OF_POLICIES = 30  # Number of randomly seeded trained agents
-USE_LYAPUNOV = False  # Use LAC (If false SAC is used)
+MAX_GLOBAL_STEPS = int(0.8e4)  # Maximum number of global steps
+NUM_OF_POLICIES = 1  # Number of randomly seeded trained agents
+USE_LYAPUNOV = True  # Use LAC (If false SAC is used)
 CONTINUE_TRAINING = (
     False  # Whether we want to continue training an already trained model
 )
@@ -49,7 +49,7 @@ TRAIN_PARAMS = {
     "checkpoint_save_freq": CHECKPOINT_SAVE_FREQ,
     "num_of_training_paths": 10,  # Number of episodes used in the performance analysis
     "evaluation_frequency": 4000,  # After how many steps the performance is evaluated
-    "num_of_evaluation_paths": 20,  # Rollouts use for test performance analysis
+    "num_of_evaluation_paths": 0,  # Rollouts use for test performance analysis
     "start_of_trial": 0,  # The start number of the rollouts (used during model save)
 }
 
@@ -83,7 +83,7 @@ ALG_PARAMS = {
     "memory_capacity": int(1e6),  # The max replay buffer size
     "min_memory_size": 1000,  # The minimum replay buffer size before STG starts
     "batch_size": 256,  # The SGD batch size
-    "labda": 1.0,  # Initial value for the Lyapunov constraint lagrance multiplier
+    "labda": 0.99,  # Initial value for the Lyapunov constraint lagrance multiplier
     "alpha": 0.99,  # The initial value for the entropy lagrance multiplier
     "alpha3": 0.2,  # The value of the stability condition multiplier
     "tau": 5e-3,  # Decay rate used in the polyak averaging
@@ -96,12 +96,9 @@ ALG_PARAMS = {
     "adaptive_alpha": True,  # Enables automatic entropy temperature tuning
     "target_entropy": None,  # Set alpha target entropy, when None == -(action_dim)
     "network_structure": {
-        # "critic": [128, 128],  # Lyapunov Critic
-        # "actor": [64, 64],  # Gaussian actor
-        # "q_critic": [128, 128],  # Q-Critic
-        "critic": [521, 521],  # Lyapunov Critic
-        "actor": [521, 521],  # Gaussian actor
-        "q_critic": [521, 521],  # Q-Critic # DEBUG
+        "critic": [128, 128],  # Lyapunov Critic
+        "actor": [64, 64],  # Gaussian actor
+        "q_critic": [128, 128],  # Q-Critic
     },  # The network structure of the agent.
 }
 

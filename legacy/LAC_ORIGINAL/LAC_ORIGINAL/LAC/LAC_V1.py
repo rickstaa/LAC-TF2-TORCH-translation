@@ -482,22 +482,23 @@ def train(variant):
             "entropy": [],
         }
 
-        # Break out of loop if global steps have been reached
-        if global_step > max_global_steps:
-
-            # Print step count, save model and stop the program
-            print(f"Training stopped after {global_step} steps.")
-            print("Running time: ", time.time() - t1)
-            print("Saving Model")
-            policy.save_result(log_path)
-            print("Running time: ", time.time() - t1)
-            return
-
         s = env.reset()
         if "Fetch" in env_name or "Hand" in env_name:
             s = np.concatenate([s[key] for key in s.keys()])
 
         for j in range(max_ep_steps):
+
+            # Break out of loop if global steps have been reached
+            if global_step >= max_global_steps:
+
+                # Print step count, save model and stop the program
+                print(f"Training stopped after {global_step} steps.")
+                print("Running time: ", time.time() - t1)
+                print("Saving Model")
+                policy.save_result(log_path)
+                print("Running time: ", time.time() - t1)
+                return
+
             if Render:
                 env.render()
 

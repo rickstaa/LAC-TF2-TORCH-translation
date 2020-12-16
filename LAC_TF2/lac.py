@@ -994,33 +994,33 @@ def train(log_dir):
                 "alpha_loss": [],
             }
 
-        # Break out of loop if global steps have been reached
-        if global_step > TRAIN_PARAMS["max_global_steps"]:
-
-            # Print step count, save model and stop the program
-            print(
-                colorize(
-                    f"\nINFO: Training stopped after {global_step} steps.",
-                    "cyan",
-                    bold=True,
-                )
-            )
-            print(
-                colorize(
-                    "INFO: Running time: {}".format(time.time() - t1),
-                    "cyan",
-                    bold=True,
-                )
-            )
-            print(colorize("INFO: Saving Model", "cyan", bold=True))
-            policy.save_result(log_dir)
-            return
-
         # Reset environment
         s = env.reset()
 
         # Training Episode loop
         for jj in range(ENVS_PARAMS[ENV_NAME]["max_ep_steps"]):
+
+            # Break out of loop if global steps have been reached
+            if global_step >= TRAIN_PARAMS["max_global_steps"]:
+
+                # Print step count, save model and stop the program
+                print(
+                    colorize(
+                        f"\nINFO: Training stopped after {global_step} steps.",
+                        "cyan",
+                        bold=True,
+                    )
+                )
+                print(
+                    colorize(
+                        "INFO: Running time: {}".format(time.time() - t1),
+                        "cyan",
+                        bold=True,
+                    )
+                )
+                print(colorize("INFO: Saving Model", "cyan", bold=True))
+                policy.save_result(log_dir)
+                return
 
             # Save intermediate checkpoints if requested
             if TRAIN_PARAMS["save_checkpoints"]:

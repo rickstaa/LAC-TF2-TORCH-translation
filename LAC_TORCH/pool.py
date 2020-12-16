@@ -56,11 +56,11 @@ class Pool(object):
         self.reset()
         self.device = device
         self.memory = {
-            "s": torch.zeros([1, s_dim], dtype=torch.float32).to(self.device),
-            "a": torch.zeros([1, a_dim], dtype=torch.float32).to(self.device),
-            "r": torch.zeros([1, 1], dtype=torch.float32).to(self.device),
-            "terminal": torch.zeros([1, 1], dtype=torch.float32).to(self.device),
-            "s_": torch.zeros([1, s_dim], dtype=torch.float32).to(self.device),
+            "s": torch.zeros([1, s_dim], dtype=torch.float32),
+            "a": torch.zeros([1, a_dim], dtype=torch.float32),
+            "r": torch.zeros([1, 1], dtype=torch.float32),
+            "terminal": torch.zeros([1, 1], dtype=torch.float32),
+            "s_": torch.zeros([1, s_dim], dtype=torch.float32),
         }
         self.memory_pointer = 0
         self.min_memory_size = min_memory_size
@@ -95,15 +95,12 @@ class Pool(object):
         """
 
         # Store experience in memory buffer
-        # IMPROVE: Test if conversion here is best
         transition = {
-            "s": torch.as_tensor(s, dtype=torch.float32).to(self.device),
-            "a": torch.as_tensor(a, dtype=torch.float32).to(self.device),
-            "r": torch.as_tensor([r], dtype=torch.float32).to(self.device),
-            "terminal": torch.as_tensor([terminal], dtype=torch.float32).to(
-                self.device
-            ),
-            "s_": torch.as_tensor(s_, dtype=torch.float32).to(self.device),
+            "s": torch.as_tensor(s, dtype=torch.float32),
+            "a": torch.as_tensor(a, dtype=torch.float32),
+            "r": torch.as_tensor([r], dtype=torch.float32),
+            "terminal": torch.as_tensor([terminal], dtype=torch.float32),
+            "s_": torch.as_tensor(s_, dtype=torch.float32),
         }
         if len(self.current_path["s"]) < 1:
             for key in transition.keys():
@@ -114,8 +111,6 @@ class Pool(object):
                     [self.current_path[key], transition[key].unsqueeze(dim=0)], axis=0
                 )
         if terminal == 1.0:
-            # Question (rickstaa): Why only update when Paths are terminal?
-            # evaluation is on path basis?
             for key in self.current_path.keys():
                 self.memory[key] = torch.cat(
                     [self.memory[key], self.current_path[key]], axis=0
@@ -150,8 +145,8 @@ class Pool(object):
             batch = {}
             for key in self.memory.keys():
                 if "s" in key:
-                    sample = self.memory[key][indices]
+                    sample = self.memory[key][indices].to(self.device)
                     batch.update({key: sample})
                 else:
-                    batch.update({key: self.memory[key][indices]})
+                    batch.update({key: self.memory[key][indices].to(self.device)})
             return batch

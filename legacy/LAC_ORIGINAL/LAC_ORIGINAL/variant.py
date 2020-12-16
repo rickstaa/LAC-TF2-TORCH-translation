@@ -6,15 +6,15 @@ import time
 import os
 
 REL_PATH = False  # Whether to use a relative path for storign and loading models
-USE_GPU = False
+USE_GPU = True
 
-episodes = int(1e5)
+episodes = int(0.8e4)
 num_of_paths_for_eval = 100
-num_of_policies = 20
+num_of_policies = 1
 which_policy_for_inference = [3]
 
-ENV_SEED = 0
-RANDOM_SEED = 0
+ENV_SEED = 2345345
+RANDOM_SEED = 265465464
 
 # alpha = 1.0
 alpha = 0.99
@@ -36,7 +36,7 @@ VARIANT = {
     "train": True,
     # 'train': False,
     "num_of_trials": num_of_policies,  # number of random seeds
-    "num_of_evaluation_paths": 20,  # number of rollouts for evaluation
+    "num_of_evaluation_paths": 0,  # number of rollouts for evaluation
     "num_of_training_paths": 10,  # number of training rollouts stored for analysis
     "start_of_trial": 0,
     "evaluation_form": "dynamic",
@@ -70,7 +70,7 @@ ENV_PARAMS = {
         "max_episodes": int(1e6),
         "disturbance dim": 2,
         "eval_render": False,
-        "network_structure": {"critic": critic, "actor": actor,},
+        "network_structure": {"critic": critic, "actor": actor},
     },
     "Ex3_EKF": {
         "max_ep_steps": 500,
@@ -78,7 +78,7 @@ ENV_PARAMS = {
         "max_episodes": int(1e6),
         "disturbance dim": 2,
         "eval_render": False,
-        "network_structure": {"critic": critic, "actor": actor,},
+        "network_structure": {"critic": critic, "actor": actor},
     },
     "Ex3_EKF_gyro": {
         "max_ep_steps": 800,
@@ -86,7 +86,7 @@ ENV_PARAMS = {
         "max_episodes": int(1e6),
         "disturbance dim": 2,
         "eval_render": False,
-        "network_structure": {"critic": critic, "actor": actor,},
+        "network_structure": {"critic": critic, "actor": actor},
     },
     "Ex4_EKF": {
         "max_ep_steps": 100,
@@ -94,7 +94,7 @@ ENV_PARAMS = {
         "max_episodes": int(1e6),
         "disturbance dim": 2,
         "eval_render": False,
-        "network_structure": {"critic": critic, "actor": actor,},
+        "network_structure": {"critic": critic, "actor": actor},
     },
 }
 ALG_PARAMS = {

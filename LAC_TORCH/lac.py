@@ -78,15 +78,13 @@ if not torch.cuda.is_available() and USE_GPU:
     print(
         colorize(
             "WARN: GPU computing was enabled but the GPU can not be reached. "
-            "Reverting back to using CPU."
+            "Reverting back to using CPU.",
+            "yellow",
+            bold=True,
         ),
-        "yellow",
-        bold=True,
     )
 device_str = "GPU" if str(DEVICE) == "cuda" else str(DEVICE)
 print(colorize(f"INFO: Torch is using the {device_str}.", "cyan", bold=True))
-
-# IMPROVE: Check if adding variables as tensors speeds up computation
 
 
 class LAC(object):
@@ -288,9 +286,7 @@ class LAC(object):
         else:
             with torch.no_grad():
                 a, _ = self.ga(s.unsqueeze(0))
-                return (
-                    a[0].cpu().numpy()
-                )  # IMPROVE: Check if this is the fastest method
+                return a[0].cpu().numpy()
 
     def learn(self, lr_a, lr_l, lr_c, lr_lag, batch):
         """Runs the SGD to update all the optimize parameters.
@@ -475,7 +471,6 @@ class LAC(object):
         self._update_targets()
 
         # Return diagnostics
-        # IMPROVE: Check if this it the right location to do this
         if self.use_lyapunov:
             return (
                 self.labda.cpu().detach(),
@@ -954,6 +949,7 @@ def train(log_dir):
 
     # Train the agent in the environment until max_episodes has been reached
     print(colorize("INFO: Training...\n", "cyan", bold=True))
+    max_step_reached = False
     while 1:  # Keep running episodes until global step has been reached
 
         # Create variable to store information about the current path
@@ -986,33 +982,33 @@ def train(log_dir):
                 "alpha_loss": [],
             }
 
-        # Break out of loop if global steps have been reached
-        if global_step > TRAIN_PARAMS["max_global_steps"]:
-
-            # Print step count, save model and stop the program
-            print(
-                colorize(
-                    f"\nINFO: Training stopped after {global_step} steps.",
-                    "cyan",
-                    bold=True,
-                )
-            )
-            print(
-                colorize(
-                    "INFO: Running time: {}".format(time.time() - t1),
-                    "cyan",
-                    bold=True,
-                )
-            )
-            print(colorize("INFO: Saving Model", "cyan", bold=True))
-            policy.save_result(log_dir)
-            return
-
         # Reset environment
         s = env.reset()
 
         # Training Episode loop
         for jj in range(ENVS_PARAMS[ENV_NAME]["max_ep_steps"]):
+
+            # Break out of loop if global steps have been reached
+            if global_step >= TRAIN_PARAMS["max_global_steps"]:
+
+                # Print step count, save model and stop the program
+                print(
+                    colorize(
+                        f"\nINFO: Training stopped after {global_step} steps.",
+                        "cyan",
+                        bold=True,
+                    )
+                )
+                print(
+                    colorize(
+                        "INFO: Running time: {}".format(time.time() - t1),
+                        "cyan",
+                        bold=True,
+                    )
+                )
+                print(colorize("INFO: Saving Model", "cyan", bold=True))
+                policy.save_result(log_dir)
+                return
 
             # Save intermediate checkpoints if requested
             if TRAIN_PARAMS["save_checkpoints"]:
@@ -1187,6 +1183,10 @@ def train(log_dir):
 
             # Update state
             s = s_
+
+            # Break out of loop if max step was reached
+            if max_step_reached:
+                break
 
             # Check if episode is done (continue to next episode)
             if done:
