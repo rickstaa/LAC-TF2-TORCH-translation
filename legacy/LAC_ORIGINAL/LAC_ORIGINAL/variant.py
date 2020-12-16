@@ -6,15 +6,15 @@ import time
 import os
 
 REL_PATH = False  # Whether to use a relative path for storign and loading models
-USE_GPU = True
+USE_GPU = False
 
 episodes = int(0.8e4)
 num_of_paths_for_eval = 100
 num_of_policies = 1
 which_policy_for_inference = [3]
 
-ENV_SEED = 2345345
-RANDOM_SEED = 265465464
+ENV_SEED = 3453
+RANDOM_SEED = 3453
 
 # alpha = 1.0
 alpha = 0.99

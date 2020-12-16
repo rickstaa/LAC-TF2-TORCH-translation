@@ -13,8 +13,8 @@ DEBUG_PARAMS = {"debug": False}  # Disabled tf.functions
 # General parameters
 REL_PATH = False  # Use relative paths
 USE_GPU = True  # Use GPU
-ENV_SEED = 0  # The environment seed
-RANDOM_SEED = 0  # The script random seed
+ENV_SEED = 3453  # The environment seed
+RANDOM_SEED = 3453  # The script random seed
 
 # Environment parameters
 ENV_NAME = "oscillator"  # The environment used for training

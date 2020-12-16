@@ -9,9 +9,9 @@ import numpy as np
 
 # General parameters
 REL_PATH = False  # Use relative paths
-USE_GPU = False  # Use GPU
-ENV_SEED = 0  # The environment seed
-RANDOM_SEED = 0  # The script random seed
+USE_GPU = True  # Use GPU
+ENV_SEED = 3453  # The environment seed
+RANDOM_SEED = 3453  # The script random seed
 
 # Environment parameters
 ENV_NAME = "oscillator"  # The environment used for training
