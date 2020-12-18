@@ -10,15 +10,16 @@ import numpy as np
 # General parameters
 REL_PATH = False  # Use relative paths
 USE_GPU = True  # Use GPU
-ENV_SEED = 3453  # The environment seed
-RANDOM_SEED = 3453  # The script random seed
+ENV_SEED = 0  # The environment seed
+RANDOM_SEED = 0  # The script random seed
 
 # Environment parameters
-ENV_NAME = "oscillator"  # The environment used for training
+# ENV_NAME = "oscillator"  # The environment used for training
+ENV_NAME = "Ex3_EKF"  # The environment used for training
 
 # Training parameters
-MAX_GLOBAL_STEPS = int(0.8e4)  # Maximum number of global steps
-NUM_OF_POLICIES = 1  # Number of randomly seeded trained agents
+MAX_GLOBAL_STEPS = int(1e6)  # Maximum number of global steps
+NUM_OF_POLICIES = 5  # Number of randomly seeded trained agents
 USE_LYAPUNOV = True  # Use LAC (If false SAC is used)
 CONTINUE_TRAINING = (
     False  # Whether we want to continue training an already trained model

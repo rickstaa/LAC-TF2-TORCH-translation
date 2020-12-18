@@ -8,9 +8,9 @@ import os
 REL_PATH = False  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
-episodes = int(0.8e4)
+episodes = int(1e6)
 num_of_paths_for_eval = 100
-num_of_policies = 1
+num_of_policies = 5
 which_policy_for_inference = [3]
 
 ENV_SEED = 3453
@@ -27,9 +27,9 @@ timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
     "eval_list": ["LAC20201202_1343"],
-    # "env_name": "Ex3_EKF",
+    "env_name": "Ex3_EKF",
     # "env_name": "Ex3_EKF_gyro",
-    "env_name": "oscillator",
+    # "env_name": "oscillator",
     "algorithm_name": "LAC",
     "additional_description": timestr,
     # 'evaluate': False,
