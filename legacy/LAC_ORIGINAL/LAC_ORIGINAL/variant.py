@@ -8,13 +8,13 @@ import os
 REL_PATH = False  # Whether to use a relative path for storign and loading models
 USE_GPU = False
 
-episodes = int(1e6)
+episodes = int(3e5)
 num_of_paths_for_eval = 100
 num_of_policies = 5
 which_policy_for_inference = [3]
 
-ENV_SEED = 3453
-RANDOM_SEED = 3453
+ENV_SEED = 0
+RANDOM_SEED = 0
 
 # alpha = 1.0
 alpha = 0.99

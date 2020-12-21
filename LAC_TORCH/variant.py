@@ -15,10 +15,10 @@ RANDOM_SEED = 0  # The script random seed
 
 # Environment parameters
 # ENV_NAME = "oscillator"  # The environment used for training
-ENV_NAME = "Ex3_EKF"  # The environment used for training
+ENV_NAME = "ex3_ekf"  # The environment used for training
 
 # Training parameters
-MAX_GLOBAL_STEPS = int(1e6)  # Maximum number of global steps
+MAX_GLOBAL_STEPS = int(3e5)  # Maximum number of global steps
 NUM_OF_POLICIES = 5  # Number of randomly seeded trained agents
 USE_LYAPUNOV = True  # Use LAC (If false SAC is used)
 CONTINUE_TRAINING = (
@@ -113,6 +113,12 @@ ENVS_PARAMS = {
         "max_ep_steps": 800,
         "eval_render": False,  # Render env in training and inference
         "eval_reset": False,  # If the reset differs between train and inference mode
+    },
+    "ex3_ekf": {
+        "module_name": "envs.Ex3_EKF",
+        "class_name": "Ex3_EKF",
+        "max_ep_steps": 500,
+        "eval_render": False,
     },
     "ex3_ekf_gyro": {
         "module_name": "envs.Ex3_EKF_gyro",
