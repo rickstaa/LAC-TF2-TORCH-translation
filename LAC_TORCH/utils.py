@@ -48,7 +48,8 @@ def get_log_path(env_name=ENV_NAME, agent_name=None):
     # Create agent name if not supplied
     if not agent_name:
         alg_prefix = "LAC" if USE_LYAPUNOV else "SAC"
-        agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M")
+        # agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M")
+        agent_name = alg_prefix # FIXME: Something going wrong with timestring in eval
         while 1:
             agent_folder = osp.join(log_folder, agent_name)
 
@@ -56,7 +57,8 @@ def get_log_path(env_name=ENV_NAME, agent_name=None):
             if not osp.isdir(agent_folder):
                 break
             else:  # Also add seconds if folder already exists
-                agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M%S")
+                # agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M%S")
+                agent_name = alg_prefix
     else:
         while 1:
             agent_folder = osp.join(log_folder, agent_name)
@@ -65,7 +67,8 @@ def get_log_path(env_name=ENV_NAME, agent_name=None):
             if not osp.isdir(agent_folder):
                 break
             else:  # Also add seconds if folder already exists
-                agent_name = agent_name + "_" + time.strftime("%Y%m%d_%H%M%S")
+                # agent_name = agent_name + "_" + time.strftime("%Y%m%d_%H%M%S")
+                agent_name = agent_name
 
     # Create log_path
     if REL_PATH:

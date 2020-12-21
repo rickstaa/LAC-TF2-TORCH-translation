@@ -9,13 +9,13 @@ import numpy as np
 
 # General parameters
 REL_PATH = False  # Use relative paths
-USE_GPU = True  # Use GPU
+USE_GPU = False  # Use GPU
 ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The script random seed
 
 # Environment parameters
-# ENV_NAME = "oscillator"  # The environment used for training
-ENV_NAME = "ex3_ekf"  # The environment used for training
+ENV_NAME = "oscillator"  # The environment used for training
+# ENV_NAME = "ex3_ekf"  # The environment used for training
 
 # Training parameters
 MAX_GLOBAL_STEPS = int(3e5)  # Maximum number of global steps
@@ -30,9 +30,9 @@ SAVE_CHECKPOINTS = False  # Store intermediate models
 CHECKPOINT_SAVE_FREQ = 10000  # Intermediate model save frequency
 
 # Evaluation parameters
-EVAL_LIST = ["SAC20201103_2150"]
+EVAL_LIST = ["LAC20201215_1119"]
 WHICH_POLICY_FOR_INFERENCE = [
-    0
+    4
 ]  # If this is empty, it means all the policies are evaluated;
 NUM_OF_PATHS_FOR_EVAL = 100  # How many paths you want to perform during inference.
 
