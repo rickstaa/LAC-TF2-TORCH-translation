@@ -1,3 +1,6 @@
+| :warning: | This repository is no longer maintained. Please use [machine-learning-control](https://github.com/rickstaa/machine-learning-control) instead! |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+
 # LAC TF2 TORCH translation
 
 I used this repository to translate the LAC code of [Minghoa](https://github.com/hithmh/Actor-critic-with-stability-guarantee) into tf2 and Pytorch code. It currently contains the following translations:

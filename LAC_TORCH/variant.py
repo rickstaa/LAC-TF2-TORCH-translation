@@ -14,8 +14,8 @@ ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The script random seed
 
 # Environment parameters
-ENV_NAME = "oscillator"  # The environment used for training
-# ENV_NAME = "ex3_ekf"  # The environment used for training
+# ENV_NAME = "oscillator"  # The environment used for training
+ENV_NAME = "ex3_ekf"  # The environment used for training
 
 # Training parameters
 MAX_GLOBAL_STEPS = int(3e5)  # Maximum number of global steps
@@ -30,9 +30,9 @@ SAVE_CHECKPOINTS = False  # Store intermediate models
 CHECKPOINT_SAVE_FREQ = 10000  # Intermediate model save frequency
 
 # Evaluation parameters
-EVAL_LIST = ["LAC20201215_1119"]
+EVAL_LIST = ["LAC20201218_2343"]
 WHICH_POLICY_FOR_INFERENCE = [
-    4
+    1
 ]  # If this is empty, it means all the policies are evaluated;
 NUM_OF_PATHS_FOR_EVAL = 100  # How many paths you want to perform during inference.
 
@@ -119,6 +119,7 @@ ENVS_PARAMS = {
         "class_name": "Ex3_EKF",
         "max_ep_steps": 500,
         "eval_render": False,
+        "eval_reset": False,
     },
     "ex3_ekf_gyro": {
         "module_name": "envs.Ex3_EKF_gyro",

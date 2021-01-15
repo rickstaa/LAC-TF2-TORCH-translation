@@ -33,9 +33,9 @@ SAVE_CHECKPOINTS = False  # Store intermediate models
 CHECKPOINT_SAVE_FREQ = 10000  # Intermediate model save frequency
 
 # Evaluation parameters
-EVAL_LIST = ["SAC20201101_1026"]
+EVAL_LIST = ["LAC20201219_0859"]
 WHICH_POLICY_FOR_INFERENCE = [
-    0
+    3
 ]  # If this is empty, it means all the policies are evaluated;
 NUM_OF_PATHS_FOR_EVAL = 100  # How many paths you want to perform during inference.
 
@@ -122,6 +122,7 @@ ENVS_PARAMS = {
         "class_name": "Ex3_EKF",
         "max_ep_steps": 500,
         "eval_render": False,
+        "eval_reset": False,  # If the reset differs between train and inference mode
     },
     "ex3_ekf_gyro": {
         "module_name": "envs.Ex3_EKF_gyro",

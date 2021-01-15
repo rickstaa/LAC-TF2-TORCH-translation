@@ -11,7 +11,7 @@ USE_GPU = False
 episodes = int(3e5)
 num_of_paths_for_eval = 100
 num_of_policies = 5
-which_policy_for_inference = [3]
+which_policy_for_inference = [0]
 
 ENV_SEED = 0
 RANDOM_SEED = 0
@@ -26,7 +26,7 @@ use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
-    "eval_list": ["LAC20201202_1343"],
+    "eval_list": ["LAC20201218_2108"],
     "env_name": "Ex3_EKF",
     # "env_name": "Ex3_EKF_gyro",
     # "env_name": "oscillator",
