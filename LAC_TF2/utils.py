@@ -27,16 +27,16 @@ color2num = dict(
 )
 
 
-def get_log_path(env_name=ENV_NAME, agent_name=None):
+def get_log_path(env_name=ENV_NAME, agent_name=None, new_log_path=False):
     """Retrieve model/results log path.
 
     Args:
         environment_name (str, optional): The name of the gym environment you are
             using. By default the value in the `variant.py` file is used.
-
         agent_name (str, optional): The name of the agent you are using. When no agent
             is supplied a agent name will be created.
-
+        new_log_path (bool, optional): Whether you want to create a new unique log path.
+            By default `False`.
     Returns:
         str: The model/results log path.
     """
@@ -45,26 +45,28 @@ def get_log_path(env_name=ENV_NAME, agent_name=None):
     log_folder = osp.join("./log", env_name.lower())
 
     # Create agent name if not supplied
-    if not agent_name:
-        alg_prefix = "LAC" if USE_LYAPUNOV else "SAC"
-        agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M")
-        while 1:
-            agent_folder = osp.join(log_folder, agent_name)
+    agent_folder = osp.join(log_folder, agent_name)
+    if new_log_path:
+        if not agent_name:
+            alg_prefix = "LAC" if USE_LYAPUNOV else "SAC"
+            agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M")
+            while 1:
+                agent_folder = osp.join(log_folder, agent_name)
 
-            # Check if created agent_name is valid
-            if not osp.isdir(agent_folder):
-                break
-            else:  # Also add seconds if folder already exists
-                agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M%S")
-    else:
-        while 1:
-            agent_folder = osp.join(log_folder, agent_name)
+                # Check if created agent_name is valid
+                if not osp.isdir(agent_folder):
+                    break
+                else:  # Also add seconds if folder already exists
+                    agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M%S")
+        else:
+            while 1:
+                agent_folder = osp.join(log_folder, agent_name)
 
-            # Check if supplied agent_name is valid
-            if not osp.isdir(agent_folder):
-                break
-            else:  # Also add seconds if folder already exists
-                agent_name = agent_name + "_" + time.strftime("%Y%m%d_%H%M%S")
+                # Check if supplied agent_name is valid
+                if not osp.isdir(agent_folder):
+                    break
+                else:  # Also add seconds if folder already exists
+                    agent_name = agent_name + "_" + time.strftime("%Y%m%d_%H%M%S")
 
     # Create log_path
     if REL_PATH:

@@ -16,6 +16,7 @@ from lac import LAC
 from utils import get_env_from_name, colorize, get_log_path, validate_indices
 from variant import EVAL_PARAMS, ENVS_PARAMS, ENV_NAME, ENV_SEED, REL_PATH
 
+
 def validate_req_policies(req_policies, policies):
     """Validates whether the requested policies are valid.
 
@@ -209,9 +210,11 @@ def get_distrubance_function(env_name):
 
     if "cartpole_cost" in env_name:
         from disturbers import cartpole_disturber
+
         disturbance_step = cartpole_disturber
     elif "oscillator" in env_name:
         from disturbers import oscillator_disturber
+
         disturbance_step = oscillator_disturber
     else:
         print("no disturber designed for " + env_name)

@@ -18,7 +18,7 @@ RANDOM_SEED = 0  # The script random seed
 ENV_NAME = "ex3_ekf"  # The environment used for training
 
 # Training parameters
-MAX_GLOBAL_STEPS = int(3e5)  # Maximum number of global steps
+MAX_GLOBAL_STEPS = int(1e3)  # Maximum number of global steps
 NUM_OF_POLICIES = 5  # Number of randomly seeded trained agents
 USE_LYAPUNOV = True  # Use LAC (If false SAC is used)
 CONTINUE_TRAINING = (
@@ -30,7 +30,7 @@ SAVE_CHECKPOINTS = False  # Store intermediate models
 CHECKPOINT_SAVE_FREQ = 10000  # Intermediate model save frequency
 
 # Evaluation parameters
-EVAL_LIST = ["LAC20201218_2343"]
+EVAL_LIST = ["LAC20210118_1038"]
 WHICH_POLICY_FOR_INFERENCE = [
     1
 ]  # If this is empty, it means all the policies are evaluated;

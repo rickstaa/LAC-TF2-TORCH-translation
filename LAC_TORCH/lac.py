@@ -328,7 +328,7 @@ class LAC(object):
                 l_backup = (
                     batch["r"]
                     + self._gamma * (1 - batch["terminal"]) * l_pi_targ.detach()
-                )  # The Lyapunov candidate
+                )  
 
             # Get current Lyapunov value
             l1 = self.lc(batch["s"], batch["a"])
