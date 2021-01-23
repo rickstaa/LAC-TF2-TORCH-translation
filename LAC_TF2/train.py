@@ -7,7 +7,7 @@ from utils import get_log_path
 if __name__ == "__main__":
 
     # Get log path
-    log_path = get_log_path()
+    log_path = get_log_path(new_log_path=True)
 
     # Train several agents in the environment and save the results
     for i in range(

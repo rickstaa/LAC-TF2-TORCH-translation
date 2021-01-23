@@ -2,6 +2,7 @@
 """
 
 import sys
+import os
 import os.path as osp
 import importlib
 from collections import OrderedDict
@@ -43,39 +44,52 @@ def get_log_path(env_name=ENV_NAME, agent_name=None, new_log_path=False):
     """
 
     # Retrieve log_folder path
-    log_folder = osp.join("./log", env_name.lower())
-
-    # Create agent name if not supplied
-    agent_folder = osp.join(log_folder, agent_name)
-    if new_log_path:
-        if not agent_name:
-            alg_prefix = "LAC" if USE_LYAPUNOV else "SAC"
-            agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M")
-            while 1:
-                agent_folder = osp.join(log_folder, agent_name)
-
-                # Check if created agent_name is valid
-                if not osp.isdir(agent_folder):
-                    break
-                else:  # Also add seconds if folder already exists
-                    agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M%S")
-        else:
-            while 1:
-                agent_folder = osp.join(log_folder, agent_name)
-
-                # Check if supplied agent_name is valid
-                if not osp.isdir(agent_folder):
-                    break
-                else:  # Also add seconds if folder already exists
-                    agent_name = agent_name + "_" + time.strftime("%Y%m%d_%H%M%S")
-
-    # Create log_path
     if REL_PATH:
-        LOG_PATH = agent_folder
+        log_folder = osp.join(os.path.curdir, "log", env_name.lower())
     else:
         dirname = osp.dirname(__file__)
-        LOG_PATH = osp.abspath(osp.join(dirname, agent_folder))
-        return LOG_PATH
+        log_folder = osp.abspath(osp.join(dirname, "log", env_name.lower()))
+
+    # Create agent name if not supplied
+    if not agent_name:
+        if new_log_path:
+            alg_prefix = "LAC" if USE_LYAPUNOV else "SAC"
+            agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M")
+
+            # If new log path was requested make sure it is unique
+            while 1:
+                agent_folder = osp.join(log_folder, agent_name)
+                if not osp.isdir(agent_folder):
+                    return agent_folder
+                else:  # Also add seconds if path already exists
+                    agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M%S")
+        else:
+            colorize(
+                "ERROR: Log path could not be created as no agent name was "
+                "supplied while 'new_log_path' was set to 'false'. Please "
+                "supply a agent name or change the 'new_log_path' variable."
+            )
+            sys.exit(1)
+    else:
+        while 1:
+            agent_folder = osp.join(log_folder, agent_name)
+
+            # Check if supplied agent_name is valid
+            # NOTE: If new log path was requested make sure it is unique
+            if not osp.isdir(agent_folder) and new_log_path:
+                return agent_folder
+            elif osp.isdir(agent_folder) and new_log_path:
+                agent_name = agent_name + "_" + time.strftime("%Y%m%d_%H%M%S")
+            elif not osp.isdir(agent_folder) and not new_log_path:
+                colorize(
+                    f"ERROR: Log path could not be loaded as '{agent_name}' does not  "
+                    "seem to exist at '{agent_folder}'. Please supply a agent that "
+                    " exists or  change the 'new_log_path' variable.",
+                    "red",
+                )
+                sys.exit(1)
+            else:
+                return agent_folder
 
 
 def get_env_from_name(env_name, ENV_SEED):
