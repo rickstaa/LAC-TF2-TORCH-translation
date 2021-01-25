@@ -767,8 +767,7 @@ class LAC(tf.Module):
 
     @tf.function
     def _init_targets(self):
-        """Updates the target network weights to the main network weights.
-        """
+        """Updates the target network weights to the main network weights."""
         for ga_main, ga_targ in zip(self.ga.variables, self.ga_.variables):
             ga_targ.assign(ga_main)
         if self.use_lyapunov:
@@ -858,7 +857,9 @@ def train(log_dir):
     # Create train and test environments
     print(
         colorize(
-            f"INFO: You are training in the {ENV_NAME} environment.", "cyan", bold=True,
+            f"INFO: You are training in the {ENV_NAME} environment.",
+            "cyan",
+            bold=True,
         )
     )
     env = get_env_from_name(ENV_NAME, ENV_SEED)
@@ -1146,23 +1147,7 @@ def train(log_dir):
                             [key, ":", str(round(training_diagnostics[key], 2)), "|"]
                         )
                         for key in training_diagnostics.keys()
-                    ]  # Improve: Check if this is the fastest way
-                    # [
-                    #     string_to_print.extend(
-                    #         [
-                    #             key,
-                    #             ":",
-                    #             str(
-                    #                 (training_diagnostics["length"] * 10 ** 2)
-                    #                 .round()
-                    #                 .numpy()
-                    #                 / (10 ** 2)
-                    #             ),
-                    #             "|",
-                    #         ]
-                    #     )
-                    #     for key in training_diagnostics.keys()
-                    # ]
+                    ]
                     prefix = (
                         colorize("LAC|", "green")
                         if ALG_PARAMS["use_lyapunov"]
