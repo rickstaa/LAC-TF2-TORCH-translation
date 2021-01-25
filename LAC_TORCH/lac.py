@@ -780,7 +780,6 @@ class LAC(object):
         becoming nan when log_alpha becomes -inf. For alpha no upper bound is used.
         """
         return torch.clamp(self.log_alpha.exp(), *SCALE_ALPHA_MIN_MAX)
-        return self.log_alpha.exp()
 
     @property
     def labda(self):
