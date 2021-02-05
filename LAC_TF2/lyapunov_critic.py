@@ -54,7 +54,6 @@ class LyapunovCritic(tf.keras.Model):
 
         Args:
             obs (tf.Tensor): The tensor of observations.
-
             act (tf.Tensor): The tensor of actions.
 
         Returns:

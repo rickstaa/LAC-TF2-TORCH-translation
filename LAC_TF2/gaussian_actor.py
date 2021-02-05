@@ -121,7 +121,6 @@ class SquashedGaussianActor(tf.keras.Model):
             tf.Tensor,  tf.Tensor: The actions given by the policy, the log
                 probabilities of each of these actions.
         """
-
         # Calculate mean action and standard deviation
         net_out = self.net(obs)
         mu = self.mu(net_out)

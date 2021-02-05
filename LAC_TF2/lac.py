@@ -244,8 +244,8 @@ class LAC(tf.Module):
         # NOTE (rickstaa): We here optimize for log_alpha and log_labda instead of
         # alpha and labda because it is more numerically stable (see:
         # https://github.com/rail-berkeley/softlearning/issues/136)
-        self._alpha_train = tf.keras.optimizers.Adam(learning_rate=self._lr_a)
         self._a_train = tf.keras.optimizers.Adam(learning_rate=self._lr_a)
+        self._alpha_train = tf.keras.optimizers.Adam(learning_rate=self._lr_a)
         if self.use_lyapunov:
             self._lambda_train = tf.keras.optimizers.Adam(learning_rate=self._lr_lag)
             self._l_train = tf.keras.optimizers.Adam(learning_rate=self._lr_l)
@@ -753,9 +753,9 @@ class LAC(tf.Module):
                 Defaults to None.
         """
         if lr_a:
-            self._alpha_train.lr.assign(lr_a)
+            self._a_train.lr.assign(lr_a)
         if lr_alpha:
-            self._a_train.lr.assign(lr_alpha)
+            self._alpha_train.lr.assign(lr_alpha)
         if self.use_lyapunov:
             if lr_l:
                 self._l_train.lr.assign(lr_l)

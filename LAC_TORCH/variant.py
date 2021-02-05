@@ -14,8 +14,8 @@ ENV_SEED = 0  # The environment seed
 RANDOM_SEED = 0  # The script random seed
 
 # Environment parameters
-# ENV_NAME = "oscillator"  # The environment used for training
-ENV_NAME = "ex3_ekf"  # The environment used for training
+ENV_NAME = "oscillator"  # The environment used for training
+# ENV_NAME = "ex3_ekf"  # The environment used for training
 
 # Training parameters
 MAX_GLOBAL_STEPS = int(3e5)  # Maximum number of global steps
