@@ -10,7 +10,7 @@ USE_GPU = False
 
 episodes = int(3e5)
 num_of_paths_for_eval = 100
-num_of_policies = 5
+num_of_policies = 1
 which_policy_for_inference = [0]
 
 ENV_SEED = 0
@@ -26,10 +26,11 @@ use_lyapunov = True
 timestr = time.strftime("%Y%m%d_%H%M")
 
 VARIANT = {
-    "eval_list": ["LAC20201218_2108"],
-    "env_name": "Ex3_EKF",
+    "eval_list": ["LAC20210429_1027"],
+    # "env_name": "Ex3_EKF",
     # "env_name": "Ex3_EKF_gyro",
     # "env_name": "oscillator",
+    "env_name": "cart_pole_cost",
     "algorithm_name": "LAC",
     "additional_description": timestr,
     # 'evaluate': False,
@@ -66,6 +67,14 @@ else:
 ENV_PARAMS = {
     "oscillator": {
         "max_ep_steps": 800,
+        "max_global_steps": episodes,
+        "max_episodes": int(1e6),
+        "disturbance dim": 2,
+        "eval_render": False,
+        "network_structure": {"critic": critic, "actor": actor},
+    },
+    "cart_pole_cost": {
+        "max_ep_steps": 250,
         "max_global_steps": episodes,
         "max_episodes": int(1e6),
         "disturbance dim": 2,
@@ -193,6 +202,11 @@ RENDER = True
 def get_env_from_name(name, ENV_SEED=None):
     if name == "oscillator":
         from envs.oscillator import oscillator as env
+
+        env = env()
+        env = env.unwrapped
+    elif name == "cart_pole_cost":
+        from ENV.env.classic_control.ENV_V1 import CartPoleEnv_cost as env
 
         env = env()
         env = env.unwrapped

@@ -1,22 +1,24 @@
 """Simple script used to test the performance of a trained model."""
 
-import os
-import sys
-import math
-import numpy as np
-import matplotlib.pyplot as plt
 import argparse
 import itertools
+import math
+import os
+import sys
+import time
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 from LAC.LAC_V1 import LAC
 from variant import (
-    EVAL_PARAMS,
-    ENV_PARAMS,
-    VARIANT,
     ALG_PARAMS,
+    ENV_PARAMS,
     ENV_SEED,
-    get_env_from_name,
+    EVAL_PARAMS,
     REL_PATH,
+    VARIANT,
+    get_env_from_name,
 )
 
 # Modify VARIANT for LAC
@@ -76,6 +78,12 @@ if __name__ == "__main__":
         type=str,
         default=EVAL_PARAMS["fig_file_type"],
         help="The file type you want to use for saving the figures.",
+    )
+    parser.add_argument(
+        "--render",
+        "-r",
+        action="store_true",
+        help="Whether you want to render the environment step (default: True)",
     )
     args = parser.parse_args()
 
@@ -198,6 +206,7 @@ if __name__ == "__main__":
 
         # Perform a number of paths in each rollout and store them
         roll_outs_paths = {}
+        render_error = False
         for rollout in rollouts_input:
 
             # Rollouts paths storage bucket
@@ -245,6 +254,20 @@ if __name__ == "__main__":
 
                 # Perfrom trail
                 for j in range(ENV_PARAMS[args.env_name]["max_ep_steps"]):
+
+                    # Render env if requested
+                    if args.render and not render_error:
+                        try:
+                            env.render()
+                            time.sleep(1e-3)
+                        except NotImplementedError:
+                            render_error = True
+                            print(
+                                (
+                                    "WARNING: Nothing was rendered since no render method was "
+                                    f"implemented for the '{env.unwrapped.spec.id}' environment."
+                                ),
+                            )
 
                     # Perform action in the environment
                     a = policy.choose_action(s, True)
