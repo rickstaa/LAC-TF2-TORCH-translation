@@ -7,11 +7,7 @@ from variant import (
     TRAIN_PARAMS,
 )
 
-# from lac import train
-
-from dlac import train
-
-# from lsac import train
+from lac import train
 
 if __name__ == "__main__":
 

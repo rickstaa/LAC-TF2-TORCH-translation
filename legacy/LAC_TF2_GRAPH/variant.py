@@ -12,7 +12,7 @@ REL_PATH = False  # Whether to use a relative path for storign and loading model
 USE_GPU = False
 
 # Training settings
-episodes = int(1e5)
+episodes = int(1e3)
 num_of_policies = 5
 num_of_paths_for_eval = 100
 eval_list = ["LAC20201004_2339"]
