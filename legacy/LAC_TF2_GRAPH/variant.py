@@ -12,7 +12,7 @@ REL_PATH = False  # Whether to use a relative path for storign and loading model
 USE_GPU = False
 
 # Training settings
-episodes = int(1e3)
+episodes = int(1e5)
 num_of_policies = 5
 num_of_paths_for_eval = 100
 eval_list = ["LAC20201004_2339"]
@@ -115,24 +115,39 @@ ALG_PARAMS = {
 # Environment parameters
 ENVS_PARAMS = {
     "oscillator": {
+        "module_name": "envs.oscillator",
+        "class_name": "oscillator",
         "max_ep_steps": 800,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,
     },
+        "ex3_ekf": {
+        "module_name": "envs.Ex3_EKF",
+        "class_name": "Ex3_EKF",
+        "max_ep_steps": 500,
+        "eval_render": False,
+        "eval_reset": False,
+    },
     "Ex3_EKF_gyro": {
+        "module_name": "envs.Ex3_EKF_gyro",
+        "class_name": "Ex3_EKF_gyro",
         "max_ep_steps": 800,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,
     },
     "Ex3_EKF_gyro_dt": {
+        "module_name": "envs.ex3_ekf_gyro_dt",
+        "class_name": "Ex3_EKF_gyro",
         "max_ep_steps": 120,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),
         "eval_render": False,
     },
     "Ex3_EKF_gyro_dt_real": {
+        "module_name": "envs.ex3_ekf_gyro_dt_real",
+        "class_name": "Ex3_EKF_gyro",
         "max_ep_steps": 1000,
         "max_global_steps": TRAIN_PARAMS["episodes"],
         "max_episodes": int(1e6),

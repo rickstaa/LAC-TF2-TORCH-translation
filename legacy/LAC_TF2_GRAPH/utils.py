@@ -10,7 +10,14 @@ import time
 
 import numpy as np
 
-from variant import ENVS_PARAMS, TRAIN_PARAMS, ENV_NAME, REL_PATH, USE_LYAPUNOV
+from variant import (
+    ENVS_PARAMS,
+    ENV_PARAMS,
+    TRAIN_PARAMS,
+    ENV_NAME,
+    REL_PATH,
+    use_lyapunov,
+)
 
 # Script parameters
 color2num = dict(
@@ -24,6 +31,40 @@ color2num = dict(
     white=37,
     crimson=38,
 )
+
+
+def colorize(string, color, bold=False, highlight=False):
+    """Returns string surrounded by appropriate terminal color codes to
+    print colorized text.
+
+    Args:
+        string (str): The string you want to print.
+
+        color (str): The color you want the string to have. Valid colors: gray, red,
+            green, yellow, blue, magenta, cyan, white, crimson.
+
+        bold (bool): Whether you want to use bold characters for the string.
+
+        highlight (bool): Whether you want to highlight the text.
+
+    Returns:
+        str: The colorized string.
+    """
+
+    # Import six here so that `utils` has no import-time dependencies.
+    # We want this since we use `utils` during our import-time sanity checks
+    # that verify that our dependencies (including six) are actually present.
+    import six
+
+    attr = []
+    num = color2num[color]
+    if highlight:
+        num += 10
+    attr.append(six.u(str(num)))
+    if bold:
+        attr.append(six.u("1"))
+    attrs = six.u(";").join(attr)
+    return six.u("\x1b[%sm%s\x1b[0m") % (attrs, string)
 
 
 def get_log_path(env_name=ENV_NAME, agent_name=None):
@@ -45,7 +86,7 @@ def get_log_path(env_name=ENV_NAME, agent_name=None):
 
     # Create agent name if not supplied
     if not agent_name:
-        alg_prefix = "LAC" if USE_LYAPUNOV else "SAC"
+        alg_prefix = "LAC" if use_lyapunov else "SAC"
         agent_name = alg_prefix + time.strftime("%Y%m%d_%H%M")
         while 1:
             agent_folder = osp.join(log_folder, agent_name)
@@ -181,16 +222,16 @@ def training_evaluation(test_env, policy):
     # Perform roolouts to evaluate performance
     for i in range(TRAIN_PARAMS["num_of_evaluation_paths"]):
         cost = 0
-        if env.__class__.__name__.lower() == "ex3_ekf_gyro":
-            s = env.reset(eval=True)
+        if test_env.__class__.__name__.lower() == "ex3_ekf_gyro":
+            s = test_env.reset(eval=True)
         else:
-            s = env.reset()
+            s = test_env.reset()
         for j in range(ENV_PARAMS["max_ep_steps"]):
             if ENV_PARAMS["eval_render"]:
-                env.render()
+                test_env.render()
             a = policy.choose_action(s, True)
             action = a_lowerbound + (a + 1.0) * (a_upperbound - a_lowerbound) / 2
-            s_, r, done, _ = env.step(action)
+            s_, r, done, _ = test_env.step(action)
             cost += r
             if j == ENV_PARAMS["max_ep_steps"] - 1:
                 done = True
