@@ -1,4 +1,4 @@
-| :warning: | This repository is no longer maintained. Please use [machine-learning-control](https://github.com/rickstaa/machine-learning-control) instead! |
+| :warning: | This repository is no longer maintained. Please use [bayesian-learning-control](https://github.com/rickstaa/bayesian-learning-control) instead! |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 
 # LAC TF2 TORCH translation
